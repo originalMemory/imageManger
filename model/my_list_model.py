@@ -20,7 +20,7 @@ class MyBaseListModel(QAbstractListModel):
 
     def __init__(self):
         super().__init__()
-        self._listItemData = []  # 数据list，保存所有数据
+        self._data_list = []  # 数据list，保存所有数据
 
     def data(self, index: QModelIndex, role: int = ...):
         """
@@ -30,11 +30,11 @@ class MyBaseListModel(QAbstractListModel):
         :return:
         """
         # 设置表格显示使用的数据
-        if index.isValid() or (0 <= index.row() < len(self._listItemData)):
+        if index.isValid() or (0 <= index.row() < len(self._data_list)):
             if role == Qt.DisplayRole:
-                return QVariant(self._listItemData[index.row()]['name'])
+                return QVariant(self._data_list[index.row()]['name'])
             elif role == Qt.ToolTipRole:
-                return QVariant(self._listItemData[index.row()]['name'])
+                return QVariant(self._data_list[index.row()]['name'])
         else:
             return QVariant()
 
@@ -44,7 +44,7 @@ class MyBaseListModel(QAbstractListModel):
         :param parent:
         :return:
         """
-        return len(self._listItemData)
+        return len(self._data_list)
 
     def add_item(self, item_data):
         """
@@ -53,8 +53,8 @@ class MyBaseListModel(QAbstractListModel):
         :return:
         """
         if item_data:
-            self.beginInsertRows(QModelIndex(), len(self._listItemData), len(self._listItemData) + 1)
-            self._listItemData.append(item_data)
+            self.beginInsertRows(QModelIndex(), len(self._data_list), len(self._data_list) + 1)
+            self._data_list.append(item_data)
             self.endInsertRows()
 
     def add_items(self, item_data_list):
@@ -64,8 +64,8 @@ class MyBaseListModel(QAbstractListModel):
         :return:
         """
         if item_data_list:
-            self.beginInsertRows(QModelIndex(), len(self._listItemData), len(self._listItemData) + len(item_data_list))
-            self._listItemData.extend(item_data_list)
+            self.beginInsertRows(QModelIndex(), len(self._data_list), len(self._data_list) + len(item_data_list))
+            self._data_list.extend(item_data_list)
             self.endInsertRows()
 
     def delete_item(self, index):
@@ -74,7 +74,7 @@ class MyBaseListModel(QAbstractListModel):
         :param index: 索引
         :return:
         """
-        del self._listItemData[index]
+        del self._data_list[index]
 
     def get_item(self, index):
         """
@@ -82,8 +82,8 @@ class MyBaseListModel(QAbstractListModel):
         :param index: 索引
         :return:
         """
-        if -1 < index < len(self._listItemData):
-            return self._listItemData[index]
+        if -1 < index < len(self._data_list):
+            return self._data_list[index]
 
     def get_index(self, key):
         """
@@ -93,12 +93,12 @@ class MyBaseListModel(QAbstractListModel):
         """
         # 如果是数字类型，则以id进行对比
         if isinstance(key, int):
-            for i in range(len(self._listItemData)):
-                if key == self._listItemData[i]['id']:
+            for i in range(len(self._data_list)):
+                if key == self._data_list[i]['id']:
                     return i
         elif isinstance(key, str):
-            for i in range(len(self._listItemData)):
-                if key == self._listItemData[i]['name']:
+            for i in range(len(self._data_list)):
+                if key == self._data_list[i]['name']:
                     return i
         return 0
 
@@ -108,8 +108,8 @@ class MyBaseListModel(QAbstractListModel):
         :param index: 索引
         :return:
         """
-        if -1 < index < len(self._listItemData):
-            return self._listItemData[index]['id']
+        if -1 < index < len(self._data_list):
+            return self._data_list[index]['id']
         return 0
 
     def clear(self):
@@ -117,4 +117,4 @@ class MyBaseListModel(QAbstractListModel):
         清空数据
         :return:
         """
-        self._listItemData.clear()
+        self._data_list.clear()

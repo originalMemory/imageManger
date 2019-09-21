@@ -112,10 +112,6 @@ def add_kind(table, name, id):
     # print(sql_str)
     query.exec_(sql_str)
 
-def classify(id, filename, path):
-    if id == 0:
-        pass
-
 
 def delete_kind(table, ids):
     """
@@ -165,3 +161,11 @@ def get_model_data_list(table, where_str=None):
         lists.append(li)
     query.finish()
     return lists
+
+
+def insert_image(desc, author, type_id, level_id, tags, works, role, source, filename, path):
+    sql_str = f"INSERT INTO `image`(`desc`, author, type_id, level_id, tags, works, role, source, filename, path) " \
+        f"values ('{desc}', '{author}', {type_id}, {level_id}, '{tags}', '{works}', '{role}', '{source}', '{filename}', '{path}')"
+    print(sql_str)
+    query.exec_(sql_str)
+

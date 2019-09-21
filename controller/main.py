@@ -12,14 +12,13 @@
 import os
 from enum import unique, Enum
 
+from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import QModelIndex
 from PyQt5.QtWidgets import QMainWindow
-from qtpy import QtWidgets, QtGui
 
-import db_helper
+from helper import db_helper
 from model.ImageFileListModel import ImageFileListModel
 from model.my_list_model import MyBaseListModel
-
 from view.main import Ui_Main
 
 
@@ -35,12 +34,11 @@ class MyMain(QMainWindow, Ui_Main):
         self.setupUi(self)
 
         self.actionOpen.triggered.connect(self.open_files)
-        # self.listView.clicked.connect(self.show_image_by_index)
 
         # 下拉列表设置
-        self._typeModel = MyBaseListModel()
-        self.comboBox_type.setModel(self._typeModel)
-        self._typeModel.add_items(db_helper.get_model_data_list('type'))
+        self._type_model = MyBaseListModel()
+        self.comboBox_type.setModel(self._type_model)
+        self._type_model.add_items(db_helper.get_model_data_list('type'))
         self.comboBox_type.setCurrentIndex(0)
 
         self._level_model = MyBaseListModel()
@@ -50,21 +48,14 @@ class MyMain(QMainWindow, Ui_Main):
 
         # 图片信息
         self._image_model = ImageFileListModel()  # 图片信息
-        self._default_dir = 'D:/图片/[wlop (Wang Ling)] Artwork 2017 集合'
-        for f in os.listdir(self._default_dir):
-            file_path = "%s/%s" % (self._default_dir, f)
-            if not os.path.isdir(file_path):
-                tp_list = file_path.split('/')
-                item_data = {
-                    "name": "%s/%s" % (tp_list[-2], tp_list[-1]),
-                    "path": file_path,
-                    'simpleName': tp_list[-1]
-                }
-                self._image_model.addItem(item_data)
-        self.listView.setModel(self._image_model)
+        self._image_model.add_dir('E:/图片/[wlop (Wang Ling)] Artwork 2017 集合')
 
+        self.listView.setModel(self._image_model)
         self.listView.selectionModel().currentChanged.connect(self.on_change)
+
         self.graphicsView.setFocus()
+
+        self.pushButton_classify.clicked.connect(self.classify)
 
     def open_files(self):
         """
@@ -83,15 +74,14 @@ class MyMain(QMainWindow, Ui_Main):
             }
             self._image_model.addItem(item_data)
 
-    def show_image(self, index: int):
+    def show_image(self, index):
         """
         显示指定索引文件名对应的图片
         :param index: 文件索引
         :return:
         """
-        path = self._image_model.getItem(index)['path']
+        path = self._image_model.get_item(index)['path']
         self.statusbar.showMessage(path)
-        print(path)
         pixmap = QtGui.QPixmap(path)
         # 填充缩放
         x_scale = self.graphicsView.width() / float(pixmap.width())
@@ -122,9 +112,17 @@ class MyMain(QMainWindow, Ui_Main):
         """
         select_rows = self.listView.selectionModel().selectedRows()
         index = self.comboBox_type.currentIndex()
-        type_id = self._typeModel.get_item(index)
+        type_id = self._type_model.get_item(index)['id']
         index = self.comboBox_level.currentIndex()
-        level_id = self._level_model.get_item(index)
-        # for index in select_rows:
-            
-        pass
+        level_id = self._level_model.get_item(index)['id']
+        desc = self.lineEdit_desc.text()
+        author = self.lineEdit_author.text()
+        tags = self.lineEdit_tag.text()
+        works = self.lineEdit_works.text()
+        role = self.lineEdit_role.text()
+        source = self.lineEdit_source.text()
+        for index in select_rows:
+            item = self._image_model.get_item(index.row())
+            filename = item['simpleName']
+            path = item['path']
+            db_helper.insert_image(desc, author, type_id, level_id, tags, works, role, source, filename, path)

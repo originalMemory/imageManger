@@ -13,7 +13,7 @@ import sys
 
 from PyQt5.QtWidgets import QApplication
 
-import db_helper
+from helper import db_helper
 from controller.main import MyMain
 
 if __name__ == '__main__':
