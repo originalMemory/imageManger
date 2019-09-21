@@ -12,11 +12,13 @@
 import os
 from enum import unique, Enum
 
+from PIL import Image
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import QModelIndex
 from PyQt5.QtWidgets import QMainWindow
 
 from helper import db_helper
+from helper.file_helper import FileHelper
 from model.ImageFileListModel import ImageFileListModel
 from model.my_list_model import MyBaseListModel
 from view.main import Ui_Main
@@ -80,7 +82,7 @@ class MyMain(QMainWindow, Ui_Main):
         :param index: 文件索引
         :return:
         """
-        path = self._image_model.get_item(index)['path']
+        path = self._image_model.get_item(index)['full_path']
         self.statusbar.showMessage(path)
         pixmap = QtGui.QPixmap(path)
         # 填充缩放
@@ -105,6 +107,34 @@ class MyMain(QMainWindow, Ui_Main):
         """
         self.show_image(current.row())
 
+        path = self._image_model.get_item(current.row())['full_path']
+        info = db_helper.search(path)
+        if not info:
+            # 分析图片信息
+            size = FileHelper.get_file_size_in_mb(path)
+            width, height = self.get_image_width_and_height(path)
+            self.lineEdit_size.setText(f"{size} MB")
+            self.lineEdit_width.setText(str(width))
+            self.lineEdit_height.setText(str(height))
+
+            return
+        # 显示已有记录
+        self.lineEdit_desc.setText(info.desc)
+        self.lineEdit_tag.setText(info.tags)
+        self.lineEdit_path.setText(info.path)
+        self.lineEdit_works.setText(info.works)
+        self.lineEdit_source.setText(info.source)
+        self.lineEdit_role.setText(info.role)
+        self.lineEdit_author.setText(info.author)
+        self.lineEdit_size.setText(f"{info.size} MB")
+        self.lineEdit_width.setText(info.width)
+        self.lineEdit_height.setText(info.height)
+        self.comboBox_type.setCurrentIndex(self._type_model.get_index(info.type_id))
+        self.comboBox_level.setCurrentIndex(self._level_model.get_index(info.level_id))
+        self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
+        self.dateTimeEdit_create.setDateTime(info.create_time)
+        self.dateTimeEdit_update.setDateTime(info.update_time)
+
     def classify(self):
         """
         分类图片
@@ -123,6 +153,30 @@ class MyMain(QMainWindow, Ui_Main):
         source = self.lineEdit_source.text()
         for index in select_rows:
             item = self._image_model.get_item(index.row())
-            filename = item['simpleName']
-            path = item['path']
-            db_helper.insert_image(desc, author, type_id, level_id, tags, works, role, source, filename, path)
+            filename = item['name']
+            path = item['full_path']
+            create_time = FileHelper.get_create_time(path)
+            size = FileHelper.get_file_size_in_mb(path)
+            width, height = self.get_image_width_and_height(path)
+            db_helper.insert_image(
+                desc,
+                author,
+                type_id,
+                level_id,
+                tags,
+                works,
+                role,
+                source,
+                filename,
+                path,
+                width,
+                height,
+                size,
+                create_time
+            )
+            self._image_model.set_image_classified(index.row(), True)
+
+    @staticmethod
+    def get_image_width_and_height(image_path):
+        img = Image.open(image_path)
+        return img.width, img.height

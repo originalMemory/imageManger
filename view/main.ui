@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1300</width>
-    <height>888</height>
+    <width>1433</width>
+    <height>995</height>
    </rect>
   </property>
   <property name="acceptDrops">
@@ -35,7 +35,7 @@
       <widget class="QPushButton" name="pushButton_classify">
        <property name="geometry">
         <rect>
-         <x>1090</x>
+         <x>1170</x>
          <y>20</y>
          <width>112</width>
          <height>34</height>
@@ -48,7 +48,7 @@
       <widget class="QComboBox" name="comboBox_type">
        <property name="geometry">
         <rect>
-         <x>423</x>
+         <x>383</x>
          <y>10</y>
          <width>111</width>
          <height>31</height>
@@ -58,7 +58,7 @@
       <widget class="QLineEdit" name="lineEdit_desc">
        <property name="geometry">
         <rect>
-         <x>86</x>
+         <x>70</x>
          <y>15</y>
          <width>251</width>
          <height>25</height>
@@ -68,7 +68,7 @@
       <widget class="QLabel" name="label">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>4</x>
          <y>19</y>
          <width>61</width>
          <height>20</height>
@@ -84,7 +84,7 @@
       <widget class="QLabel" name="label_2">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>4</x>
          <y>60</y>
          <width>61</width>
          <height>20</height>
@@ -100,7 +100,7 @@
       <widget class="QLineEdit" name="lineEdit_tag">
        <property name="geometry">
         <rect>
-         <x>86</x>
+         <x>70</x>
          <y>56</y>
          <width>251</width>
          <height>25</height>
@@ -110,7 +110,7 @@
       <widget class="QComboBox" name="comboBox_level">
        <property name="geometry">
         <rect>
-         <x>423</x>
+         <x>383</x>
          <y>53</y>
          <width>111</width>
          <height>31</height>
@@ -120,7 +120,7 @@
       <widget class="QLabel" name="label_3">
        <property name="geometry">
         <rect>
-         <x>360</x>
+         <x>320</x>
          <y>17</y>
          <width>61</width>
          <height>20</height>
@@ -136,7 +136,7 @@
       <widget class="QLabel" name="label_4">
        <property name="geometry">
         <rect>
-         <x>360</x>
+         <x>320</x>
          <y>58</y>
          <width>61</width>
          <height>20</height>
@@ -152,7 +152,7 @@
       <widget class="QLabel" name="label_5">
        <property name="geometry">
         <rect>
-         <x>571</x>
+         <x>505</x>
          <y>14</y>
          <width>61</width>
          <height>20</height>
@@ -168,7 +168,7 @@
       <widget class="QLineEdit" name="lineEdit_works">
        <property name="geometry">
         <rect>
-         <x>637</x>
+         <x>571</x>
          <y>10</y>
          <width>100</width>
          <height>25</height>
@@ -178,7 +178,7 @@
       <widget class="QLabel" name="label_6">
        <property name="geometry">
         <rect>
-         <x>571</x>
+         <x>505</x>
          <y>54</y>
          <width>61</width>
          <height>20</height>
@@ -194,7 +194,7 @@
       <widget class="QLineEdit" name="lineEdit_source">
        <property name="geometry">
         <rect>
-         <x>637</x>
+         <x>571</x>
          <y>50</y>
          <width>100</width>
          <height>25</height>
@@ -207,9 +207,9 @@
        </property>
        <property name="geometry">
         <rect>
-         <x>86</x>
+         <x>70</x>
          <y>96</y>
-         <width>451</width>
+         <width>251</width>
          <height>25</height>
         </rect>
        </property>
@@ -220,7 +220,7 @@
       <widget class="QLabel" name="label_7">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>4</x>
          <y>100</y>
          <width>61</width>
          <height>20</height>
@@ -236,7 +236,7 @@
       <widget class="QDateTimeEdit" name="dateTimeEdit_create">
        <property name="geometry">
         <rect>
-         <x>880</x>
+         <x>973</x>
          <y>47</y>
          <width>150</width>
          <height>25</height>
@@ -277,7 +277,7 @@
       <widget class="QLabel" name="label_9">
        <property name="geometry">
         <rect>
-         <x>787</x>
+         <x>880</x>
          <y>50</y>
          <width>91</width>
          <height>20</height>
@@ -293,7 +293,7 @@
       <widget class="QDateTimeEdit" name="dateTimeEdit_update">
        <property name="geometry">
         <rect>
-         <x>880</x>
+         <x>973</x>
          <y>87</y>
          <width>150</width>
          <height>25</height>
@@ -334,7 +334,7 @@
       <widget class="QLabel" name="label_10">
        <property name="geometry">
         <rect>
-         <x>787</x>
+         <x>880</x>
          <y>90</y>
          <width>91</width>
          <height>20</height>
@@ -350,7 +350,7 @@
       <widget class="QPushButton" name="pushButton_move">
        <property name="geometry">
         <rect>
-         <x>1090</x>
+         <x>1170</x>
          <y>70</y>
          <width>112</width>
          <height>34</height>
@@ -363,9 +363,9 @@
       <widget class="QLineEdit" name="lineEdit_role">
        <property name="geometry">
         <rect>
-         <x>636</x>
-         <y>90</y>
-         <width>100</width>
+         <x>383</x>
+         <y>95</y>
+         <width>111</width>
          <height>25</height>
         </rect>
        </property>
@@ -373,8 +373,8 @@
       <widget class="QLabel" name="label_11">
        <property name="geometry">
         <rect>
-         <x>570</x>
-         <y>94</y>
+         <x>322</x>
+         <y>97</y>
          <width>61</width>
          <height>20</height>
         </rect>
@@ -389,8 +389,8 @@
       <widget class="QLabel" name="label_8">
        <property name="geometry">
         <rect>
-         <x>814</x>
-         <y>14</y>
+         <x>505</x>
+         <y>96</y>
          <width>61</width>
          <height>20</height>
         </rect>
@@ -405,11 +405,155 @@
       <widget class="QLineEdit" name="lineEdit_author">
        <property name="geometry">
         <rect>
+         <x>571</x>
+         <y>92</y>
+         <width>100</width>
+         <height>25</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_width">
+       <property name="geometry">
+        <rect>
+         <x>750</x>
+         <y>50</y>
+         <width>100</width>
+         <height>25</height>
+        </rect>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_12">
+       <property name="geometry">
+        <rect>
+         <x>684</x>
+         <y>54</y>
+         <width>61</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>宽度：</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_height">
+       <property name="geometry">
+        <rect>
+         <x>750</x>
+         <y>90</y>
+         <width>100</width>
+         <height>25</height>
+        </rect>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_13">
+       <property name="geometry">
+        <rect>
+         <x>684</x>
+         <y>94</y>
+         <width>61</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>高度：</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_14">
+       <property name="geometry">
+        <rect>
          <x>880</x>
+         <y>13</y>
+         <width>91</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>文件创建时间：</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QDateTimeEdit" name="dateTimeEdit_file_create">
+       <property name="geometry">
+        <rect>
+         <x>973</x>
+         <y>10</y>
+         <width>150</width>
+         <height>25</height>
+        </rect>
+       </property>
+       <property name="frame">
+        <bool>true</bool>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+       <property name="buttonSymbols">
+        <enum>QAbstractSpinBox::NoButtons</enum>
+       </property>
+       <property name="accelerated">
+        <bool>false</bool>
+       </property>
+       <property name="keyboardTracking">
+        <bool>true</bool>
+       </property>
+       <property name="showGroupSeparator" stdset="0">
+        <bool>false</bool>
+       </property>
+       <property name="dateTime">
+        <datetime>
+         <hour>3</hour>
+         <minute>4</minute>
+         <second>5</second>
+         <year>2000</year>
+         <month>1</month>
+         <day>1</day>
+        </datetime>
+       </property>
+       <property name="calendarPopup">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_15">
+       <property name="geometry">
+        <rect>
+         <x>684</x>
+         <y>14</y>
+         <width>61</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>大小：</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_size">
+       <property name="geometry">
+        <rect>
+         <x>750</x>
          <y>10</y>
          <width>100</width>
          <height>25</height>
         </rect>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
        </property>
       </widget>
      </widget>
@@ -478,7 +622,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1300</width>
+     <width>1433</width>
      <height>23</height>
     </rect>
    </property>

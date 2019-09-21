@@ -15,6 +15,8 @@ import hashlib
 from PyQt5 import QtSql
 from PyQt5.QtSql import QSqlQuery
 
+from model.data import MyImage
+
 query = QSqlQuery()  # 全局变量，用于与mysql交互
 
 
@@ -81,65 +83,6 @@ def get_all_table_name():
     return lists
 
 
-def check_kind(table, name, id=0):
-    """
-    检查种类是否存在
-    :param table: 表名
-    :param name: 种类名
-    :param id: 编号。默认为0，此时检查所有名称。不为0时检查除该种类外的所有名称
-    :return:
-    """
-    if id == 0:
-        sql_str = f"select * from `{table}` where `name`='{name}';"
-    else:
-        sql_str = f"select * from `{table}` where `name`='{name}' and `id`!={id};"
-    query.exec_(sql_str)
-    if query.next():
-        return True
-    else:
-        return False
-
-
-def add_kind(table, name, id):
-    """
-    添加种类
-    :param table: 表名
-    :param name: 种类名
-    :param id: 编号
-    :return:
-    """
-    sql_str = f"INSERT INTO `{table}`(`name`, `user_id`) values ('{name}', {id})"
-    # print(sql_str)
-    query.exec_(sql_str)
-
-
-def delete_kind(table, ids):
-    """
-    删除种类
-    :param table: 表名
-    :param ids: 编号列表
-    :return:
-    """
-    ids_str = ",".join(ids)
-    if not query.exec_(f"delete from `{table}` where `id` in ({ids_str})"):
-        err_text = query.lastError().text()
-        if 'a foreign key constraint fails' in err_text:
-            return 2
-    return 1
-
-
-def update_kind(table, id, name):
-    """
-    更新种类名称
-    :param table: 表名
-    :param id: 编号
-    :param name: 名称
-    :return:
-    """
-    sql_str = f"update `{table}` set `name`='{name}' where `id`={id};"
-    query.exec_(sql_str)
-
-
 def get_model_data_list(table, where_str=None):
     """
     获取下拉框所需的model数据
@@ -163,9 +106,84 @@ def get_model_data_list(table, where_str=None):
     return lists
 
 
-def insert_image(desc, author, type_id, level_id, tags, works, role, source, filename, path):
-    sql_str = f"INSERT INTO `image`(`desc`, author, type_id, level_id, tags, works, role, source, filename, path) " \
-        f"values ('{desc}', '{author}', {type_id}, {level_id}, '{tags}', '{works}', '{role}', '{source}', '{filename}', '{path}')"
-    print(sql_str)
+def insert_image(
+        desc,
+        author,
+        type_id,
+        level_id,
+        tags,
+        works,
+        role,
+        source,
+        filename,
+        path,
+        width,
+        height,
+        size,
+        create_time
+):
+    """
+    保存图片分类信息
+    :param desc: 描述
+    :param author: 作者
+    :param type_id: 类型 id
+    :param level_id: 等级 id
+    :param tags: 标签列表，用逗号分隔
+    :param works: 来源作品
+    :param role: 角色
+    :param source: 来源站点
+    :param filename: 文件名
+    :param path: 文件路径
+    :param width: 图片宽度
+    :param height: 图片高度
+    :param size: 文件大小
+    :param create_time: 文件创建时间
+    :return:
+    """
+    sql_str = f"INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, path," \
+        f" width, height, `size`, file_create_time) values ('{desc}', '{author}', {type_id}, {level_id}, '{tags}'," \
+        f" '{works}', '{role}', '{source}', '{filename}', '{path}', {width}, {height}, {size}, '{create_time}');"
     query.exec_(sql_str)
 
+
+def search(file_path):
+    """
+    根据路径搜索图片
+    :param file_path:
+    :return:
+    """
+    info = None
+    sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
+    query.exec_(sql_str)
+    if query.next():
+        info = MyImage(
+            id=query.value('id'),
+            desc=query.value('desc'),
+            author=query.value('author'),
+            type_id=query.value('type_id'),
+            level_id=query.value('level_id'),
+            tags=query.value('tags'),
+            works=query.value('works'),
+            role=query.value('role'),
+            source=query.value('source'),
+            width=query.value('width'),
+            height=query.value('height'),
+            size=query.value('size'),
+            filename=query.value('filename'),
+            path=query.value('path'),
+            file_create_time=query.value('file_create_time'),
+            create_time=query.value('create_time'),
+            update_time=query.value('update_time')
+        )
+        query.finish()
+    return info
+
+
+def exist_by_path(file_path):
+    exist = False
+    sql_str = f"select id from myacg.image where path='{file_path}' limit 1"
+    query.exec_(sql_str)
+    if query.next():
+        exist = True
+        query.finish()
+    return exist
