@@ -5,13 +5,13 @@
 @ide     : PyCharm
 @file    : ImageFileListModel
 @author  : wuhoubo
-@desc    : 
+@desc    :
 @create  : 2019/5/26 15:25:32
 @update  :
 """
 import os
 
-from PyQt5.QtCore import QModelIndex, QVariant, Qt
+from PyQt5.QtCore import QModelIndex, QVariant, Qt, QAbstractListModel
 from PyQt5.QtGui import QBrush, QColor
 
 from helper import db_helper
@@ -24,9 +24,8 @@ class ImageFileListModel(MyBaseListModel):
     def __init__(self):
         super().__init__()
         self._base_dir = ""
-        self._data_list = []
         self._image_extension_list = ['.jpg', 'jpeg', '.bmp', '.png', 'gif', 'dib', 'pcp', 'dif', 'wmf', 'tif', 'eps',
-                                      'psd', 'cdr', 'iff', 'tga', 'pcd', 'mpi', '.icon']
+                                      'psd', 'cdr', 'iff', 'tga', 'pcd', 'mpi', '.icon', '.ico']
 
     def data(self, index: QModelIndex, role: int = ...):
         if index.isValid() or (0 <= index.row() < len(self._data_list)):
@@ -38,12 +37,15 @@ class ImageFileListModel(MyBaseListModel):
                 if self._data_list[index.row()]["id"] != 0:
                     return QBrush(QColor(84, 255, 159))
                 else:
-                    super().data(index, role)
-        return QVariant()
+                    return QBrush(QColor(255, 255, 255))
+        else:
+            return QVariant()
+
+    def rowCount(self, parent: QModelIndex = ...) -> int:
+        return len(self._data_list)
 
     def add_dir(self, dir_path):
         self._base_dir = os.path.basename(dir_path)
-        print(self._base_dir)
         for filename in os.listdir(dir_path):
             file_path = "%s/%s" % (dir_path, filename)
             if os.path.isdir(file_path):
@@ -72,7 +74,7 @@ class ImageFileListModel(MyBaseListModel):
             "full_path": full_path,
             'name': filename
         }
-        self._data_list.append(item_data)
+        self.add_item(item_data)
 
     def set_image_id(self, index, image_id):
         self._data_list[index]['id'] = image_id

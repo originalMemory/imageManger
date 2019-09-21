@@ -10,6 +10,8 @@
 @update  :
 """
 from PyQt5 import QtWidgets, QtGui
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
 
 
 class MyDropListView(QtWidgets.QListView):
@@ -26,3 +28,13 @@ class MyDropListView(QtWidgets.QListView):
         self.model().clear()
         for url in urls:
             self.model().add_dir(url.toLocalFile())
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == Qt.Key_K:
+            row = self.selectionModel().currentIndex().row()
+            if self.model().rowCount() > row + 1:
+                self.setCurrentIndex(self.model().index(row + 1, self.selectionModel().currentIndex().column()))
+        if event.key() == Qt.Key_J:
+            row = self.selectionModel().currentIndex().row()
+            if row > 0:
+                self.setCurrentIndex(self.model().index(row - 1, self.selectionModel().currentIndex().column()))

@@ -16,8 +16,8 @@ from enum import unique, Enum
 
 from PIL import Image
 from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import QModelIndex
-from PyQt5.QtWidgets import QMainWindow
+from PyQt5.QtCore import QModelIndex, Qt
+from PyQt5.QtWidgets import QMainWindow, QApplication
 
 from helper import db_helper
 from helper.file_helper import FileHelper
@@ -55,11 +55,25 @@ class MyMain(QMainWindow, Ui_Main):
         self._image_model.add_dir('E:/图片/[wlop (Wang Ling)] Artwork 2017 集合')
 
         self.listView.setModel(self._image_model)
+
+        # 关联事件
         self.listView.selectionModel().currentChanged.connect(self.on_change)
-
-        self.graphicsView.setFocus()
-
         self.pushButton_classify.clicked.connect(self.classify)
+
+        # 设置 tab 切换顺序
+        self.setTabOrder(self.lineEdit_desc, self.lineEdit_tag)
+        self.setTabOrder(self.lineEdit_tag, self.lineEdit_path)
+        self.setTabOrder(self.lineEdit_path, self.comboBox_type)
+        self.setTabOrder(self.comboBox_type, self.comboBox_level)
+        self.setTabOrder(self.comboBox_level, self.lineEdit_role)
+        self.setTabOrder(self.lineEdit_role, self.lineEdit_works)
+        self.setTabOrder(self.lineEdit_works, self.lineEdit_source)
+        self.setTabOrder(self.lineEdit_source, self.lineEdit_author)
+        self.setTabOrder(self.lineEdit_author, self.pushButton_classify)
+        self.setTabOrder(self.pushButton_classify, self.pushButton_move)
+
+        Image.MAX_IMAGE_PIXELS = 1882320000
+        self.listView.setFocus()
 
     def open_files(self):
         """
@@ -85,7 +99,7 @@ class MyMain(QMainWindow, Ui_Main):
         :return:
         """
         path = self._image_model.get_item(index)['full_path']
-        self.statusbar.showMessage(path)
+        self.statusbar.showMessage(f"[{index + 1}/{self._image_model.rowCount()}] {path}")
         pixmap = QtGui.QPixmap(path)
         # 填充缩放
         x_scale = self.graphicsView.width() / float(pixmap.width())
@@ -147,7 +161,6 @@ class MyMain(QMainWindow, Ui_Main):
         分类图片
         :return:
         """
-        print("分类")
         select_rows = self.listView.selectionModel().selectedRows()
         index = self.comboBox_type.currentIndex()
         type_id = self._type_model.get_item(index)['id']
@@ -188,6 +201,7 @@ class MyMain(QMainWindow, Ui_Main):
                 self._image_model.set_image_id(index.row(), image_id)
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
+                message = f"{item['relative_path']}创建完成！"
             else:
                 db_helper.update_image(
                     image_id,
@@ -207,6 +221,8 @@ class MyMain(QMainWindow, Ui_Main):
                     create_time
                 )
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
+                message = f"{item['relative_path']}更新完成！"
+            self.statusbar.showMessage(f"[{index.row() + 1}/{len(select_rows)}] {message}")
 
     @staticmethod
     def get_image_width_and_height(image_path):
@@ -235,3 +251,21 @@ class MyMain(QMainWindow, Ui_Main):
                 tags.replace(';', ',')
                 self.lineEdit_tag.setText(tags)
             return
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == Qt.Key_R and QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.classify()
+            self.listView.setFocus()
+        if event.key() == Qt.Key_E and QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.comboBox_level.setFocus()
+        if event.key() == Qt.Key_Delete:
+            print("删除")
+
+    def dragEnterEvent(self, e: QtGui.QDragEnterEvent) -> None:
+        e.accept()
+
+    def dropEvent(self, e: QtGui.QDropEvent) -> None:
+        urls = e.mimeData().urls()
+        self._image_model.clear()
+        for url in urls:
+            self._image_model.add_dir(url.toLocalFile())

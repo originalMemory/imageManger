@@ -5,7 +5,7 @@
 @ide     : PyCharm
 @file    : my_list_model
 @author  : wuhoubo
-@desc    : 自定义列表类，用于在表格展示数据
+@desc    : 自定义列表类，用于在列表展示数据
 @create  : 2019/6/5 22:23:20
 @update  :
 """
@@ -32,8 +32,6 @@ class MyBaseListModel(QAbstractListModel):
         # 设置表格显示使用的数据
         if index.isValid() or (0 <= index.row() < len(self._data_list)):
             if role == Qt.DisplayRole:
-                return QVariant(self._data_list[index.row()]['name'])
-            elif role == Qt.ToolTipRole:
                 return QVariant(self._data_list[index.row()]['name'])
         else:
             return QVariant()
@@ -68,22 +66,24 @@ class MyBaseListModel(QAbstractListModel):
             self._data_list.extend(item_data_list)
             self.endInsertRows()
 
-    def delete_item(self, index):
+    def delete_item(self, row):
         """
         自定义。删除数据
-        :param index: 索引
+        :param row: 索引
         :return:
         """
-        del self._data_list[index]
+        self.beginRemoveRows(QModelIndex(), row, row - 1)
+        del self._data_list[row]
+        self.endRemoveRows()
 
-    def get_item(self, index):
+    def get_item(self, row):
         """
         自定义。获取数据
-        :param index: 索引
+        :param row: 索引
         :return:
         """
-        if -1 < index < len(self._data_list):
-            return self._data_list[index]
+        if -1 < row < len(self._data_list):
+            return self._data_list[row]
 
     def get_index(self, key):
         """
@@ -117,4 +117,6 @@ class MyBaseListModel(QAbstractListModel):
         清空数据
         :return:
         """
+        self.beginResetModel()
         self._data_list.clear()
+        self.endResetModel()
