@@ -9,7 +9,9 @@
 @create  : 2019/6/2 23:57:26
 @update  :
 """
+import datetime
 import os
+import re
 from enum import unique, Enum
 
 from PIL import Image
@@ -113,10 +115,15 @@ class MyMain(QMainWindow, Ui_Main):
             # 分析图片信息
             size = FileHelper.get_file_size_in_mb(path)
             width, height = self.get_image_width_and_height(path)
+            create_time = FileHelper.get_create_time(path)
+            self.lineEdit_desc.setText("")
+            self.lineEdit_tag.setText("")
             self.lineEdit_size.setText(f"{size} MB")
             self.lineEdit_width.setText(str(width))
             self.lineEdit_height.setText(str(height))
-
+            self.lineEdit_path.setText(path)
+            self.dateTimeEdit_file_create.setDateTime(create_time)
+            self.analyze_image_info(path)
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
@@ -127,8 +134,8 @@ class MyMain(QMainWindow, Ui_Main):
         self.lineEdit_role.setText(info.role)
         self.lineEdit_author.setText(info.author)
         self.lineEdit_size.setText(f"{info.size} MB")
-        self.lineEdit_width.setText(info.width)
-        self.lineEdit_height.setText(info.height)
+        self.lineEdit_width.setText(str(info.width))
+        self.lineEdit_height.setText(str(info.height))
         self.comboBox_type.setCurrentIndex(self._type_model.get_index(info.type_id))
         self.comboBox_level.setCurrentIndex(self._level_model.get_index(info.level_id))
         self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
@@ -140,6 +147,7 @@ class MyMain(QMainWindow, Ui_Main):
         分类图片
         :return:
         """
+        print("分类")
         select_rows = self.listView.selectionModel().selectedRows()
         index = self.comboBox_type.currentIndex()
         type_id = self._type_model.get_item(index)['id']
@@ -155,28 +163,75 @@ class MyMain(QMainWindow, Ui_Main):
             item = self._image_model.get_item(index.row())
             filename = item['name']
             path = item['full_path']
-            create_time = FileHelper.get_create_time(path)
+            create_time = FileHelper.get_create_time_str(path)
             size = FileHelper.get_file_size_in_mb(path)
             width, height = self.get_image_width_and_height(path)
-            db_helper.insert_image(
-                desc,
-                author,
-                type_id,
-                level_id,
-                tags,
-                works,
-                role,
-                source,
-                filename,
-                path,
-                width,
-                height,
-                size,
-                create_time
-            )
-            self._image_model.set_image_classified(index.row(), True)
+            image_id = item['id']
+            if image_id == 0:
+                db_helper.insert_image(
+                    desc,
+                    author,
+                    type_id,
+                    level_id,
+                    tags,
+                    works,
+                    role,
+                    source,
+                    filename,
+                    path,
+                    width,
+                    height,
+                    size,
+                    create_time
+                )
+                image_id = db_helper.get_id_by_path(path)
+                self._image_model.set_image_id(index.row(), image_id)
+                self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
+                self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
+            else:
+                db_helper.update_image(
+                    image_id,
+                    desc,
+                    author,
+                    type_id,
+                    level_id,
+                    tags,
+                    works,
+                    role,
+                    source,
+                    filename,
+                    path,
+                    width,
+                    height,
+                    size,
+                    create_time
+                )
+                self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
 
     @staticmethod
     def get_image_width_and_height(image_path):
         img = Image.open(image_path)
         return img.width, img.height
+
+    def analyze_image_info(self, file_path):
+        filename = os.path.basename(file_path)
+        yande = '[yande'
+        pixiv = 'pixiv'
+        if yande not in filename and pixiv not in filename:
+            return None
+        if yande in filename:
+            # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
+            match = re.search(r"yande.*?_\d*?_(?P<author>.+?)]", filename)
+            if match:
+                self.lineEdit_author.setText(match.group('author'))
+            return
+        if pixiv in filename:
+            # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
+            match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_", filename)
+            if match:
+                self.lineEdit_author.setText(match.group('author'))
+                self.lineEdit_desc.setText(match.group('desc'))
+                tags = match.group('tags')
+                tags.replace(';', ',')
+                self.lineEdit_tag.setText(tags)
+            return

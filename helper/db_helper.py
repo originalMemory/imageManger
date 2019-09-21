@@ -146,6 +146,48 @@ def insert_image(
     query.exec_(sql_str)
 
 
+def update_image(
+        image_id,
+        desc,
+        author,
+        type_id,
+        level_id,
+        tags,
+        works,
+        role,
+        source,
+        filename,
+        path,
+        width,
+        height,
+        size,
+        create_time
+):
+    """
+    更新图片分类信息
+    :param image_id: id
+    :param desc: 描述
+    :param author: 作者
+    :param type_id: 类型 id
+    :param level_id: 等级 id
+    :param tags: 标签列表，用逗号分隔
+    :param works: 来源作品
+    :param role: 角色
+    :param source: 来源站点
+    :param filename: 文件名
+    :param path: 文件路径
+    :param width: 图片宽度
+    :param height: 图片高度
+    :param size: 文件大小
+    :param create_time: 文件创建时间
+    :return:
+    """
+    sql_str = f"update myacg.image set `desc`='{desc}',author='{author}', type_id={type_id}, level_id={level_id}, " \
+        f"tags='{tags}', works='{works}', role='{role}', source='{source}', filename='{filename}', path='{path}', " \
+        f"width={width}, height={height}, `size`={size}, file_create_time='{create_time}' where id={image_id}"
+    query.exec_(sql_str)
+
+
 def search(file_path):
     """
     根据路径搜索图片
@@ -179,11 +221,11 @@ def search(file_path):
     return info
 
 
-def exist_by_path(file_path):
-    exist = False
+def get_id_by_path(file_path):
+    image_id = 0
     sql_str = f"select id from myacg.image where path='{file_path}' limit 1"
     query.exec_(sql_str)
     if query.next():
-        exist = True
+        image_id = query.value(0)
         query.finish()
-    return exist
+    return image_id

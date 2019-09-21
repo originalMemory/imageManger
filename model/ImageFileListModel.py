@@ -11,7 +11,7 @@
 """
 import os
 
-from PyQt5.QtCore import QModelIndex, QVariant, Qt, QAbstractListModel
+from PyQt5.QtCore import QModelIndex, QVariant, Qt
 from PyQt5.QtGui import QBrush, QColor
 
 from helper import db_helper
@@ -35,7 +35,7 @@ class ImageFileListModel(MyBaseListModel):
             elif role == Qt.StatusTipRole:
                 return QVariant(self._data_list[index.row()]['full_path'])
             elif role == Qt.BackgroundColorRole:
-                if self._data_list[index.row()]["classified"]:
+                if self._data_list[index.row()]["id"] != 0:
                     return QBrush(QColor(84, 255, 159))
                 else:
                     super().data(index, role)
@@ -65,17 +65,17 @@ class ImageFileListModel(MyBaseListModel):
     def add_image_data(self, relative_path, full_path, filename):
         if not self.is_image(filename):
             return
-        is_classified = db_helper.exist_by_path(full_path)
+        image_id = db_helper.get_id_by_path(full_path)
         item_data = {
-            "classified": is_classified,
+            "id": image_id,
             "relative_path": relative_path,
             "full_path": full_path,
             'name': filename
         }
         self._data_list.append(item_data)
 
-    def set_image_classified(self, index, is_classified):
-        self._data_list[index]['classified'] = is_classified
+    def set_image_id(self, index, image_id):
+        self._data_list[index]['id'] = image_id
 
     def is_image(self, filename):
         extension = FileHelper.get_file_extension(filename).lower()

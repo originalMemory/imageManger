@@ -396,7 +396,7 @@
         </rect>
        </property>
        <property name="text">
-        <string>作者：</string>
+        <string>上传者：</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>

@@ -229,7 +229,7 @@ class Ui_Main(object):
         self.label_10.setText(_translate("Main", "更新时间："))
         self.pushButton_move.setText(_translate("Main", "移动"))
         self.label_11.setText(_translate("Main", "角色："))
-        self.label_8.setText(_translate("Main", "作者："))
+        self.label_8.setText(_translate("Main", "上传者："))
         self.label_12.setText(_translate("Main", "宽度："))
         self.label_13.setText(_translate("Main", "高度："))
         self.label_14.setText(_translate("Main", "文件创建时间："))

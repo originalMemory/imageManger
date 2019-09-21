@@ -9,6 +9,7 @@
 @create  : 2019/9/21 11:09:26
 @update  :
 """
+import datetime
 import os
 import time
 
@@ -41,11 +42,39 @@ class FileHelper:
         return round(size, 2)
 
     @staticmethod
+    def get_create_time_str(file_path):
+        """
+        获取文件创建时间字符串
+        :param file_path: 文件路径
+        :return:
+        """
+        t = os.path.getmtime(file_path)
+        return FileHelper.time_stamp_to_time(t)
+
+    @staticmethod
     def get_create_time(file_path):
         """
         获取文件创建时间
         :param file_path: 文件路径
         :return:
         """
-        t = os.path.getctime(file_path)
-        return FileHelper.time_stamp_to_time(t)
+        t = os.path.getmtime(file_path)
+        return FileHelper.become_datetime(t)
+
+    @staticmethod
+    def become_datetime(dtdt):
+        # 将时间类型转换成datetime类型
+        if isinstance(dtdt, datetime.datetime):
+            return dtdt
+
+        elif isinstance(dtdt, str):
+            if dtdt.split(" ")[1:]:
+                a_datetime = datetime.datetime.strptime(dtdt, "%Y-%m-%d %H:%M:%S")
+            else:
+                a_datetime = datetime.datetime.strptime(dtdt, "%Y-%m-%d")
+            return a_datetime
+
+        elif isinstance(dtdt, float):
+            # 把时间戳转换成datetime类型
+            a_datetime = datetime.datetime.fromtimestamp(dtdt)
+            return a_datetime
