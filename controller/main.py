@@ -16,8 +16,9 @@ from enum import unique, Enum
 
 from PIL import Image
 from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import QModelIndex, Qt
-from PyQt5.QtWidgets import QMainWindow, QApplication
+from PyQt5.QtCore import QModelIndex, Qt, QStringListModel
+from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter
+from configparser import ConfigParser
 
 from helper import db_helper
 from helper.file_helper import FileHelper
@@ -51,8 +52,16 @@ class MyMain(QMainWindow, Ui_Main):
         self.comboBox_level.setCurrentIndex(0)
 
         # 图片信息
-        self._image_model = ImageFileListModel()  # 图片信息
-        self._image_model.add_dir('E:/图片/[wlop (Wang Ling)] Artwork 2017 集合')
+        self._image_model = ImageFileListModel()
+        self._config_filename = "config.ini"
+        self._config = ConfigParser()
+        if os.path.exists(self._config_filename):
+            try:
+                self._config.read(self._config_filename, encoding='utf-8')
+                last_dir = self._config.get('history', 'lastDir')
+                self._image_model.add_dir(last_dir)
+            except Exception as e:
+                print(e)
 
         self.listView.setModel(self._image_model)
 
@@ -67,13 +76,38 @@ class MyMain(QMainWindow, Ui_Main):
         self.setTabOrder(self.comboBox_type, self.comboBox_level)
         self.setTabOrder(self.comboBox_level, self.lineEdit_role)
         self.setTabOrder(self.lineEdit_role, self.lineEdit_works)
-        self.setTabOrder(self.lineEdit_works, self.lineEdit_source)
-        self.setTabOrder(self.lineEdit_source, self.lineEdit_author)
+        self.setTabOrder(self.lineEdit_works, self.lineEdit_series)
+        self.setTabOrder(self.lineEdit_series, self.lineEdit_source)
+        self.setTabOrder(self.lineEdit_source, self.lineEdit_uploader)
+        self.setTabOrder(self.lineEdit_uploader, self.lineEdit_author)
         self.setTabOrder(self.lineEdit_author, self.pushButton_classify)
         self.setTabOrder(self.pushButton_classify, self.pushButton_move)
 
+        # 自动补全
+        self._completer_list = []
+        self._completer_filename = 'works.txt'
+        if not os.path.exists(self._completer_filename):
+            f = open(self._completer_filename, 'w', encoding='utf-8')
+            f.close()
+        with open(self._completer_filename, 'r+', encoding='utf-8') as f:
+            self._completer_list = list(map(lambda x: x.replace("\n", "").replace("\r", ""), f.readlines()))
+        self.completer = QCompleter(self._completer_list)
+        self.completer.setCompletionMode(QCompleter.InlineCompletion)
+        self.completer.setFilterMode(Qt.MatchContains)
+        self.lineEdit_works.setCompleter(self.completer)
+        self.lineEdit_works.editingFinished.connect(self.add_complete)
         Image.MAX_IMAGE_PIXELS = 1882320000
         self.listView.setFocus()
+
+    def add_complete(self):
+        cur_completion = self.completer.currentCompletion()
+        if cur_completion == "":
+            self._completer_list.append(self.lineEdit_works.text())
+            self.completer = QCompleter(self._completer_list)
+            self.completer.setCompletionMode(QCompleter.InlineCompletion)
+            self.completer.setFilterMode(Qt.MatchContains)
+            self.lineEdit_works.setCompleter(self.completer)
+            print(self._completer_list)
 
     def open_files(self):
         """
@@ -147,6 +181,8 @@ class MyMain(QMainWindow, Ui_Main):
         self.lineEdit_source.setText(info.source)
         self.lineEdit_role.setText(info.role)
         self.lineEdit_author.setText(info.author)
+        self.lineEdit_series.setText(info.series)
+        self.lineEdit_uploader.setText(info.uploader)
         self.lineEdit_size.setText(f"{info.size} MB")
         self.lineEdit_width.setText(str(info.width))
         self.lineEdit_height.setText(str(info.height))
@@ -172,8 +208,10 @@ class MyMain(QMainWindow, Ui_Main):
         works = self.lineEdit_works.text()
         role = self.lineEdit_role.text()
         source = self.lineEdit_source.text()
-        for index in select_rows:
-            item = self._image_model.get_item(index.row())
+        series = self.lineEdit_series.text()
+        uploader = self.lineEdit_uploader.text()
+        for i in range(len(select_rows)):
+            item = self._image_model.get_item(select_rows[i].row())
             filename = item['name']
             path = item['full_path']
             create_time = FileHelper.get_create_time_str(path)
@@ -195,14 +233,24 @@ class MyMain(QMainWindow, Ui_Main):
                     width,
                     height,
                     size,
-                    create_time
+                    create_time,
+                    series,
+                    uploader
                 )
                 image_id = db_helper.get_id_by_path(path)
-                self._image_model.set_image_id(index.row(), image_id)
+                self._image_model.set_image_id(select_rows[i].row(), image_id)
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
-                message = f"{item['relative_path']}创建完成！"
+                message = f"{item['relative_path']} 创建完成！"
             else:
+                # 批量更新时，保持原来的描述、作者、等级、标签、作品
+                old_image = self._image_model.get_database_item(image_id)
+                if old_image and len(select_rows) > 1:
+                    desc = old_image.desc
+                    author = old_image.author
+                    level_id = old_image.level_id
+                    tags = old_image.tags
+                    works = old_image.works
                 db_helper.update_image(
                     image_id,
                     desc,
@@ -218,11 +266,13 @@ class MyMain(QMainWindow, Ui_Main):
                     width,
                     height,
                     size,
-                    create_time
+                    create_time,
+                    series,
+                    uploader
                 )
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
-                message = f"{item['relative_path']}更新完成！"
-            self.statusbar.showMessage(f"[{index.row() + 1}/{len(select_rows)}] {message}")
+                message = f"{item['relative_path']} 更新完成！"
+            self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
 
     @staticmethod
     def get_image_width_and_height(image_path):
@@ -231,26 +281,47 @@ class MyMain(QMainWindow, Ui_Main):
 
     def analyze_image_info(self, file_path):
         filename = os.path.basename(file_path)
-        yande = '[yande'
+        yande = 'yande'
         pixiv = 'pixiv'
         if yande not in filename and pixiv not in filename:
             return None
         if yande in filename:
             # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-            match = re.search(r"yande.*?_\d*?_(?P<author>.+?)]", filename)
+            match = re.search(r"yande.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)\.", filename)
             if match:
                 self.lineEdit_author.setText(match.group('author'))
-            return
+                desc = match.group('desc')
+                desc = desc.replace("_00", "")
+                self.lineEdit_desc.setText(desc)
+                self.lineEdit_source.setText("yande")
+            else:
+                # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
+                match = re.search(r"yande(.re)? (?P<author>.+?) (?P<desc>.+?)\.", filename)
+                if match:
+                    self.lineEdit_author.setText(match.group('author'))
+                    self.lineEdit_desc.setText(match.group('desc'))
+                    self.lineEdit_source.setText("yande")
+
         if pixiv in filename:
             # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
             match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_", filename)
             if match:
-                self.lineEdit_author.setText(match.group('author'))
+                author = match.group('author')
+                author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
+                self.lineEdit_author.setText(author)
                 self.lineEdit_desc.setText(match.group('desc'))
                 tags = match.group('tags')
                 tags.replace(';', ',')
                 self.lineEdit_tag.setText(tags)
-            return
+                self.lineEdit_source.setText("pixiv")
+            else:
+                match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_", filename)
+                if match:
+                    author = match.group('author')
+                    author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
+                    self.lineEdit_author.setText(author)
+                    self.lineEdit_desc.setText(match.group('desc'))
+                    self.lineEdit_source.setText("pixiv")
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.key() == Qt.Key_R and QApplication.keyboardModifiers() == Qt.ControlModifier:
@@ -258,8 +329,10 @@ class MyMain(QMainWindow, Ui_Main):
             self.listView.setFocus()
         if event.key() == Qt.Key_E and QApplication.keyboardModifiers() == Qt.ControlModifier:
             self.comboBox_level.setFocus()
+        if event.key() == Qt.Key_W and QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.lineEdit_works.setText("")
         if event.key() == Qt.Key_Delete:
-            print("删除")
+            self.del_select_rows()
 
     def dragEnterEvent(self, e: QtGui.QDragEnterEvent) -> None:
         e.accept()
@@ -269,3 +342,31 @@ class MyMain(QMainWindow, Ui_Main):
         self._image_model.clear()
         for url in urls:
             self._image_model.add_dir(url.toLocalFile())
+        if not self._config.has_section('history'):
+            self._config.add_section('history')
+        self._config['history']['lastDir'] = urls[0].toLocalFile()
+
+    def del_select_rows(self):
+        select_rows = self.listView.selectionModel().selectedRows()
+        if len(select_rows) == 0:
+            return
+        first_index = select_rows[0]
+        for i in range(len(select_rows)):
+            index = select_rows[i]
+            item = self._image_model.get_item(index.row())
+            if item['id'] != 0:
+                db_helper.delete(item['id'])
+            os.remove(item['full_path'])
+            self._image_model.delete_item(index.row())
+            self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {item['relative_path']} 删除成功！")
+        if first_index.row() == 0:
+            return
+        self.listView.setCurrentIndex(self.listView.model().index(first_index.row() - 1, first_index.column()))
+        self.listView.setCurrentIndex(first_index)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        with open(self._completer_filename, 'w+', encoding='utf-8') as f:
+            f.writelines(list(map(lambda x: x + "\n", self._completer_list)))
+
+        with open(self._config_filename, 'w', encoding='utf-8') as f:
+            self._config.write(f)

@@ -120,7 +120,9 @@ def insert_image(
         width,
         height,
         size,
-        create_time
+        create_time,
+        series,
+        uploader
 ):
     """
     保存图片分类信息
@@ -138,11 +140,25 @@ def insert_image(
     :param height: 图片高度
     :param size: 文件大小
     :param create_time: 文件创建时间
+    :param series: 系列
+    :param uploader: 上传者
     :return:
     """
+    # 替换单引号以保证插入
+    desc = desc.replace("'", "\\'")
+    author = author.replace("'", "\\'")
+    tags = tags.replace("'", "\\'")
+    works = works.replace("'", "\\'")
+    role = role.replace("'", "\\'")
+    filename = filename.replace("'", "\\'")
+    path = path.replace("'", "\\'")
+    series = series.replace("'", "\\'")
+    uploader = uploader.replace("'", "\\'")
     sql_str = f"INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, path," \
-        f" width, height, `size`, file_create_time) values ('{desc}', '{author}', {type_id}, {level_id}, '{tags}'," \
-        f" '{works}', '{role}', '{source}', '{filename}', '{path}', {width}, {height}, {size}, '{create_time}');"
+        f" width, height, `size`, file_create_time, series, uploader) values ('{desc}', '{author}', {type_id}," \
+        f" {level_id}, '{tags}', '{works}', '{role}', '{source}', '{filename}', '{path}', {width}, {height}, {size}," \
+        f" '{create_time}', '{series}', '{uploader}');"
+    print(sql_str)
     query.exec_(sql_str)
 
 
@@ -161,11 +177,13 @@ def update_image(
         width,
         height,
         size,
-        create_time
+        create_time,
+        series,
+        uploader
 ):
     """
-    更新图片分类信息
-    :param image_id: id
+    保存图片分类信息
+    :param image_id: 图片 id
     :param desc: 描述
     :param author: 作者
     :param type_id: 类型 id
@@ -180,11 +198,24 @@ def update_image(
     :param height: 图片高度
     :param size: 文件大小
     :param create_time: 文件创建时间
+    :param series: 系列
+    :param uploader: 上传者
     :return:
     """
+    # 替换单引号以保证插入
+    desc = desc.replace("'", "\\'")
+    author = author.replace("'", "\\'")
+    tags = tags.replace("'", "\\'")
+    works = works.replace("'", "\\'")
+    role = role.replace("'", "\\'")
+    filename = filename.replace("'", "\\'")
+    path = path.replace("'", "\\'")
+    series = series.replace("'", "\\'")
+    uploader = uploader.replace("'", "\\'")
     sql_str = f"update myacg.image set `desc`='{desc}',author='{author}', type_id={type_id}, level_id={level_id}, " \
         f"tags='{tags}', works='{works}', role='{role}', source='{source}', filename='{filename}', path='{path}', " \
-        f"width={width}, height={height}, `size`={size}, file_create_time='{create_time}' where id={image_id}"
+        f"width={width}, height={height}, `size`={size}, file_create_time='{create_time}', series='{series}', " \
+        f"uploader='{uploader}' where id={image_id}"
     query.exec_(sql_str)
 
 
@@ -195,6 +226,7 @@ def search(file_path):
     :return:
     """
     info = None
+    file_path = file_path.replace("'", "\\'")
     sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
     query.exec_(sql_str)
     if query.next():
@@ -215,7 +247,9 @@ def search(file_path):
             path=query.value('path'),
             file_create_time=query.value('file_create_time'),
             create_time=query.value('create_time'),
-            update_time=query.value('update_time')
+            update_time=query.value('update_time'),
+            series=query.value('series'),
+            uploader=query.value('uploader')
         )
         query.finish()
     return info
@@ -229,3 +263,8 @@ def get_id_by_path(file_path):
         image_id = query.value(0)
         query.finish()
     return image_id
+
+
+def delete(image_id):
+    sql_str = f"delete from myacg.image where id={image_id}"
+    query.exec_(sql_str)

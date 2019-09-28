@@ -35,4 +35,6 @@ class MyImage:
     file_create_time: datetime
     create_time: datetime
     update_time: datetime
+    series: str
+    uploader: str
 
