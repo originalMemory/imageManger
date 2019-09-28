@@ -2,14 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a57ce37f-75e5-4c17-b64a-52c46f8288c4" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/controller/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/controller/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/helper/db_helper.py" beforeDir="false" afterPath="$PROJECT_DIR$/helper/db_helper.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model/ImageFileListModel.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/ImageFileListModel.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/data.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/view/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/view/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/view/main.ui" beforeDir="false" afterPath="$PROJECT_DIR$/view/main.ui" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -65,11 +58,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/model/ImageFileListModel.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="285">
-              <caret line="76" column="24" selection-start-line="76" selection-start-column="24" selection-end-line="76" selection-end-column="24" />
+            <state relative-caret-position="186">
+              <caret line="73" column="11" selection-start-line="73" selection-start-column="11" selection-end-line="73" selection-end-column="11" />
             </state>
           </provider>
         </entry>
@@ -86,8 +79,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/controller/main.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="61">
-              <caret line="240" column="78" lean-forward="true" selection-start-line="240" selection-start-column="78" selection-end-line="240" selection-end-column="78" />
+            <state relative-caret-position="161">
+              <caret line="245" column="43" selection-start-line="245" selection-start-column="43" selection-end-line="245" selection-end-column="43" />
               <folding>
                 <element signature="e#176#191#0" expanded="true" />
               </folding>
@@ -134,11 +127,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/helper/db_helper.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="222">
-              <caret line="208" column="37" lean-forward="true" selection-start-line="208" selection-start-column="37" selection-end-line="208" selection-end-column="37" />
+              <caret line="208" column="37" selection-start-line="208" selection-start-column="37" selection-end-line="208" selection-end-column="37" />
               <folding>
                 <element signature="e#189#203#0" expanded="true" />
               </folding>
@@ -230,14 +223,14 @@
         <option value="$PROJECT_DIR$/model/my_list_model.py" />
         <option value="$PROJECT_DIR$/model/data.py" />
         <option value="$PROJECT_DIR$/works.txt" />
-        <option value="$PROJECT_DIR$/model/ImageFileListModel.py" />
         <option value="$PROJECT_DIR$/main.py" />
         <option value="$PROJECT_DIR$/controller/main.py" />
         <option value="$PROJECT_DIR$/helper/db_helper.py" />
+        <option value="$PROJECT_DIR$/model/ImageFileListModel.py" />
       </list>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
+  <component name="ProjectFrameBounds" extendedState="7">
     <option name="x" value="-12" />
     <option name="y" value="-12" />
     <option name="width" value="3864" />
@@ -380,15 +373,15 @@
       <workItem from="1569513724320" duration="418000" />
       <workItem from="1569543006867" duration="3234000" />
       <workItem from="1569649669618" duration="2387000" />
-      <workItem from="1569652181768" duration="2970000" />
+      <workItem from="1569652181768" duration="4212000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="90671000" />
+    <option name="totallyTimeSpent" value="91913000" />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-7" y="-7" width="2575" height="1415" extended-state="6" />
+    <frame x="-7" y="-7" width="2575" height="1415" extended-state="7" />
     <editor active="true" />
     <layout>
       <window_info content_ui="combo" id="Project" order="0" sideWeight="0.4956245" visible="true" weight="0.0981327" />
@@ -473,7 +466,7 @@
     </breakpoint-manager>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/ImageManager$main.coverage" NAME="main Coverage Results" MODIFIED="1569655212858" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/ImageManager$main.coverage" NAME="main Coverage Results" MODIFIED="1569656387648" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/view/QListWidgetQSS.qss" />
@@ -668,13 +661,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/model/ImageFileListModel.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="285">
-          <caret line="76" column="24" selection-start-line="76" selection-start-column="24" selection-end-line="76" selection-end-column="24" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/main.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="85">
@@ -685,23 +671,30 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/helper/db_helper.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="222">
+          <caret line="208" column="37" selection-start-line="208" selection-start-column="37" selection-end-line="208" selection-end-column="37" />
+          <folding>
+            <element signature="e#189#203#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/controller/main.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="61">
-          <caret line="240" column="78" lean-forward="true" selection-start-line="240" selection-start-column="78" selection-end-line="240" selection-end-column="78" />
+        <state relative-caret-position="161">
+          <caret line="245" column="43" selection-start-line="245" selection-start-column="43" selection-end-line="245" selection-end-column="43" />
           <folding>
             <element signature="e#176#191#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/helper/db_helper.py">
+    <entry file="file://$PROJECT_DIR$/model/ImageFileListModel.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="222">
-          <caret line="208" column="37" lean-forward="true" selection-start-line="208" selection-start-column="37" selection-end-line="208" selection-end-column="37" />
-          <folding>
-            <element signature="e#189#203#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="186">
+          <caret line="73" column="11" selection-start-line="73" selection-start-column="11" selection-end-line="73" selection-end-column="11" />
         </state>
       </provider>
     </entry>

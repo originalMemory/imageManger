@@ -71,6 +71,7 @@ class ImageFileListModel(MyBaseListModel):
         image = db_helper.search(full_path)
         if image:
             image_id = image.id
+            self._data_list_in_database.append(image)
         else:
             image_id = 0
         item_data = {
@@ -80,7 +81,6 @@ class ImageFileListModel(MyBaseListModel):
             'name': filename
         }
         self.add_item(item_data)
-        self._data_list_in_database.append(image)
 
     def set_image_id(self, index, image_id):
         self._data_list[index]['id'] = image_id
