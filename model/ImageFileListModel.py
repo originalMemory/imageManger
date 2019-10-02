@@ -24,7 +24,7 @@ class ImageFileListModel(MyBaseListModel):
     def __init__(self):
         super().__init__()
         self._base_dir = ""
-        self._image_extension_list = ['.jpg', 'jpeg', '.bmp', '.png', 'gif', 'dib', 'pcp', 'dif', 'wmf', 'tif', 'eps',
+        self.__image_extension_list = ['.jpg', 'jpeg', '.bmp', '.png', 'gif', 'dib', 'pcp', 'dif', 'wmf', 'tif', 'eps',
                                       'psd', 'cdr', 'iff', 'tga', 'pcd', 'mpi', '.icon', '.ico']
         self._data_list_in_database = []
 
@@ -45,28 +45,28 @@ class ImageFileListModel(MyBaseListModel):
     def rowCount(self, parent: QModelIndex = ...) -> int:
         return len(self._data_list)
 
-    def _add_dir(self, dir_path):
+    def __add_dir(self, dir_path):
         self._base_dir = os.path.basename(dir_path)
         for filename in os.listdir(dir_path):
             file_path = "%s/%s" % (dir_path, filename)
             if os.path.isdir(file_path):
-                self._add_children_dir(file_path)
+                self.__add_children_dir(file_path)
                 continue
             relative_path = "%s/%s" % (self._base_dir, filename)
-            self._add_image_data(relative_path, file_path, filename)
+            self.__add_image_data(relative_path, file_path, filename)
 
-    def _add_children_dir(self, dir_path):
+    def __add_children_dir(self, dir_path):
         for filename in os.listdir(dir_path):
             file_path = "%s/%s" % (dir_path, filename)
             dir_name = os.path.basename(dir_path)
             if os.path.isdir(file_path):
-                self._add_children_dir(file_path)
+                self.__add_children_dir(file_path)
                 continue
             relative_path = "%s/%s/%s" % (self._base_dir, dir_name, filename)
-            self._add_image_data(relative_path, file_path, filename)
+            self.__add_image_data(relative_path, file_path, filename)
 
-    def _add_image_data(self, relative_path, full_path, filename):
-        if not self._is_image(filename):
+    def __add_image_data(self, relative_path, full_path, filename):
+        if not self.__is_image(filename):
             return
         image = db_helper.search(full_path)
         if image:
@@ -84,23 +84,23 @@ class ImageFileListModel(MyBaseListModel):
 
     def add_path(self, path):
         if os.path.isdir(path):
-            self._add_dir(path)
+            self.__add_dir(path)
         elif os.path.isfile(path):
-            self._add_file(path)
+            self.__add_file(path)
 
-    def _add_file(self, file_path):
+    def __add_file(self, file_path):
         filename = os.path.basename(file_path)
-        if not self._is_image(filename):
+        if not self.__is_image(filename):
             return
         relative_path = filename
-        self._add_image_data(relative_path, file_path, filename)
+        self.__add_image_data(relative_path, file_path, filename)
 
     def set_image_id(self, index, image_id):
         self._data_list[index]['id'] = image_id
 
-    def _is_image(self, filename):
+    def __is_image(self, filename):
         extension = FileHelper.get_file_extension(filename).lower()
-        return extension in self._image_extension_list
+        return extension in self.__image_extension_list
 
     def clear(self):
         super().clear()

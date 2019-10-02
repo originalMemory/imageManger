@@ -38,36 +38,36 @@ class MyMain(QMainWindow, Ui_Main):
         super(MyMain, self).__init__(parent)
         self.setupUi(self)
 
-        self.actionOpen.triggered.connect(self.open_files)
+        self.actionOpen.triggered.connect(self.__open_files)
 
         # 下拉列表设置
-        self._type_model = MyBaseListModel()
-        self.comboBox_type.setModel(self._type_model)
-        self._type_model.add_items(db_helper.get_model_data_list('type'))
+        self.__type_model = MyBaseListModel()
+        self.comboBox_type.setModel(self.__type_model)
+        self.__type_model.add_items(db_helper.get_model_data_list('type'))
         self.comboBox_type.setCurrentIndex(0)
 
-        self._level_model = MyBaseListModel()
-        self.comboBox_level.setModel(self._level_model)
-        self._level_model.add_items(db_helper.get_model_data_list('level'))
+        self.__level_model = MyBaseListModel()
+        self.comboBox_level.setModel(self.__level_model)
+        self.__level_model.add_items(db_helper.get_model_data_list('level'))
         self.comboBox_level.setCurrentIndex(0)
 
         # 图片信息
-        self._image_model = ImageFileListModel()
-        self._config_filename = "config.ini"
-        self._config = ConfigParser()
-        if os.path.exists(self._config_filename):
+        self.__image_model = ImageFileListModel()
+        self.__config_filename = "config.ini"
+        self.__config = ConfigParser()
+        if os.path.exists(self.__config_filename):
             try:
-                self._config.read(self._config_filename, encoding='utf-8')
-                last_dir = self._config.get('history', 'lastDir')
-                self._image_model.add_path(last_dir)
+                self.__config.read(self.__config_filename, encoding='utf-8')
+                last_dir = self.__config.get('history', 'lastDir')
+                self.__image_model.add_path(last_dir)
             except Exception as e:
                 print(e)
 
-        self.listView.setModel(self._image_model)
+        self.listView.setModel(self.__image_model)
 
         # 关联事件
-        self.listView.selectionModel().currentChanged.connect(self.on_change)
-        self.pushButton_classify.clicked.connect(self.classify)
+        self.listView.selectionModel().currentChanged.connect(self.__on_list_view_current_row_change)
+        self.pushButton_classify.clicked.connect(self.__classify)
 
         # 设置 tab 切换顺序
         self.setTabOrder(self.lineEdit_desc, self.lineEdit_tag)
@@ -84,32 +84,36 @@ class MyMain(QMainWindow, Ui_Main):
         self.setTabOrder(self.pushButton_classify, self.pushButton_move)
 
         # 自动补全
-        self._completer_list = []
-        self._completer_filename = 'works.txt'
-        if not os.path.exists(self._completer_filename):
-            f = open(self._completer_filename, 'w', encoding='utf-8')
+        self.__completer_list = []
+        self.__completer_filename = 'works.txt'
+        if not os.path.exists(self.__completer_filename):
+            f = open(self.__completer_filename, 'w', encoding='utf-8')
             f.close()
-        with open(self._completer_filename, 'r+', encoding='utf-8') as f:
-            self._completer_list = list(map(lambda x: x.replace("\n", "").replace("\r", ""), f.readlines()))
-        self.completer = QCompleter(self._completer_list)
+        with open(self.__completer_filename, 'r+', encoding='utf-8') as f:
+            self.__completer_list = list(map(lambda x: x.replace("\n", "").replace("\r", ""), f.readlines()))
+        self.completer = QCompleter(self.__completer_list)
         self.completer.setCompletionMode(QCompleter.InlineCompletion)
         self.completer.setFilterMode(Qt.MatchContains)
         self.lineEdit_works.setCompleter(self.completer)
-        self.lineEdit_works.editingFinished.connect(self.add_complete)
+        self.lineEdit_works.editingFinished.connect(self.__add_complete)
         Image.MAX_IMAGE_PIXELS = 1882320000
         self.listView.setFocus()
 
-    def add_complete(self):
+    def __add_complete(self):
+        """
+        添加自动补全作品
+        :return:
+        """
         cur_completion = self.completer.currentCompletion()
         if cur_completion == "":
-            self._completer_list.append(self.lineEdit_works.text())
-            self.completer = QCompleter(self._completer_list)
+            self.__completer_list.append(self.lineEdit_works.text())
+            self.completer = QCompleter(self.__completer_list)
             self.completer.setCompletionMode(QCompleter.InlineCompletion)
             self.completer.setFilterMode(Qt.MatchContains)
             self.lineEdit_works.setCompleter(self.completer)
-            print(self._completer_list)
+            print(self.__completer_list)
 
-    def open_files(self):
+    def __open_files(self):
         """
         打开图片文件
         :return:
@@ -124,16 +128,16 @@ class MyMain(QMainWindow, Ui_Main):
                 "name": "%s/%s" % (tp_lists[-2], tp_lists[-1]),
                 "path": path
             }
-            self._image_model.addItem(item_data)
+            self.__image_model.addItem(item_data)
 
-    def show_image(self, index):
+    def __show_image(self, index):
         """
         显示指定索引文件名对应的图片
         :param index: 文件索引
         :return:
         """
-        path = self._image_model.get_item(index)['full_path']
-        self.statusbar.showMessage(f"[{index + 1}/{self._image_model.rowCount()}] {path}")
+        path = self.__image_model.get_item(index)['full_path']
+        self.statusbar.showMessage(f"[{index + 1}/{self.__image_model.rowCount()}] {path}")
         pixmap = QtGui.QPixmap(path)
         # 填充缩放
         x_scale = self.graphicsView.width() / float(pixmap.width())
@@ -148,21 +152,21 @@ class MyMain(QMainWindow, Ui_Main):
         scene.addItem(item)
         self.graphicsView.setScene(scene)
 
-    def on_change(self, current: QModelIndex, previous: QModelIndex):
+    def __on_list_view_current_row_change(self, current: QModelIndex, previous: QModelIndex):
         """
-        图片列表焦点变化事件
-        :param current:
+        图片列表当前行变化事件
+        :param current: 当前行索引
         :param previous:
         :return:
         """
-        self.show_image(current.row())
+        self.__show_image(current.row())
 
-        path = self._image_model.get_item(current.row())['full_path']
+        path = self.__image_model.get_item(current.row())['full_path']
         info = db_helper.search(path)
         if not info:
             # 分析图片信息
             size = FileHelper.get_file_size_in_mb(path)
-            width, height = self.get_image_width_and_height(path)
+            width, height = self.__get_image_width_and_height(path)
             create_time = FileHelper.get_create_time(path)
             self.lineEdit_desc.setText("")
             self.lineEdit_tag.setText("")
@@ -171,7 +175,7 @@ class MyMain(QMainWindow, Ui_Main):
             self.lineEdit_height.setText(str(height))
             self.lineEdit_path.setText(path)
             self.dateTimeEdit_file_create.setDateTime(create_time)
-            self.analyze_image_info(path)
+            self.__analyze_image_info(path)
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
@@ -186,22 +190,22 @@ class MyMain(QMainWindow, Ui_Main):
         self.lineEdit_size.setText(f"{info.size} MB")
         self.lineEdit_width.setText(str(info.width))
         self.lineEdit_height.setText(str(info.height))
-        self.comboBox_type.setCurrentIndex(self._type_model.get_index(info.type_id))
-        self.comboBox_level.setCurrentIndex(self._level_model.get_index(info.level_id))
+        self.comboBox_type.setCurrentIndex(self.__type_model.get_index(info.type_id))
+        self.comboBox_level.setCurrentIndex(self.__level_model.get_index(info.level_id))
         self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
         self.dateTimeEdit_create.setDateTime(info.create_time)
         self.dateTimeEdit_update.setDateTime(info.update_time)
 
-    def classify(self):
+    def __classify(self):
         """
         分类图片
         :return:
         """
         select_rows = self.listView.selectionModel().selectedRows()
         index = self.comboBox_type.currentIndex()
-        type_id = self._type_model.get_item(index)['id']
+        type_id = self.__type_model.get_item(index)['id']
         index = self.comboBox_level.currentIndex()
-        level_id = self._level_model.get_item(index)['id']
+        level_id = self.__level_model.get_item(index)['id']
         desc = self.lineEdit_desc.text()
         author = self.lineEdit_author.text()
         tags = self.lineEdit_tag.text()
@@ -211,12 +215,12 @@ class MyMain(QMainWindow, Ui_Main):
         series = self.lineEdit_series.text()
         uploader = self.lineEdit_uploader.text()
         for i in range(len(select_rows)):
-            item = self._image_model.get_item(select_rows[i].row())
+            item = self.__image_model.get_item(select_rows[i].row())
             filename = item['name']
             path = item['full_path']
             create_time = FileHelper.get_create_time_str(path)
             size = FileHelper.get_file_size_in_mb(path)
-            width, height = self.get_image_width_and_height(path)
+            width, height = self.__get_image_width_and_height(path)
             image_id = item['id']
             if image_id == 0:
                 db_helper.insert_image(
@@ -238,13 +242,13 @@ class MyMain(QMainWindow, Ui_Main):
                     uploader
                 )
                 image_id = db_helper.get_id_by_path(path)
-                self._image_model.set_image_id(select_rows[i].row(), image_id)
+                self.__image_model.set_image_id(select_rows[i].row(), image_id)
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 message = f"{item['relative_path']} 创建完成！"
             else:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
-                old_image = self._image_model.get_database_item(image_id)
+                old_image = self.__image_model.get_database_item(image_id)
                 if old_image and len(select_rows) > 1:
                     desc = old_image.desc
                     author = old_image.author
@@ -275,11 +279,21 @@ class MyMain(QMainWindow, Ui_Main):
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
 
     @staticmethod
-    def get_image_width_and_height(image_path):
+    def __get_image_width_and_height(image_path):
+        """
+        获取图片的宽高
+        :param image_path: 图片路径
+        :return:
+        """
         img = Image.open(image_path)
         return img.width, img.height
 
-    def analyze_image_info(self, file_path):
+    def __analyze_image_info(self, file_path):
+        """
+        根据文件路径分析图片信息
+        :param file_path: 图片路径
+        :return:
+        """
         filename = os.path.basename(file_path)
         yande = 'yande'
         pixiv = 'pixiv'
@@ -322,51 +336,67 @@ class MyMain(QMainWindow, Ui_Main):
                     self.lineEdit_desc.setText(match.group('desc'))
                     self.lineEdit_source.setText("pixiv")
 
-    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == Qt.Key_R and QApplication.keyboardModifiers() == Qt.ControlModifier:
-            self.classify()
-            self.listView.setFocus()
-        if event.key() == Qt.Key_E and QApplication.keyboardModifiers() == Qt.ControlModifier:
-            self.comboBox_level.setFocus()
-        if event.key() == Qt.Key_W and QApplication.keyboardModifiers() == Qt.ControlModifier:
-            self.lineEdit_works.setText("")
-        if event.key() == Qt.Key_Delete:
-            self.del_select_rows()
-
-    def dragEnterEvent(self, e: QtGui.QDragEnterEvent) -> None:
-        e.accept()
-
-    def dropEvent(self, e: QtGui.QDropEvent) -> None:
-        urls = e.mimeData().urls()
-        self._image_model.clear()
-        for url in urls:
-            self._image_model.add_path(url.toLocalFile())
-        if not os.path.isdir(urls[0].toLocalFile()):
-            return
-        if not self._config.has_section('history'):
-            self._config.add_section('history')
-        self._config['history']['lastDir'] = urls[0].toLocalFile()
-
-    def del_select_rows(self):
+    def __del_select_rows(self):
+        """
+        删除选中行
+        :return:
+        """
         select_rows = self.listView.selectionModel().selectedRows()
         if len(select_rows) == 0:
             return
         first_index = select_rows[0]
         for i in range(len(select_rows)):
             index = select_rows[i]
-            item = self._image_model.get_item(index.row())
+            item = self.__image_model.get_item(index.row())
             if item['id'] != 0:
                 db_helper.delete(item['id'])
             os.remove(item['full_path'])
-            self._image_model.delete_item(index.row())
+            self.__image_model.delete_item(index.row())
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {item['relative_path']} 删除成功！")
-        if first_index.row() + len(select_rows) == self._image_model.rowCount():
+        # 如果删除到了最后一行，则刷新上一个
+        if first_index.row() + len(select_rows) == self.__image_model.rowCount():
+            if first_index.row() == 0:
+                return
+            else:
+                self.listView.setCurrentIndex(self.listView.model().index(first_index.row() - 1), first_index.column())
+        else:
+            self.listView.setCurrentIndex(first_index)
+            self.__show_image(first_index.row())
+
+    # region 重写 Qt 控件方法
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        # 键盘快捷键事件
+        if event.key() == Qt.Key_R and QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.__classify()
+            self.listView.setFocus()
+        if event.key() == Qt.Key_E and QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.comboBox_level.setFocus()
+        if event.key() == Qt.Key_W and QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.lineEdit_works.setText("")
+        if event.key() == Qt.Key_Delete:
+            self.__del_select_rows()
+
+    def dragEnterEvent(self, e: QtGui.QDragEnterEvent) -> None:
+        # 设置允许接收
+        e.accept()
+
+    def dropEvent(self, e: QtGui.QDropEvent) -> None:
+        # 接收文件夹和文件以刷新图片列表
+        urls = e.mimeData().urls()
+        self.__image_model.clear()
+        for url in urls:
+            self.__image_model.add_path(url.toLocalFile())
+        if not os.path.isdir(urls[0].toLocalFile()):
             return
-        self.show_image(first_index.row())
+        if not self.__config.has_section('history'):
+            self.__config.add_section('history')
+        self.__config['history']['lastDir'] = urls[0].toLocalFile()
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        with open(self._completer_filename, 'w+', encoding='utf-8') as f:
-            f.writelines(list(map(lambda x: x + "\n", self._completer_list)))
+        # 关闭时保存自动填充作品列表的配置文件
+        with open(self.__completer_filename, 'w+', encoding='utf-8') as f:
+            f.writelines(list(map(lambda x: x + "\n", self.__completer_list)))
 
-        with open(self._config_filename, 'w', encoding='utf-8') as f:
-            self._config.write(f)
+        with open(self.__config_filename, 'w', encoding='utf-8') as f:
+            self.__config.write(f)
+    # endregion
