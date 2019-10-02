@@ -59,7 +59,7 @@ class MyMain(QMainWindow, Ui_Main):
             try:
                 self._config.read(self._config_filename, encoding='utf-8')
                 last_dir = self._config.get('history', 'lastDir')
-                self._image_model.add_dir(last_dir)
+                self._image_model.add_path(last_dir)
             except Exception as e:
                 print(e)
 
@@ -287,18 +287,17 @@ class MyMain(QMainWindow, Ui_Main):
             return None
         if yande in filename:
             # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-            match = re.search(r"yande.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)\.", filename)
+            match = re.search(r"yande.*?_\d*?_(?P<uploader>.+?)](?P<desc>.+?)\.", filename)
             if match:
-                self.lineEdit_author.setText(match.group('author'))
+                self.lineEdit_uploader.setText(match.group('uploader'))
                 desc = match.group('desc')
                 desc = desc.replace("_00", "")
                 self.lineEdit_desc.setText(desc)
                 self.lineEdit_source.setText("yande")
             else:
                 # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-                match = re.search(r"yande(.re)? (?P<author>.+?) (?P<desc>.+?)\.", filename)
+                match = re.search(r"yande(.re)? (?P<id>.+?) (?P<desc>.+?)\.", filename)
                 if match:
-                    self.lineEdit_author.setText(match.group('author'))
                     self.lineEdit_desc.setText(match.group('desc'))
                     self.lineEdit_source.setText("yande")
 
@@ -341,7 +340,9 @@ class MyMain(QMainWindow, Ui_Main):
         urls = e.mimeData().urls()
         self._image_model.clear()
         for url in urls:
-            self._image_model.add_dir(url.toLocalFile())
+            self._image_model.add_path(url.toLocalFile())
+        if not os.path.isdir(urls[0].toLocalFile()):
+            return
         if not self._config.has_section('history'):
             self._config.add_section('history')
         self._config['history']['lastDir'] = urls[0].toLocalFile()
@@ -359,10 +360,9 @@ class MyMain(QMainWindow, Ui_Main):
             os.remove(item['full_path'])
             self._image_model.delete_item(index.row())
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {item['relative_path']} 删除成功！")
-        if first_index.row() == 0:
+        if first_index.row() + len(select_rows) == self._image_model.rowCount():
             return
-        self.listView.setCurrentIndex(self.listView.model().index(first_index.row() - 1, first_index.column()))
-        self.listView.setCurrentIndex(first_index)
+        self.show_image(first_index.row())
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         with open(self._completer_filename, 'w+', encoding='utf-8') as f:

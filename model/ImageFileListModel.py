@@ -45,28 +45,28 @@ class ImageFileListModel(MyBaseListModel):
     def rowCount(self, parent: QModelIndex = ...) -> int:
         return len(self._data_list)
 
-    def add_dir(self, dir_path):
+    def _add_dir(self, dir_path):
         self._base_dir = os.path.basename(dir_path)
         for filename in os.listdir(dir_path):
             file_path = "%s/%s" % (dir_path, filename)
             if os.path.isdir(file_path):
-                self.add_children_dir(file_path)
+                self._add_children_dir(file_path)
                 continue
             relative_path = "%s/%s" % (self._base_dir, filename)
-            self.add_image_data(relative_path, file_path, filename)
+            self._add_image_data(relative_path, file_path, filename)
 
-    def add_children_dir(self, dir_path):
+    def _add_children_dir(self, dir_path):
         for filename in os.listdir(dir_path):
             file_path = "%s/%s" % (dir_path, filename)
             dir_name = os.path.basename(dir_path)
             if os.path.isdir(file_path):
-                self.add_children_dir(file_path)
+                self._add_children_dir(file_path)
                 continue
             relative_path = "%s/%s/%s" % (self._base_dir, dir_name, filename)
-            self.add_image_data(relative_path, file_path, filename)
+            self._add_image_data(relative_path, file_path, filename)
 
-    def add_image_data(self, relative_path, full_path, filename):
-        if not self.is_image(filename):
+    def _add_image_data(self, relative_path, full_path, filename):
+        if not self._is_image(filename):
             return
         image = db_helper.search(full_path)
         if image:
@@ -82,10 +82,23 @@ class ImageFileListModel(MyBaseListModel):
         }
         self.add_item(item_data)
 
+    def add_path(self, path):
+        if os.path.isdir(path):
+            self._add_dir(path)
+        elif os.path.isfile(path):
+            self._add_file(path)
+
+    def _add_file(self, file_path):
+        filename = os.path.basename(file_path)
+        if not self._is_image(filename):
+            return
+        relative_path = filename
+        self._add_image_data(relative_path, file_path, filename)
+
     def set_image_id(self, index, image_id):
         self._data_list[index]['id'] = image_id
 
-    def is_image(self, filename):
+    def _is_image(self, filename):
         extension = FileHelper.get_file_extension(filename).lower()
         return extension in self._image_extension_list
 

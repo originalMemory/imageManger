@@ -25,7 +25,6 @@ def init():
     db = QtSql.QSqlDatabase.addDatabase('QMYSQL')
     db.setHostName('localhost')
     db.setUserName('root')
-    db.setPassword('123')
     db.open()
     global query
     query = QSqlQuery()
@@ -257,6 +256,7 @@ def search(file_path):
 
 def get_id_by_path(file_path):
     image_id = 0
+    file_path = file_path.replace("'", "\\'")
     sql_str = f"select id from myacg.image where path='{file_path}' limit 1"
     query.exec_(sql_str)
     if query.next():
