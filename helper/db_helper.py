@@ -10,12 +10,10 @@
 @update  :
 """
 
-import hashlib
-
 from PyQt5 import QtSql
 from PyQt5.QtSql import QSqlQuery
 
-from model.data import MyImage
+from model.data import ImageSql, BaseData, ImageFile
 
 query = QSqlQuery()  # 全局变量，用于与mysql交互
 
@@ -24,6 +22,7 @@ def init():
     # 连接数据库
     db = QtSql.QSqlDatabase.addDatabase('QMYSQL')
     db.setHostName('localhost')
+    db.setPassword('123')
     db.setUserName('root')
     db.open()
     global query
@@ -96,10 +95,7 @@ def get_model_data_list(table, where_str=None):
     query.exec_(sql_str)
     lists = []
     while query.next():
-        li = {
-            "id": query.value(0),
-            "name": query.value(1)
-        }
+        li = BaseData(query.value(0), query.value(1))
         lists.append(li)
     query.finish()
     return lists
@@ -218,7 +214,7 @@ def update_image(
     query.exec_(sql_str)
 
 
-def search(file_path):
+def search_by_file_path(file_path):
     """
     根据路径搜索图片
     :param file_path:
@@ -229,7 +225,7 @@ def search(file_path):
     sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
     query.exec_(sql_str)
     if query.next():
-        info = MyImage(
+        info = ImageSql(
             id=query.value('id'),
             desc=query.value('desc'),
             author=query.value('author'),
@@ -268,3 +264,40 @@ def get_id_by_path(file_path):
 def delete(image_id):
     sql_str = f"delete from myacg.image where id={image_id}"
     query.exec_(sql_str)
+
+
+def search_by_where(sql_where):
+    image_sql_list = []
+    image_file_list = []
+    sql_str = f"select * from myacg.image where {sql_where}"
+    query.exec_(sql_str)
+    while query.next():
+        image_sql = ImageSql(
+            id=query.value('id'),
+            desc=query.value('desc'),
+            author=query.value('author'),
+            type_id=query.value('type_id'),
+            level_id=query.value('level_id'),
+            tags=query.value('tags'),
+            works=query.value('works'),
+            role=query.value('role'),
+            source=query.value('source'),
+            width=query.value('width'),
+            height=query.value('height'),
+            size=query.value('size'),
+            filename=query.value('filename'),
+            path=query.value('path'),
+            file_create_time=query.value('file_create_time'),
+            create_time=query.value('create_time'),
+            update_time=query.value('update_time'),
+            series=query.value('series'),
+            uploader=query.value('uploader')
+        )
+        image_sql_list.append(image_sql)
+
+        path = query.value('path')
+        tp_lists = path.split('/')
+        image_file = ImageFile(query.value('id'), "%s/%s" % (tp_lists[-2], tp_lists[-1]), path)
+        image_file_list.append(image_file)
+    query.finish()
+    return image_sql_list, image_file_list

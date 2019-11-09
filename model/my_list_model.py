@@ -12,6 +12,8 @@
 
 from PyQt5.QtCore import QAbstractListModel, QModelIndex, QVariant, Qt
 
+from model.data import BaseData
+
 
 class MyBaseListModel(QAbstractListModel):
     """
@@ -32,7 +34,7 @@ class MyBaseListModel(QAbstractListModel):
         # 设置表格显示使用的数据
         if index.isValid() or (0 <= index.row() < len(self._data_list)):
             if role == Qt.DisplayRole:
-                return QVariant(self._data_list[index.row()]['name'])
+                return QVariant(self._data_list[index.row()].name)
         else:
             return QVariant()
 
@@ -76,7 +78,7 @@ class MyBaseListModel(QAbstractListModel):
         del self._data_list[row]
         self.endRemoveRows()
 
-    def get_item(self, row):
+    def get_item(self, row) -> BaseData:
         """
         自定义。获取数据
         :param row: 索引
@@ -94,11 +96,11 @@ class MyBaseListModel(QAbstractListModel):
         # 如果是数字类型，则以id进行对比
         if isinstance(key, int):
             for i in range(len(self._data_list)):
-                if key == self._data_list[i]['id']:
+                if key == self._data_list[i].id:
                     return i
         elif isinstance(key, str):
             for i in range(len(self._data_list)):
-                if key == self._data_list[i]['name']:
+                if key == self._data_list[i].name:
                     return i
         return 0
 
@@ -109,7 +111,7 @@ class MyBaseListModel(QAbstractListModel):
         :return:
         """
         if -1 < index < len(self._data_list):
-            return self._data_list[index]['id']
+            return self._data_list[index].id
         return 0
 
     def clear(self):

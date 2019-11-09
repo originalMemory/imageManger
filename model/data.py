@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class MyImage:
+class ImageSql:
     """
     Mysql 中 image 表的数据类型映射
     """
@@ -38,3 +38,13 @@ class MyImage:
     series: str
     uploader: str
 
+
+@dataclass
+class BaseData:
+    id: int = 0
+    name: str = ""
+
+
+@dataclass
+class ImageFile(BaseData):
+    full_path: str = ""

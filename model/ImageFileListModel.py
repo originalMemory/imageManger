@@ -16,6 +16,7 @@ from PyQt5.QtGui import QBrush, QColor
 
 from helper import db_helper
 from helper.file_helper import FileHelper
+from model.data import ImageFile, ImageSql
 from model.my_list_model import MyBaseListModel
 
 
@@ -25,17 +26,17 @@ class ImageFileListModel(MyBaseListModel):
         super().__init__()
         self._base_dir = ""
         self.__image_extension_list = ['.jpg', 'jpeg', '.bmp', '.png', 'gif', 'dib', 'pcp', 'dif', 'wmf', 'tif', 'eps',
-                                      'psd', 'cdr', 'iff', 'tga', 'pcd', 'mpi', '.icon', '.ico']
+                                       'psd', 'cdr', 'iff', 'tga', 'pcd', 'mpi', '.icon', '.ico']
         self._data_list_in_database = []
 
     def data(self, index: QModelIndex, role: int = ...):
         if index.isValid() or (0 <= index.row() < len(self._data_list)):
             if role == Qt.DisplayRole:
-                return QVariant(self._data_list[index.row()]['relative_path'])
+                return QVariant(self._data_list[index.row()].name)
             elif role == Qt.StatusTipRole:
-                return QVariant(self._data_list[index.row()]['full_path'])
+                return QVariant(self._data_list[index.row()].full_path)
             elif role == Qt.BackgroundColorRole:
-                if self._data_list[index.row()]["id"] != 0:
+                if self._data_list[index.row()].id != 0:
                     return QBrush(QColor(84, 255, 159))
                 else:
                     return QBrush(QColor(255, 255, 255))
@@ -44,6 +45,15 @@ class ImageFileListModel(MyBaseListModel):
 
     def rowCount(self, parent: QModelIndex = ...) -> int:
         return len(self._data_list)
+
+    def get_item(self, row) -> ImageFile:
+        """
+                自定义。获取数据
+                :param row: 索引
+                :return:
+                """
+        if -1 < row < len(self._data_list):
+            return self._data_list[row]
 
     def __add_dir(self, dir_path):
         self._base_dir = os.path.basename(dir_path)
@@ -68,18 +78,13 @@ class ImageFileListModel(MyBaseListModel):
     def __add_image_data(self, relative_path, full_path, filename):
         if not self.__is_image(filename):
             return
-        image = db_helper.search(full_path)
+        image = db_helper.search_by_file_path(full_path)
         if image:
             image_id = image.id
             self._data_list_in_database.append(image)
         else:
             image_id = 0
-        item_data = {
-            "id": image_id,
-            "relative_path": relative_path,
-            "full_path": full_path,
-            'name': filename
-        }
+        item_data = ImageFile(image_id, relative_path, full_path)
         self.add_item(item_data)
 
     def add_path(self, path):
@@ -96,7 +101,7 @@ class ImageFileListModel(MyBaseListModel):
         self.__add_image_data(relative_path, file_path, filename)
 
     def set_image_id(self, index, image_id):
-        self._data_list[index]['id'] = image_id
+        self._data_list[index].id = image_id
 
     def __is_image(self, filename):
         extension = FileHelper.get_file_extension(filename).lower()
@@ -106,8 +111,14 @@ class ImageFileListModel(MyBaseListModel):
         super().clear()
         self._data_list_in_database.clear()
 
-    def get_database_item(self, image_id):
+    def get_database_item(self, image_id) -> ImageSql:
         for image in self._data_list_in_database:
             if image.id == image_id:
                 return image
         return None
+
+    def set_images(self, image_sql_list, image_file_list):
+        self.beginResetModel()
+        self._data_list_in_database = image_sql_list
+        self._data_list = image_file_list
+        self.endResetModel()
