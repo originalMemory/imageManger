@@ -12,15 +12,18 @@
 import datetime
 import os
 import re
+import threading
 from configparser import ConfigParser
 from enum import unique, Enum
 from shutil import copyfile
 
+from PIL import Image
+from PIL.ImageQt import ImageQt
 from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import QModelIndex, Qt
-from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter
+from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal, QObject
+from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 
-from helper import db_helper
+from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from model.ImageFileListModel import ImageFileListModel
 from model.data import ImageFile
@@ -35,19 +38,24 @@ class VIEW(Enum):
 
 
 class MyMain(QMainWindow, Ui_Main):
+    __select_index_signal = pyqtSignal(QModelIndex)
+
     def __init__(self, parent=None):
         super(MyMain, self).__init__(parent)
         self.setupUi(self)
 
+        self.__db_helper = DBHelper(self)
+
+        self.__select_index_signal.connect(self.__select_index)
         # 下拉列表设置
         self.__type_model = MyBaseListModel()
         self.comboBox_type.setModel(self.__type_model)
-        self.__type_model.add_items(db_helper.get_model_data_list('type'))
+        self.__type_model.add_items(self.__db_helper.get_model_data_list('type'))
         self.comboBox_type.setCurrentIndex(0)
 
         self.__level_model = MyBaseListModel()
         self.comboBox_level.setModel(self.__level_model)
-        levels = db_helper.get_model_data_list('level')
+        levels = self.__db_helper.get_model_data_list('level')
         for i in range(len(levels)):
             level = levels[i]
             if level.name == "码":
@@ -57,7 +65,7 @@ class MyMain(QMainWindow, Ui_Main):
         self.comboBox_level.setCurrentIndex(0)
 
         # 图片信息
-        self.__image_model = ImageFileListModel()
+        self.__image_model = ImageFileListModel(self)
         self.__config_filename = "config.ini"
         self.__config = ConfigParser()
         if os.path.exists(self.__config_filename):
@@ -167,20 +175,25 @@ class MyMain(QMainWindow, Ui_Main):
         :return:
         """
         path = self.__image_model.get_item(index).full_path
+        self.__analysis_file_info(path)
         self.statusbar.showMessage(f"[{index + 1}/{self.__image_model.rowCount()}] {path}")
-        pixmap = QtGui.QPixmap(path)
-        # 填充缩放
-        x_scale = self.graphicsView.width() / float(pixmap.width())
-        y_scale = self.graphicsView.height() / float(pixmap.height())
-        if x_scale < y_scale:
-            pixmap = pixmap.scaledToWidth(self.graphicsView.width())
-        else:
-            pixmap = pixmap.scaledToHeight(self.graphicsView.height())
-        # 加载图片
-        item = QtWidgets.QGraphicsPixmapItem(pixmap)
-        scene = QtWidgets.QGraphicsScene()
-        scene.addItem(item)
-        self.graphicsView.setScene(scene)
+        try:
+            # 填充缩放
+            qim = ImageQt(path)
+            x_scale = self.graphicsView.width() / float(qim.width())
+            y_scale = self.graphicsView.height() / float(qim.height())
+            if x_scale < y_scale:
+                qim = qim.scaledToWidth(self.graphicsView.width(), Image.ANTIALIAS)
+            else:
+                qim = qim.scaledToHeight(self.graphicsView.height(), Image.ANTIALIAS)
+            pixmap = QtGui.QPixmap.fromImage(qim)
+            # 加载图片
+            item = QtWidgets.QGraphicsPixmapItem(pixmap)
+            scene = QtWidgets.QGraphicsScene()
+            scene.addItem(item)
+            self.graphicsView.setScene(scene)
+        except Exception as e:
+            QMessageBox.information(self, "提示", str(e), QMessageBox.Ok)
 
     def __on_list_view_current_row_change(self, current: QModelIndex, previous: QModelIndex):
         """
@@ -191,8 +204,8 @@ class MyMain(QMainWindow, Ui_Main):
         """
         self.__show_image(current.row())
 
-        path = self.__image_model.get_item(current.row()).full_path
-        info = db_helper.search_by_file_path(path)
+    def __analysis_file_info(self, path):
+        info = self.__db_helper.search_by_file_path(path)
         if not info:
             # 分析图片信息
             size = FileHelper.get_file_size_in_mb(path)
@@ -232,6 +245,11 @@ class MyMain(QMainWindow, Ui_Main):
         :return:
         """
         select_rows = self.listView.selectionModel().selectedRows()
+        select_rows = [x for x in select_rows]
+        th = threading.Thread(target=self.__insert_or_update_db, args=(select_rows,))
+        th.start()
+
+    def __insert_or_update_db(self, select_rows):
         index = self.comboBox_type.currentIndex()
         type_id = self.__type_model.get_item(index).id
         index = self.comboBox_level.currentIndex()
@@ -253,7 +271,7 @@ class MyMain(QMainWindow, Ui_Main):
             width, height = self.__get_image_width_and_height(path)
             image_id = item.id
             if image_id == 0:
-                db_helper.insert_image(
+                self.__db_helper.insert_image(
                     desc,
                     author,
                     type_id,
@@ -271,7 +289,7 @@ class MyMain(QMainWindow, Ui_Main):
                     series,
                     uploader
                 )
-                image_id = db_helper.get_id_by_path(path)
+                image_id = self.__db_helper.get_id_by_path(path)
                 self.__image_model.set_image_id(select_rows[i].row(), image_id)
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
@@ -285,7 +303,7 @@ class MyMain(QMainWindow, Ui_Main):
                     level_id = old_image.level_id
                     tags = old_image.tags
                     works = old_image.works
-                db_helper.update_image(
+                self.__db_helper.update_image(
                     image_id,
                     desc,
                     author,
@@ -307,10 +325,16 @@ class MyMain(QMainWindow, Ui_Main):
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 message = f"{item.name} 更新完成！"
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
-        current_index = self.listView.currentIndex()
-        next_row = current_index.row() + len(select_rows)
-        if next_row < self.__image_model.rowCount():
-            self.listView.setCurrentIndex(self.__image_model.index(next_row, current_index.column()))
+        end_index = select_rows[-1]
+        self.__select_index_signal.emit(self.__image_model.index(end_index.row() + 1, end_index.column()))
+
+    def __select_index(self, index: QModelIndex):
+        if 0 < index.row() < self.__image_model.rowCount() - 1:
+            self.listView.setCurrentIndex(index)
+            self.listView.setFocus()
+        else:
+            self.listView.clearFocus()
+            self.listView.setFocus()
 
     @staticmethod
     def __get_image_width_and_height(image_path):
@@ -319,8 +343,12 @@ class MyMain(QMainWindow, Ui_Main):
         :param image_path: 图片路径
         :return:
         """
-        img = QtGui.QPixmap(image_path)
-        return img.width(), img.height()
+        try:
+            img = QtGui.QPixmap(image_path)
+            return img.width(), img.height()
+        except Exception as e:
+            print(e)
+            return 0, 0
 
     def __analyze_image_info(self, file_path):
         """
@@ -381,13 +409,15 @@ class MyMain(QMainWindow, Ui_Main):
         first_index = select_rows[0]
         for i in range(len(select_rows)):
             index = select_rows[i]
-            item = self.__image_model.get_item(index.row())
+            item = self.__image_model.get_item(index.row() - i)
             if item.id != 0:
-                db_helper.delete(item.id)
+                self.__db_helper.delete(item.id)
             os.remove(item.full_path)
-            self.__image_model.delete_item(index.row())
+            self.__image_model.delete_item(index.row() - i)
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {item.name} 删除成功！")
 
+        if len(select_rows) > 1:
+            self.listView.clearSelection()
         # 如果删除到了最后一行，则刷新上一个
         if first_index.row() >= self.__image_model.rowCount():
             if first_index.row() == 0:
@@ -395,7 +425,10 @@ class MyMain(QMainWindow, Ui_Main):
             else:
                 self.listView.setCurrentIndex(self.listView.model().index(first_index.row() - 1, first_index.column()))
         else:
-            self.__show_image(first_index.row())
+            if len(select_rows) > 1:
+                self.listView.setCurrentIndex(first_index)
+            else:
+                self.__show_image(first_index.row())
 
     def __search(self):
         sql_where = self.lineEdit_sql_where.text()
@@ -415,7 +448,7 @@ class MyMain(QMainWindow, Ui_Main):
                 sql_where += f" `uploader` like '%{self.lineEdit_uploader.text()}%'"
             if len(self.lineEdit_author.text()):
                 sql_where += f" `author` like '%{self.lineEdit_author.text()}%'"
-        image_sql_list, image_file_list = db_helper.search_by_where(sql_where)
+        image_sql_list, image_file_list = self.__db_helper.search_by_where(sql_where)
         if len(image_sql_list) > 0:
             self.__image_model.set_images(image_sql_list, image_file_list)
             self.listView.scrollToTop()
@@ -485,16 +518,18 @@ class MyMain(QMainWindow, Ui_Main):
         if event.key() == Qt.Key_C:
             self.lineEdit_works.setText("")
             return True
-        if event.key() == Qt.Key_Delete:
+        if event.key() == Qt.Key_D:
             self.__del_select_rows()
             return True
         if event.key() == Qt.Key_W:
             current_index = self.listView.currentIndex()
-            self.listView.setCurrentIndex(self.__image_model.index(current_index.row() - 1, current_index.column()))
+            if current_index.row() > 0:
+                self.listView.setCurrentIndex(self.__image_model.index(current_index.row() - 1, current_index.column()))
             return True
         if event.key() == Qt.Key_S:
             current_index = self.listView.currentIndex()
-            self.listView.setCurrentIndex(self.__image_model.index(current_index.row() + 1, current_index.column()))
+            if current_index.row() < self.__image_model.rowCount() - 1:
+                self.listView.setCurrentIndex(self.__image_model.index(current_index.row() + 1, current_index.column()))
             return True
         return False
 
@@ -505,6 +540,10 @@ class MyMain(QMainWindow, Ui_Main):
     def dropEvent(self, e: QtGui.QDropEvent) -> None:
         # 接收文件夹和文件以刷新图片列表
         urls = e.mimeData().urls()
+        th = threading.Thread(target=self.__load_list_data, args=(urls,))
+        th.start()
+
+    def __load_list_data(self, urls):
         self.__image_model.clear()
         for url in urls:
             self.__image_model.add_path(url.toLocalFile())

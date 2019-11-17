@@ -13,15 +13,13 @@ import sys
 
 from PyQt5.QtWidgets import QApplication
 
-from helper import db_helper
 from controller.main import MyMain
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     try:
-        db_helper.init()
+        myWin = MyMain()
+        myWin.show()
+        sys.exit(app.exec_())
     except Exception as e:
-        print(f"Error [{e.args[0]}]: {e.args[1]}")
-    myWin = MyMain()
-    myWin.show()
-    sys.exit(app.exec_())
+        print(e)

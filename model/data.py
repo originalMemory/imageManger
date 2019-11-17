@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ImageSql:
+class MyImage:
     """
     Mysql 中 image 表的数据类型映射
     """
@@ -37,6 +37,31 @@ class ImageSql:
     update_time: datetime
     series: str
     uploader: str
+
+    @staticmethod
+    def from_mysql_dict(query):
+        image = MyImage(
+            id=query['id'],
+            desc=query['desc'],
+            author=query['author'],
+            type_id=query['type_id'],
+            level_id=query['level_id'],
+            tags=query['tags'],
+            works=query['works'],
+            role=query['role'],
+            source=query['source'],
+            width=query['width'],
+            height=query['height'],
+            size=query['size'],
+            filename=query['filename'],
+            path=query['path'],
+            file_create_time=query['file_create_time'],
+            create_time=query['create_time'],
+            update_time=query['update_time'],
+            series=query['series'],
+            uploader=query['uploader']
+        )
+        return image
 
 
 @dataclass

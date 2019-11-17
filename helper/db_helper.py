@@ -9,295 +9,259 @@
 @create  : 2019/5/27 21:03:31
 @update  :
 """
+import pymysql
+from PyQt5.QtWidgets import QMessageBox
 
-from PyQt5 import QtSql
-from PyQt5.QtSql import QSqlQuery
-
-from model.data import ImageSql, BaseData, ImageFile
-
-query = QSqlQuery()  # 全局变量，用于与mysql交互
+from model.data import MyImage, BaseData, ImageFile
 
 
-def init():
-    # 连接数据库
-    db = QtSql.QSqlDatabase.addDatabase('QMYSQL')
-    db.setHostName('localhost')
-    db.setPassword('123')
-    db.setUserName('root')
-    db.open()
-    global query
-    query = QSqlQuery()
+class DBHelper:
+    config = {
+        'host': 'localhost',  # 地址
+        'user': 'root',  # 用户名
+        'passwd': '123',  # 密码
+        'db': 'myacg',  # 使用的数据库名
+        'charset': 'utf8',  # 编码类型
+        'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
+    }
 
-    # 检查数据库，不存在则创建
-    database_name = "myacg"
-    if not exist_database(database_name):
-        query.exec_(f"CREATE DATABASE {database_name};")
-        print("创建数据库成功！")
-    query.exec_(f"use {database_name};")
+    def __init__(self, context):
+        self.context = context
 
-    # # 检查表，不存在则创建
-    # table_names = get_all_table_name()
-    # table_name = "image"
-    # if table_name not in table_names:
-    #     query.exec_(f"CREATE TABLE if not exists `{table_name}`("
-    #                 "  `id` int(11) NOT NULL," \
-    #                 "  `desc` varchar(255) DEFAULT NULL COMMENT '描述'," \
-    #                 "  `author` varchar(255) DEFAULT NULL COMMENT '作者'," \
-    #                 "  `tags` varchar(1000) DEFAULT NULL COMMENT '标签'," \
-    #                 "  `works` varchar(255) DEFAULT NULL COMMENT '来源作品'," \
-    #                 "  `publish_time` datetime DEFAULT NULL COMMENT '发布时间'," \
-    #                 "  `level` smallint(1) DEFAULT '0' COMMENT '等级。-1为模糊，0为阴，1为奶，2为内衣，3为全身，4为头像'," \
-    #                 "  `source` varchar(255) DEFAULT NULL COMMENT '来源站点'," \
-    #                 "  `path` varchar(255) DEFAULT NULL COMMENT '文件路径'," \
-    #                 "  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'," \
-    #                 "  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'," \
-    #                 "  PRIMARY KEY (`id`)" \
-    #                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8;")
-    #     print("创建用户表功！")
+    def execute(self, sql_str):
+        connect = None
+        is_success = True
+        try:
+            connect = pymysql.connect(**self.config)
+            cursor = connect.cursor()
+            cursor.execute(sql_str)
+            connect.commit()
+        except pymysql.Error as error:
+            self.__show_error(error)
+            is_success = False
+        finally:
+            if connect:
+                connect.close()
+        return is_success
 
+    def execute_many(self, sql_str, val):
+        connect = None
+        is_success = True
+        try:
+            connect = pymysql.connect(**self.config)
+            cursor = connect.cursor()
+            cursor.executemany(sql_str, val)
+            connect.commit()
+        except pymysql.Error as error:
+            self.__show_error(error)
+            is_success = False
+        finally:
+            if connect:
+                connect.close()
+        return is_success
 
-def exist_database(name):
-    """
-    判断是否存在该数据库
-    :param name: 数据库名称
-    :return:
-    """
-    query.exec_("show databases;")
-    while query.next():
-        if name == query.value(0):
-            return True
-    return False
+    def query_with_return_all(self, sql_str):
+        connect = None
+        query = None
+        try:
+            connect = pymysql.connect(**self.config)
+            cursor = connect.cursor()
+            cursor.execute(sql_str)
+            query = cursor.fetchall()
+        except pymysql.Error as error:
+            self.__show_error(error)
+        finally:
+            if connect:
+                connect.close()
+        return query
 
+    def query_with_return_one(self, sql_str):
+        connect = None
+        query = None
+        try:
+            connect = pymysql.connect(**self.config)
+            cursor = connect.cursor()
+            cursor.execute(sql_str)
+            query = cursor.fetchone()
+        except pymysql.Error as error:
+            self.__show_error(error)
+        finally:
+            if connect:
+                connect.close()
+        return query
 
-def get_all_table_name():
-    """
-    获取所有表名
-    :return:
-    """
-    query.exec_("show tables;")
-    lists = []
-    while query.next():
-        lists.append(query.value(0))
-    return lists
+    def __show_error(self, error):
+        error_str = str(error)
+        if 'a foreign key constraint fails' in error_str:
+            error_str = "有关联数据，不能删除！"
+        QMessageBox.information(self.context, "提示", error_str, QMessageBox.Ok)
 
+    def get_model_data_list(self, table, where_str=None):
+        """
+        获取下拉框所需的model数据
+        :param table: 数据表名
+        :param where_str: 查询条件
+        :return:
+        """
+        sql_str = f"select `id`,`name` from `{table}`"
+        if where_str:
+            sql_str += f" where {where_str}"
+        sql_str += ";"
+        query = self.query_with_return_all(sql_str)
+        lists = [BaseData(x['id'], x['name']) for x in query]
+        return lists
 
-def get_model_data_list(table, where_str=None):
-    """
-    获取下拉框所需的model数据
-    :param table: 数据表名
-    :param where_str: 查询条件
-    :return:
-    """
-    sql_str = f"select `id`,`name` from `{table}`"
-    if where_str:
-        sql_str += f" where {where_str}"
-    sql_str += ";"
-    query.exec_(sql_str)
-    lists = []
-    while query.next():
-        li = BaseData(query.value(0), query.value(1))
-        lists.append(li)
-    query.finish()
-    return lists
+    def insert_image(
+            self,
+            desc,
+            author,
+            type_id,
+            level_id,
+            tags,
+            works,
+            role,
+            source,
+            filename,
+            path,
+            width,
+            height,
+            size,
+            create_time,
+            series,
+            uploader
+    ):
+        """
+        保存图片分类信息
+        :param desc: 描述
+        :param author: 作者
+        :param type_id: 类型 id
+        :param level_id: 等级 id
+        :param tags: 标签列表，用逗号分隔
+        :param works: 来源作品
+        :param role: 角色
+        :param source: 来源站点
+        :param filename: 文件名
+        :param path: 文件路径
+        :param width: 图片宽度
+        :param height: 图片高度
+        :param size: 文件大小
+        :param create_time: 文件创建时间
+        :param series: 系列
+        :param uploader: 上传者
+        :return:
+        """
+        # 替换单引号以保证插入
+        desc = desc.replace("'", "\\'")
+        author = author.replace("'", "\\'")
+        tags = tags.replace("'", "\\'")
+        works = works.replace("'", "\\'")
+        role = role.replace("'", "\\'")
+        filename = filename.replace("'", "\\'")
+        path = path.replace("'", "\\'")
+        series = series.replace("'", "\\'")
+        uploader = uploader.replace("'", "\\'")
+        sql_str = f"""INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, 
+            path, width, height, `size`, file_create_time, series, uploader) values ('{desc}', '{author}', {type_id}, 
+            {level_id}, '{tags}', '{works}', '{role}', '{source}', '{filename}', '{path}', {width}, {height}, {size}, 
+            '{create_time}', '{series}', '{uploader}');"""
+        print(sql_str)
+        self.execute(sql_str)
 
+    def update_image(
+            self,
+            image_id,
+            desc,
+            author,
+            type_id,
+            level_id,
+            tags,
+            works,
+            role,
+            source,
+            filename,
+            path,
+            width,
+            height,
+            size,
+            create_time,
+            series,
+            uploader
+    ):
+        """
+        保存图片分类信息
+        :param image_id: 图片 id
+        :param desc: 描述
+        :param author: 作者
+        :param type_id: 类型 id
+        :param level_id: 等级 id
+        :param tags: 标签列表，用逗号分隔
+        :param works: 来源作品
+        :param role: 角色
+        :param source: 来源站点
+        :param filename: 文件名
+        :param path: 文件路径
+        :param width: 图片宽度
+        :param height: 图片高度
+        :param size: 文件大小
+        :param create_time: 文件创建时间
+        :param series: 系列
+        :param uploader: 上传者
+        :return:
+        """
+        # 替换单引号以保证插入
+        desc = desc.replace("'", "\\'")
+        author = author.replace("'", "\\'")
+        tags = tags.replace("'", "\\'")
+        works = works.replace("'", "\\'")
+        role = role.replace("'", "\\'")
+        filename = filename.replace("'", "\\'")
+        path = path.replace("'", "\\'")
+        series = series.replace("'", "\\'")
+        uploader = uploader.replace("'", "\\'")
+        sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type_id={type_id}, level_id={level_id}, 
+            tags='{tags}', works='{works}', role='{role}', source='{source}', filename='{filename}', path='{path}', 
+            width={width}, height={height}, `size`={size}, file_create_time='{create_time}', series='{series}', 
+            uploader='{uploader}' where id={image_id}"""
+        self.execute(sql_str)
 
-def insert_image(
-        desc,
-        author,
-        type_id,
-        level_id,
-        tags,
-        works,
-        role,
-        source,
-        filename,
-        path,
-        width,
-        height,
-        size,
-        create_time,
-        series,
-        uploader
-):
-    """
-    保存图片分类信息
-    :param desc: 描述
-    :param author: 作者
-    :param type_id: 类型 id
-    :param level_id: 等级 id
-    :param tags: 标签列表，用逗号分隔
-    :param works: 来源作品
-    :param role: 角色
-    :param source: 来源站点
-    :param filename: 文件名
-    :param path: 文件路径
-    :param width: 图片宽度
-    :param height: 图片高度
-    :param size: 文件大小
-    :param create_time: 文件创建时间
-    :param series: 系列
-    :param uploader: 上传者
-    :return:
-    """
-    # 替换单引号以保证插入
-    desc = desc.replace("'", "\\'")
-    author = author.replace("'", "\\'")
-    tags = tags.replace("'", "\\'")
-    works = works.replace("'", "\\'")
-    role = role.replace("'", "\\'")
-    filename = filename.replace("'", "\\'")
-    path = path.replace("'", "\\'")
-    series = series.replace("'", "\\'")
-    uploader = uploader.replace("'", "\\'")
-    sql_str = f"INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, path," \
-        f" width, height, `size`, file_create_time, series, uploader) values ('{desc}', '{author}', {type_id}," \
-        f" {level_id}, '{tags}', '{works}', '{role}', '{source}', '{filename}', '{path}', {width}, {height}, {size}," \
-        f" '{create_time}', '{series}', '{uploader}');"
-    print(sql_str)
-    query.exec_(sql_str)
+    def search_by_file_path(self, file_path):
+        """
+        根据路径搜索图片
+        :param file_path:
+        :return:
+        """
+        info = None
+        file_path = file_path.replace("'", "\\'")
+        sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
+        query = self.query_with_return_one(sql_str)
+        if query:
+            info = MyImage.from_mysql_dict(query)
+        return info
 
+    def get_id_by_path(self, file_path):
+        file_path = file_path.replace("'", "\\'")
+        sql_str = f"select id from myacg.image where path='{file_path}' limit 1"
+        query = self.query_with_return_one(sql_str)
+        if query:
+            return query['id']
+        else:
+            return 0
 
-def update_image(
-        image_id,
-        desc,
-        author,
-        type_id,
-        level_id,
-        tags,
-        works,
-        role,
-        source,
-        filename,
-        path,
-        width,
-        height,
-        size,
-        create_time,
-        series,
-        uploader
-):
-    """
-    保存图片分类信息
-    :param image_id: 图片 id
-    :param desc: 描述
-    :param author: 作者
-    :param type_id: 类型 id
-    :param level_id: 等级 id
-    :param tags: 标签列表，用逗号分隔
-    :param works: 来源作品
-    :param role: 角色
-    :param source: 来源站点
-    :param filename: 文件名
-    :param path: 文件路径
-    :param width: 图片宽度
-    :param height: 图片高度
-    :param size: 文件大小
-    :param create_time: 文件创建时间
-    :param series: 系列
-    :param uploader: 上传者
-    :return:
-    """
-    # 替换单引号以保证插入
-    desc = desc.replace("'", "\\'")
-    author = author.replace("'", "\\'")
-    tags = tags.replace("'", "\\'")
-    works = works.replace("'", "\\'")
-    role = role.replace("'", "\\'")
-    filename = filename.replace("'", "\\'")
-    path = path.replace("'", "\\'")
-    series = series.replace("'", "\\'")
-    uploader = uploader.replace("'", "\\'")
-    sql_str = f"update myacg.image set `desc`='{desc}',author='{author}', type_id={type_id}, level_id={level_id}, " \
-        f"tags='{tags}', works='{works}', role='{role}', source='{source}', filename='{filename}', path='{path}', " \
-        f"width={width}, height={height}, `size`={size}, file_create_time='{create_time}', series='{series}', " \
-        f"uploader='{uploader}' where id={image_id}"
-    query.exec_(sql_str)
+    def delete(self, image_id):
+        sql_str = f"delete from myacg.image where id={image_id}"
+        self.execute(sql_str)
 
+    def search_by_where(self, sql_where):
+        image_sql_list = []
+        image_file_list = []
+        sql_str = f"select * from myacg.image where {sql_where}"
+        queries = self.query_with_return_all(sql_str)
+        for query in queries:
+            image_sql = MyImage.from_mysql_dict(query)
+            image_sql_list.append(image_sql)
 
-def search_by_file_path(file_path):
-    """
-    根据路径搜索图片
-    :param file_path:
-    :return:
-    """
-    info = None
-    file_path = file_path.replace("'", "\\'")
-    sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
-    query.exec_(sql_str)
-    if query.next():
-        info = ImageSql(
-            id=query.value('id'),
-            desc=query.value('desc'),
-            author=query.value('author'),
-            type_id=query.value('type_id'),
-            level_id=query.value('level_id'),
-            tags=query.value('tags'),
-            works=query.value('works'),
-            role=query.value('role'),
-            source=query.value('source'),
-            width=query.value('width'),
-            height=query.value('height'),
-            size=query.value('size'),
-            filename=query.value('filename'),
-            path=query.value('path'),
-            file_create_time=query.value('file_create_time'),
-            create_time=query.value('create_time'),
-            update_time=query.value('update_time'),
-            series=query.value('series'),
-            uploader=query.value('uploader')
-        )
-        query.finish()
-    return info
-
-
-def get_id_by_path(file_path):
-    image_id = 0
-    file_path = file_path.replace("'", "\\'")
-    sql_str = f"select id from myacg.image where path='{file_path}' limit 1"
-    query.exec_(sql_str)
-    if query.next():
-        image_id = query.value(0)
-        query.finish()
-    return image_id
-
-
-def delete(image_id):
-    sql_str = f"delete from myacg.image where id={image_id}"
-    query.exec_(sql_str)
-
-
-def search_by_where(sql_where):
-    image_sql_list = []
-    image_file_list = []
-    sql_str = f"select * from myacg.image where {sql_where}"
-    query.exec_(sql_str)
-    while query.next():
-        image_sql = ImageSql(
-            id=query.value('id'),
-            desc=query.value('desc'),
-            author=query.value('author'),
-            type_id=query.value('type_id'),
-            level_id=query.value('level_id'),
-            tags=query.value('tags'),
-            works=query.value('works'),
-            role=query.value('role'),
-            source=query.value('source'),
-            width=query.value('width'),
-            height=query.value('height'),
-            size=query.value('size'),
-            filename=query.value('filename'),
-            path=query.value('path'),
-            file_create_time=query.value('file_create_time'),
-            create_time=query.value('create_time'),
-            update_time=query.value('update_time'),
-            series=query.value('series'),
-            uploader=query.value('uploader')
-        )
-        image_sql_list.append(image_sql)
-
-        path = query.value('path')
-        tp_lists = path.split('/')
-        image_file = ImageFile(query.value('id'), "%s/%s" % (tp_lists[-2], tp_lists[-1]), path)
-        image_file_list.append(image_file)
-    query.finish()
-    return image_sql_list, image_file_list
+            path = image_sql.path
+            tp_lists = path.split('/')
+            image_file = ImageFile(image_sql.id, "%s/%s" % (tp_lists[-2], tp_lists[-1]), path)
+            image_file_list.append(image_file)
+        return image_sql_list, image_file_list

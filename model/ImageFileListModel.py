@@ -14,20 +14,21 @@ import os
 from PyQt5.QtCore import QModelIndex, QVariant, Qt, QAbstractListModel
 from PyQt5.QtGui import QBrush, QColor
 
-from helper import db_helper
+from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
-from model.data import ImageFile, ImageSql
+from model.data import ImageFile, MyImage
 from model.my_list_model import MyBaseListModel
 
 
 class ImageFileListModel(MyBaseListModel):
 
-    def __init__(self):
+    def __init__(self, context):
         super().__init__()
         self._base_dir = ""
         self.__image_extension_list = ['.jpg', 'jpeg', '.bmp', '.png', 'gif', 'dib', 'pcp', 'dif', 'wmf', 'tif', 'eps',
                                        'psd', 'cdr', 'iff', 'tga', 'pcd', 'mpi', '.icon', '.ico']
         self._data_list_in_database = []
+        self.__db_helper = DBHelper(context)
 
     def data(self, index: QModelIndex, role: int = ...):
         if index.isValid() or (0 <= index.row() < len(self._data_list)):
@@ -78,7 +79,7 @@ class ImageFileListModel(MyBaseListModel):
     def __add_image_data(self, relative_path, full_path, filename):
         if not self.__is_image(filename):
             return
-        image = db_helper.search_by_file_path(full_path)
+        image = self.__db_helper.search_by_file_path(full_path)
         if image:
             image_id = image.id
             self._data_list_in_database.append(image)
@@ -111,7 +112,7 @@ class ImageFileListModel(MyBaseListModel):
         super().clear()
         self._data_list_in_database.clear()
 
-    def get_database_item(self, image_id) -> ImageSql:
+    def get_database_item(self, image_id) -> MyImage:
         for image in self._data_list_in_database:
             if image.id == image_id:
                 return image
