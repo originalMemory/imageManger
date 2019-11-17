@@ -12,6 +12,8 @@
 import datetime
 from dataclasses import dataclass
 
+from PyQt5.QtGui import QPixmap
+
 
 @dataclass
 class MyImage:
@@ -73,3 +75,9 @@ class BaseData:
 @dataclass
 class ImageFile(BaseData):
     full_path: str = ""
+
+
+@dataclass
+class PreloadImage:
+    full_path: str
+    pixmap: QPixmap

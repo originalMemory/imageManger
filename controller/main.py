@@ -11,8 +11,10 @@
 """
 import datetime
 import os
+import queue
 import re
 import threading
+import time
 from configparser import ConfigParser
 from enum import unique, Enum
 from shutil import copyfile
@@ -26,7 +28,7 @@ from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from model.ImageFileListModel import ImageFileListModel
-from model.data import ImageFile
+from model.data import ImageFile, PreloadImage
 from model.my_list_model import MyBaseListModel
 from view.main import Ui_Main
 
@@ -38,15 +40,18 @@ class VIEW(Enum):
 
 
 class MyMain(QMainWindow, Ui_Main):
-    __select_index_signal = pyqtSignal(QModelIndex)
+    """
+    更新 list 信号
+    """
+    __refresh_list_signal = pyqtSignal()
 
     def __init__(self, parent=None):
         super(MyMain, self).__init__(parent)
         self.setupUi(self)
 
-        self.__db_helper = DBHelper(self)
+        self.__db_helper = DBHelper(self)  # 数据库操作
 
-        self.__select_index_signal.connect(self.__select_index)
+        self.__refresh_list_signal.connect(self.__refresh_list)
         # 下拉列表设置
         self.__type_model = MyBaseListModel()
         self.comboBox_type.setModel(self.__type_model)
@@ -129,6 +134,9 @@ class MyMain(QMainWindow, Ui_Main):
         # Image.MAX_IMAGE_PIXELS = 1882320000
         self.listView.setFocus()
 
+        # 预加载图片
+        threading.Thread(target=self.__preload).start()
+
     def __add_complete(self):
         """
         添加自动补全作品
@@ -179,14 +187,7 @@ class MyMain(QMainWindow, Ui_Main):
         self.statusbar.showMessage(f"[{index + 1}/{self.__image_model.rowCount()}] {path}")
         try:
             # 填充缩放
-            qim = ImageQt(path)
-            x_scale = self.graphicsView.width() / float(qim.width())
-            y_scale = self.graphicsView.height() / float(qim.height())
-            if x_scale < y_scale:
-                qim = qim.scaledToWidth(self.graphicsView.width(), Image.ANTIALIAS)
-            else:
-                qim = qim.scaledToHeight(self.graphicsView.height(), Image.ANTIALIAS)
-            pixmap = QtGui.QPixmap.fromImage(qim)
+            pixmap = self.__get_image(path)
             # 加载图片
             item = QtWidgets.QGraphicsPixmapItem(pixmap)
             scene = QtWidgets.QGraphicsScene()
@@ -248,6 +249,8 @@ class MyMain(QMainWindow, Ui_Main):
         select_rows = [x for x in select_rows]
         th = threading.Thread(target=self.__insert_or_update_db, args=(select_rows,))
         th.start()
+        end_index = select_rows[-1]
+        self.__select_index(self.__image_model.index(end_index.row() + 1, end_index.column()))
 
     def __insert_or_update_db(self, select_rows):
         index = self.comboBox_type.currentIndex()
@@ -294,6 +297,7 @@ class MyMain(QMainWindow, Ui_Main):
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 message = f"{item.name} 创建完成！"
+                self.__refresh_list_signal.emit()
             else:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
                 old_image = self.__image_model.get_database_item(image_id)
@@ -325,8 +329,12 @@ class MyMain(QMainWindow, Ui_Main):
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 message = f"{item.name} 更新完成！"
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
-        end_index = select_rows[-1]
-        self.__select_index_signal.emit(self.__image_model.index(end_index.row() + 1, end_index.column()))
+        # end_index = select_rows[-1]
+        # self.__refresh_list_signal.emit(self.__image_model.index(end_index.row() + 1, end_index.column()))
+
+    def __refresh_list(self):
+        self.listView.clearFocus()
+        self.listView.setFocus()
 
     def __select_index(self, index: QModelIndex):
         if 0 < index.row() < self.__image_model.rowCount() - 1:
@@ -574,3 +582,51 @@ class MyMain(QMainWindow, Ui_Main):
             return self.__config.get(section, key)
         else:
             return ""
+
+    # region 预加载图片
+    __preload_image_queue = queue.Queue(5)
+    __preload_lock = threading.Lock()
+
+    def __preload(self):
+        while True:
+            if self.__preload_image_queue.qsize() == 5:
+                time.sleep(1)
+                continue
+
+            index = self.listView.currentIndex().row()
+            preload_index = index + self.__preload_image_queue.qsize()
+            image_file = self.__image_model.get_item(preload_index)
+            if not image_file:
+                time.sleep(1)
+                continue
+
+            full_path = image_file.full_path
+            pixmap = self.__get_image_from_file(full_path)
+            self.__preload_image_queue.put(PreloadImage(full_path, pixmap))
+            print(f"预加载：{full_path}")
+
+    def __get_image_from_file(self, path):
+        """
+        从路径读取图片文件
+        :param path: 图片路径
+        :return:
+        """
+        qim = ImageQt(path)
+        x_scale = self.graphicsView.width() / float(qim.width())
+        y_scale = self.graphicsView.height() / float(qim.height())
+        if x_scale < y_scale:
+            qim = qim.scaledToWidth(self.graphicsView.width(), Image.ANTIALIAS)
+        else:
+            qim = qim.scaledToHeight(self.graphicsView.height(), Image.ANTIALIAS)
+        pixmap = QtGui.QPixmap.fromImage(qim)
+        return pixmap
+
+    def __get_image(self, path):
+        # 优先从队列中获取
+        while self.__preload_image_queue.qsize() > 0:
+            image = self.__preload_image_queue.get()
+            if isinstance(image, PreloadImage) and image.full_path == path:
+                print("从预载中读取")
+                return image.pixmap
+        print("从文件中读取")
+        return self.__get_image_from_file(path)
