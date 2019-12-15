@@ -5,7 +5,7 @@
 @ide     : PyCharm
 @file    : main
 @author  : wuhoubo
-@desc    : 
+@desc    : 图片管理
 @create  : 2019/6/2 23:57:26
 @update  :
 """
@@ -30,7 +30,7 @@ from helper.file_helper import FileHelper
 from model.ImageFileListModel import ImageFileListModel
 from model.data import ImageFile, PreloadImage, MyImage
 from model.my_list_model import MyBaseListModel
-from view.main import Ui_Main
+from manager.view.manager import Ui_Main
 
 
 @unique
@@ -39,14 +39,14 @@ class VIEW(Enum):
     GRAPHIC = 2
 
 
-class MyMain(QMainWindow, Ui_Main):
+class ImageManager(QMainWindow, Ui_Main):
     """
     更新 list 信号
     """
     __refresh_list_signal = pyqtSignal()
 
     def __init__(self, parent=None):
-        super(MyMain, self).__init__(parent)
+        super(ImageManager, self).__init__(parent)
         self.setupUi(self)
 
         self.__db_helper = DBHelper(self)  # 数据库操作
@@ -139,6 +139,16 @@ class MyMain(QMainWindow, Ui_Main):
 
         # 预加载图片
         threading.Thread(target=self.__preload).start()
+        # self.tray_icon()
+        self.tray = QtWidgets.QSystemTrayIcon()
+        self.tray.setIcon(QtGui.QIcon("images/tranIcon.png"))
+        self.tray.setToolTip("壁纸切换")
+        self.menu = QtWidgets.QMenu()
+        settting = QtWidgets.QAction("设置", self)
+        self.menu.addAction(settting)
+        self.tray.setContextMenu(self.menu)
+        self.tray.show()
+        # tray.showMessage("标题", "开始切换壁纸", icon=1)
 
     def __add_complete(self):
         """
@@ -658,3 +668,9 @@ class MyMain(QMainWindow, Ui_Main):
                 if not os.path.exists(image.path):
                     self.__db_helper.delete(image.id)
             page += 1
+
+    def tray_icon(self):
+        """
+        托盘
+        :return:
+        """
