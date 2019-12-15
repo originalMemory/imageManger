@@ -111,117 +111,49 @@ class DBHelper:
         lists = [BaseData(x['id'], x['name']) for x in query]
         return lists
 
-    def insert_image(
-            self,
-            desc,
-            author,
-            type_id,
-            level_id,
-            tags,
-            works,
-            role,
-            source,
-            filename,
-            path,
-            width,
-            height,
-            size,
-            create_time,
-            series,
-            uploader
-    ):
+    def insert_image(self, image: MyImage):
         """
         保存图片分类信息
-        :param desc: 描述
-        :param author: 作者
-        :param type_id: 类型 id
-        :param level_id: 等级 id
-        :param tags: 标签列表，用逗号分隔
-        :param works: 来源作品
-        :param role: 角色
-        :param source: 来源站点
-        :param filename: 文件名
-        :param path: 文件路径
-        :param width: 图片宽度
-        :param height: 图片高度
-        :param size: 文件大小
-        :param create_time: 文件创建时间
-        :param series: 系列
-        :param uploader: 上传者
+        :param image: 图片信息
         :return:
         """
         # 替换单引号以保证插入
-        desc = desc.replace("'", "\\'")
-        author = author.replace("'", "\\'")
-        tags = tags.replace("'", "\\'")
-        works = works.replace("'", "\\'")
-        role = role.replace("'", "\\'")
-        filename = filename.replace("'", "\\'")
-        path = path.replace("'", "\\'")
-        series = series.replace("'", "\\'")
-        uploader = uploader.replace("'", "\\'")
+        desc = image.desc.replace("'", "\\'")
+        author = image.author.replace("'", "\\'")
+        tags = image.tags.replace("'", "\\'")
+        works = image.works.replace("'", "\\'")
+        role = image.role.replace("'", "\\'")
+        filename = image.filename.replace("'", "\\'")
+        path = image.path.replace("'", "\\'")
+        series = image.series.replace("'", "\\'")
+        uploader = image.uploader.replace("'", "\\'")
         sql_str = f"""INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, 
-            path, width, height, `size`, file_create_time, series, uploader) values ('{desc}', '{author}', {type_id}, 
-            {level_id}, '{tags}', '{works}', '{role}', '{source}', '{filename}', '{path}', {width}, {height}, {size}, 
-            '{create_time}', '{series}', '{uploader}');"""
+            path, width, height, `size`, file_create_time, series, uploader) values ('{desc}', '{author}',
+            {image.type_id}, {image.level_id}, '{tags}', '{works}', '{role}', '{image.source}', '{filename}', '{path}',
+            {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}');"""
         print(sql_str)
         self.execute(sql_str)
 
-    def update_image(
-            self,
-            image_id,
-            desc,
-            author,
-            type_id,
-            level_id,
-            tags,
-            works,
-            role,
-            source,
-            filename,
-            path,
-            width,
-            height,
-            size,
-            create_time,
-            series,
-            uploader
-    ):
+    def update_image(self, image: MyImage):
         """
-        保存图片分类信息
-        :param image_id: 图片 id
-        :param desc: 描述
-        :param author: 作者
-        :param type_id: 类型 id
-        :param level_id: 等级 id
-        :param tags: 标签列表，用逗号分隔
-        :param works: 来源作品
-        :param role: 角色
-        :param source: 来源站点
-        :param filename: 文件名
-        :param path: 文件路径
-        :param width: 图片宽度
-        :param height: 图片高度
-        :param size: 文件大小
-        :param create_time: 文件创建时间
-        :param series: 系列
-        :param uploader: 上传者
+        更新图片分类信息
+        :param image: 图片信息
         :return:
         """
         # 替换单引号以保证插入
-        desc = desc.replace("'", "\\'")
-        author = author.replace("'", "\\'")
-        tags = tags.replace("'", "\\'")
-        works = works.replace("'", "\\'")
-        role = role.replace("'", "\\'")
-        filename = filename.replace("'", "\\'")
-        path = path.replace("'", "\\'")
-        series = series.replace("'", "\\'")
-        uploader = uploader.replace("'", "\\'")
-        sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type_id={type_id}, level_id={level_id}, 
-            tags='{tags}', works='{works}', role='{role}', source='{source}', filename='{filename}', path='{path}', 
-            width={width}, height={height}, `size`={size}, file_create_time='{create_time}', series='{series}', 
-            uploader='{uploader}' where id={image_id}"""
+        desc = image.desc.replace("'", "\\'")
+        author = image.author.replace("'", "\\'")
+        tags = image.tags.replace("'", "\\'")
+        works = image.works.replace("'", "\\'")
+        role = image.role.replace("'", "\\'")
+        filename = image.filename.replace("'", "\\'")
+        path = image.path.replace("'", "\\'")
+        series = image.series.replace("'", "\\'")
+        uploader = image.uploader.replace("'", "\\'")
+        sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type_id={image.type_id},
+            level_id={image.level_id}, tags='{tags}', works='{works}', role='{role}', source='{image.source}',
+            filename='{filename}', path='{path}', width={image.width}, height={image.height}, `size`={image.size},
+            file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}' where id={image.id}"""
         self.execute(sql_str)
 
     def search_by_file_path(self, file_path):
@@ -265,3 +197,26 @@ class DBHelper:
             image_file = ImageFile(image_sql.id, "%s/%s" % (tp_lists[-2], tp_lists[-1]), path)
             image_file_list.append(image_file)
         return image_sql_list, image_file_list
+
+    def get_images(self, page, pagesize):
+        sql_str = f"select * from myacg.image limit {pagesize} offset {page * pagesize};"
+        queries = self.query_with_return_all(sql_str)
+        image_sql_list = []
+        for query in queries:
+            image_sql = MyImage.from_mysql_dict(query)
+            image_sql_list.append(image_sql)
+        return image_sql_list
+
+    def get_table_count(self, count_sql):
+        """
+        获取总数
+        :param count_sql: 统计sql语句
+        :return:
+        """
+        count = 0
+        query = self.query_with_return_one(count_sql)
+        if query:
+            for key, value in query.items():
+                count = value
+                break
+        return count

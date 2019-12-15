@@ -22,13 +22,13 @@ from shutil import copyfile
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal, QObject
+from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from model.ImageFileListModel import ImageFileListModel
-from model.data import ImageFile, PreloadImage
+from model.data import ImageFile, PreloadImage, MyImage
 from model.my_list_model import MyBaseListModel
 from view.main import Ui_Main
 
@@ -92,10 +92,13 @@ class MyMain(QMainWindow, Ui_Main):
         self.listView.set_key_press_delegate(self.key_press_delegate)
         self.pushButton_classify.clicked.connect(self.__classify)
         self.pushButton_search.clicked.connect(self.__search)
+        self.pushButton_clean.clicked.connect(self.__clean_not_exist_images)
         self.actionOpen.triggered.connect(self.__open_files)
         self.lineEdit_sql_where.returnPressed.connect(self.__search)
         self.pushButton_export_dir.clicked.connect(self.__choose_export_dir)
         self.pushButton_export.clicked.connect(self.__choose_export)
+        self.lineEdit_desc.returnPressed.connect(self.__classify)
+        self.lineEdit_tag.returnPressed.connect(self.__classify)
         self.lineEdit_role.returnPressed.connect(self.__classify)
         self.lineEdit_works.returnPressed.connect(self.__classify)
         self.lineEdit_series.returnPressed.connect(self.__classify)
@@ -183,18 +186,25 @@ class MyMain(QMainWindow, Ui_Main):
         :return:
         """
         path = self.__image_model.get_item(index).full_path
-        self.__analysis_file_info(path)
-        self.statusbar.showMessage(f"[{index + 1}/{self.__image_model.rowCount()}] {path}")
+        start_time = time.time()
+        status = f"[{index + 1}/{self.__image_model.rowCount()}] {path}"
         try:
             # 填充缩放
-            pixmap = self.__get_image(path)
+            pixmap, is_preload = self.__get_image(path)
+            cur_time = time.time()
+            status += f"\t是否预加载：{is_preload}\t图片读取：${round((cur_time - start_time) * 1000, 2)}ms"
+            start_time = time.time()
             # 加载图片
             item = QtWidgets.QGraphicsPixmapItem(pixmap)
             scene = QtWidgets.QGraphicsScene()
             scene.addItem(item)
             self.graphicsView.setScene(scene)
+            cur_time = time.time()
+            status += f"\t图片加载：${round((cur_time - start_time) * 1000, 2)}ms"
         except Exception as e:
             QMessageBox.information(self, "提示", str(e), QMessageBox.Ok)
+        self.__analysis_file_info(path)
+        self.statusbar.showMessage(status)
 
     def __on_list_view_current_row_change(self, current: QModelIndex, previous: QModelIndex):
         """
@@ -210,13 +220,10 @@ class MyMain(QMainWindow, Ui_Main):
         if not info:
             # 分析图片信息
             size = FileHelper.get_file_size_in_mb(path)
-            width, height = self.__get_image_width_and_height(path)
             create_time = FileHelper.get_create_time(path)
             self.lineEdit_desc.setText("")
             self.lineEdit_tag.setText("")
             self.lineEdit_size.setText(f"{size} MB")
-            self.lineEdit_width.setText(str(width))
-            self.lineEdit_height.setText(str(height))
             self.lineEdit_path.setText(path)
             self.dateTimeEdit_file_create.setDateTime(create_time)
             self.__analyze_image_info(path)
@@ -232,8 +239,6 @@ class MyMain(QMainWindow, Ui_Main):
         self.lineEdit_series.setText(info.series)
         self.lineEdit_uploader.setText(info.uploader)
         self.lineEdit_size.setText(f"{info.size} MB")
-        self.lineEdit_width.setText(str(info.width))
-        self.lineEdit_height.setText(str(info.height))
         self.comboBox_type.setCurrentIndex(self.__type_model.get_index(info.type_id))
         self.comboBox_level.setCurrentIndex(self.__level_model.get_index(info.level_id))
         self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
@@ -269,66 +274,34 @@ class MyMain(QMainWindow, Ui_Main):
             item = self.__image_model.get_item(select_rows[i].row())
             filename = item.name
             path = item.full_path
-            create_time = FileHelper.get_create_time_str(path)
+            file_create_time = FileHelper.get_create_time_str(path)
             size = FileHelper.get_file_size_in_mb(path)
-            width, height = self.__get_image_width_and_height(path)
+            width = self.lineEdit_width.text()
+            height = self.lineEdit_height.text()
             image_id = item.id
+            image = MyImage(image_id, desc, author, type_id, level_id, tags, works, role, source, width, height, size,
+                            filename, path, file_create_time, "", "", series, uploader)
             if image_id == 0:
-                self.__db_helper.insert_image(
-                    desc,
-                    author,
-                    type_id,
-                    level_id,
-                    tags,
-                    works,
-                    role,
-                    source,
-                    filename,
-                    path,
-                    width,
-                    height,
-                    size,
-                    create_time,
-                    series,
-                    uploader
-                )
+                self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(path)
                 self.__image_model.set_image_id(select_rows[i].row(), image_id)
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
-                message = f"{item.name} 创建完成！"
+                # message = f"{item.name} 创建完成！"
                 self.__refresh_list_signal.emit()
             else:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
                 old_image = self.__image_model.get_database_item(image_id)
                 if old_image and len(select_rows) > 1:
-                    desc = old_image.desc
-                    author = old_image.author
-                    level_id = old_image.level_id
-                    tags = old_image.tags
-                    works = old_image.works
-                self.__db_helper.update_image(
-                    image_id,
-                    desc,
-                    author,
-                    type_id,
-                    level_id,
-                    tags,
-                    works,
-                    role,
-                    source,
-                    filename,
-                    path,
-                    width,
-                    height,
-                    size,
-                    create_time,
-                    series,
-                    uploader
-                )
+                    image.desc = old_image.desc
+                    image.author = old_image.author
+                    image.level_id = old_image.level_id
+                    image.tags = old_image.tags
+                    image.works = old_image.works
+                self.__db_helper.update_image(image)
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 message = f"{item.name} 更新完成！"
-            self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
+                self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
         # end_index = select_rows[-1]
         # self.__refresh_list_signal.emit(self.__image_model.index(end_index.row() + 1, end_index.column()))
 
@@ -337,7 +310,7 @@ class MyMain(QMainWindow, Ui_Main):
         self.listView.setFocus()
 
     def __select_index(self, index: QModelIndex):
-        if 0 < index.row() < self.__image_model.rowCount() - 1:
+        if 0 < index.row() < self.__image_model.rowCount():
             self.listView.setCurrentIndex(index)
             self.listView.setFocus()
         else:
@@ -367,7 +340,14 @@ class MyMain(QMainWindow, Ui_Main):
         filename = os.path.basename(file_path)
         yande = 'yande'
         pixiv = 'pixiv'
-        if yande not in filename and pixiv not in filename:
+        cosplay = '/Cosplay/'
+        filter_list = [yande, pixiv, cosplay]
+        is_in = False
+        for f in filter_list:
+            if f in file_path:
+                is_in = True
+                break
+        if not is_in:
             return None
         if yande in filename:
             # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
@@ -405,6 +385,19 @@ class MyMain(QMainWindow, Ui_Main):
                     self.lineEdit_author.setText(author)
                     self.lineEdit_desc.setText(match.group('desc'))
                     self.lineEdit_source.setText("pixiv")
+        if cosplay in file_path:
+            match = re.search(r"Cosplay/(?P<works>.+?)/(?P<info>.+?)/", file_path)
+            if match:
+                self.lineEdit_works.setText(match.group('works'))
+                info_list = match.group('info').split(' - ')
+                info_list = [x.strip() for x in info_list]
+                if len(info_list) > 2:
+                    author = ' - '.join(info_list[0:-1])
+                else:
+                    author = info_list[0]
+                self.lineEdit_series.setText(author)
+                self.lineEdit_author.setText(info_list[-1])
+                self.comboBox_type.setCurrentIndex(1)
 
     def __del_select_rows(self):
         """
@@ -512,6 +505,8 @@ class MyMain(QMainWindow, Ui_Main):
             level_index = 7
         if event.key() == Qt.Key_8:
             level_index = 8
+        if event.key() == Qt.Key_9:
+            level_index = 9
 
         if level_index and self.__level_model.rowCount() >= level_index:
             self.comboBox_level.setCurrentIndex(level_index - 1)
@@ -521,7 +516,7 @@ class MyMain(QMainWindow, Ui_Main):
             self.__classify()
             return True
         if event.key() == Qt.Key_E:
-            self.lineEdit_works.setFocus()
+            self.lineEdit_role.setFocus()
             return True
         if event.key() == Qt.Key_C:
             self.lineEdit_works.setText("")
@@ -555,7 +550,8 @@ class MyMain(QMainWindow, Ui_Main):
         self.__image_model.clear()
         for url in urls:
             self.__image_model.add_path(url.toLocalFile())
-        self.listView.scrollToTop()
+        if self.__image_model.rowCount() > 0:
+            self.listView.setCurrentIndex(self.__image_model.index(0, 0))
         if not os.path.isdir(urls[0].toLocalFile()):
             return
         self.__add_config_key('history', 'lastDir', urls[0].toLocalFile())
@@ -584,7 +580,9 @@ class MyMain(QMainWindow, Ui_Main):
             return ""
 
     # region 预加载图片
-    __preload_image_queue = queue.Queue(5)
+    __preload_count = 5
+    __preload_image_queue = queue.Queue(__preload_count)
+    __preload_image_size = queue.Queue(__preload_count)
     __preload_lock = threading.Lock()
 
     def __preload(self):
@@ -594,16 +592,21 @@ class MyMain(QMainWindow, Ui_Main):
                 continue
 
             index = self.listView.currentIndex().row()
-            preload_index = index + self.__preload_image_queue.qsize()
+            preload_index = index + self.__preload_image_queue.qsize() + 1
             image_file = self.__image_model.get_item(preload_index)
             if not image_file:
                 time.sleep(1)
                 continue
 
             full_path = image_file.full_path
-            pixmap = self.__get_image_from_file(full_path)
-            self.__preload_image_queue.put(PreloadImage(full_path, pixmap))
-            print(f"预加载：{full_path}")
+            try:
+                pixmap, width, height = self.__get_image_from_file(full_path)
+                self.__preload_image_queue.put(PreloadImage(full_path, pixmap))
+                self.__preload_image_size.put((width, height))
+                print(f"预加载成功：{full_path}")
+            except Exception as e:
+                print(f"预加载失败：{full_path}")
+                time.sleep(1)
 
     def __get_image_from_file(self, path):
         """
@@ -612,6 +615,8 @@ class MyMain(QMainWindow, Ui_Main):
         :return:
         """
         qim = ImageQt(path)
+        width = qim.width()
+        height = qim.height()
         x_scale = self.graphicsView.width() / float(qim.width())
         y_scale = self.graphicsView.height() / float(qim.height())
         if x_scale < y_scale:
@@ -619,14 +624,37 @@ class MyMain(QMainWindow, Ui_Main):
         else:
             qim = qim.scaledToHeight(self.graphicsView.height(), Image.ANTIALIAS)
         pixmap = QtGui.QPixmap.fromImage(qim)
-        return pixmap
+        return pixmap, width, height
 
     def __get_image(self, path):
         # 优先从队列中获取
         while self.__preload_image_queue.qsize() > 0:
             image = self.__preload_image_queue.get()
+            size = self.__preload_image_size.get()
             if isinstance(image, PreloadImage) and image.full_path == path:
                 print("从预载中读取")
-                return image.pixmap
+                self.lineEdit_width.setText(str(size[0]))
+                self.lineEdit_height.setText(str(size[1]))
+                return image.pixmap, True
         print("从文件中读取")
-        return self.__get_image_from_file(path)
+        image, width, height = self.__get_image_from_file(path)
+        self.lineEdit_width.setText(str(width))
+        self.lineEdit_height.setText(str(height))
+        return image, False
+
+    def __clean_not_exist_images(self):
+        page = 0
+        pagesize = 500
+        count = self.__db_helper.get_table_count(f"select count(*) from myacg.image;")
+        while True:
+            image_list = self.__db_helper.get_images(page, pagesize)
+
+            if len(image_list) == 0:
+                break
+            self.statusbar.showMessage(f"[{(page + 1) * pagesize}/{count}] 无效验证")
+            for image in image_list:
+                if "?" in image.path:
+                    continue
+                if not os.path.exists(image.path):
+                    self.__db_helper.delete(image.id)
+            page += 1

@@ -25,8 +25,8 @@ class ImageFileListModel(MyBaseListModel):
     def __init__(self, context):
         super().__init__()
         self._base_dir = ""
-        self.__image_extension_list = ['.jpg', 'jpeg', '.bmp', '.png', 'gif', 'dib', 'pcp', 'dif', 'wmf', 'tif', 'eps',
-                                       'psd', 'cdr', 'iff', 'tga', 'pcd', 'mpi', '.icon', '.ico']
+        self.__image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif',
+                                       '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico']
         self._data_list_in_database = []
         self.__db_helper = DBHelper(context)
 

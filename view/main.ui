@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Main</class>
- <widget class="QMainWindow" name="Main">
+ <class>Manager</class>
+ <widget class="QMainWindow" name="Manager">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1676</width>
+    <width>1754</width>
     <height>1117</height>
    </rect>
   </property>
@@ -679,6 +679,19 @@
         <string>导出</string>
        </property>
       </widget>
+      <widget class="QPushButton" name="pushButton_clean">
+       <property name="geometry">
+        <rect>
+         <x>1610</x>
+         <y>20</y>
+         <width>112</width>
+         <height>34</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>去除无效图</string>
+       </property>
+      </widget>
      </widget>
     </item>
     <item>
@@ -726,8 +739,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1676</width>
-     <height>18</height>
+     <width>1754</width>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu">

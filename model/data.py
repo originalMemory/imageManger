@@ -23,21 +23,54 @@ class MyImage:
     id: int
     desc: str
     author: str
+    """
+    类型 id
+    """
     type_id: int
+    """
+    等级 id
+    """
     level_id: int
+    """
+    标签
+    """
     tags: str
+    """
+    作品
+    """
     works: str
+    """
+    角色
+    """
     role: str
+    """
+    来源站点
+    """
     source: str
     width: int
     height: int
     size: float
     filename: str
     path: str
+    """
+    文件创建时间
+    """
     file_create_time: datetime
+    """
+    信息创建时间
+    """
     create_time: datetime
+    """
+    信息更新时间
+    """
     update_time: datetime
+    """
+    系列
+    """
     series: str
+    """
+    上传者
+    """
     uploader: str
 
     @staticmethod
