@@ -25,6 +25,7 @@ from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 
+from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from model.ImageFileListModel import ImageFileListModel
@@ -71,19 +72,13 @@ class ImageManager(QMainWindow, Ui_Main):
 
         # 图片信息
         self.__image_model = ImageFileListModel(self)
-        self.__config_filename = "config.ini"
-        self.__config = ConfigParser()
-        if os.path.exists(self.__config_filename):
-            try:
-                self.__config.read(self.__config_filename, encoding='utf-8')
-            except Exception as e:
-                print(e)
+        self.__config = ConfigHelper(self)
 
-        last_dir = self.__get_config_key('history', 'lastDir')
+        last_dir = self.__config.get_config_key('history', 'lastDir')
         if os.path.isdir(last_dir) and os.path.exists(last_dir):
             self.__image_model.add_path(last_dir)
-        self.lineEdit_sql_where.setText(self.__get_config_key('history', 'sqlWhere'))
-        self.lineEdit_export_dir.setText(self.__get_config_key('history', 'lastExportDir'))
+        self.lineEdit_sql_where.setText(self.__config.get_config_key('history', 'sqlWhere'))
+        self.lineEdit_export_dir.setText(self.__config.get_config_key('history', 'lastExportDir'))
 
         self.listView.setModel(self.__image_model)
 
@@ -564,30 +559,16 @@ class ImageManager(QMainWindow, Ui_Main):
             self.listView.setCurrentIndex(self.__image_model.index(0, 0))
         if not os.path.isdir(urls[0].toLocalFile()):
             return
-        self.__add_config_key('history', 'lastDir', urls[0].toLocalFile())
+        self.__config.add_config_key('history', 'lastDir', urls[0].toLocalFile())
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        self.__add_config_key('history', 'lastExportDir', self.lineEdit_export_dir.text())
-        self.__add_config_key('history', 'sqlWhere', self.lineEdit_sql_where.text())
+        self.__config.add_config_key('history', 'lastExportDir', self.lineEdit_export_dir.text())
+        self.__config.add_config_key('history', 'sqlWhere', self.lineEdit_sql_where.text())
         # 关闭时保存自动填充作品列表的配置文件
         with open(self.__completer_filename, 'w+', encoding='utf-8') as f:
             f.writelines(list(map(lambda x: x + "\n", self.__completer_list)))
 
-        with open(self.__config_filename, 'w', encoding='utf-8') as f:
-            self.__config.write(f)
-
     # endregion
-
-    def __add_config_key(self, section, key, value):
-        if not self.__config.has_section(section):
-            self.__config.add_section(section)
-        self.__config[section][key] = value
-
-    def __get_config_key(self, section, key):
-        if self.__config.has_section(section) and self.__config.has_option(section, key):
-            return self.__config.get(section, key)
-        else:
-            return ""
 
     # region 预加载图片
     __preload_count = 5

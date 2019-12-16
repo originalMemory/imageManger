@@ -220,3 +220,16 @@ class DBHelper:
                 count = value
                 break
         return count
+
+    def get_image_count(self, sql_where):
+        """
+        获取图片总数
+        :return:
+        """
+        return self.get_table_count(f"select count(*) from myacg.image where {sql_where};")
+
+    def get_one_image_with_where(self, sql_where, offset):
+        sql = f"select * from myacg.image where {sql_where} limit 1 offset {offset};"
+        query = self.query_with_return_one(sql)
+        if query:
+            return MyImage.from_mysql_dict(query)
