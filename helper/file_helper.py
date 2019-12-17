@@ -62,19 +62,34 @@ class FileHelper:
         return FileHelper.become_datetime(t)
 
     @staticmethod
-    def become_datetime(dtdt):
-        # 将时间类型转换成datetime类型
-        if isinstance(dtdt, datetime.datetime):
-            return dtdt
+    def become_datetime(dt):
+        """
+        将时间类型转换成datetime类型
+        :param dt: 时间，可能为 datetime 或 str
+        :return:
+        """
+        if isinstance(dt, datetime.datetime):
+            return dt
 
-        elif isinstance(dtdt, str):
-            if dtdt.split(" ")[1:]:
-                a_datetime = datetime.datetime.strptime(dtdt, "%Y-%m-%d %H:%M:%S")
+        elif isinstance(dt, str):
+            if dt.split(" ")[1:]:
+                a_datetime = datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
             else:
-                a_datetime = datetime.datetime.strptime(dtdt, "%Y-%m-%d")
+                a_datetime = datetime.datetime.strptime(dt, "%Y-%m-%d")
             return a_datetime
 
-        elif isinstance(dtdt, float):
+        elif isinstance(dt, float):
             # 把时间戳转换成datetime类型
-            a_datetime = datetime.datetime.fromtimestamp(dtdt)
+            a_datetime = datetime.datetime.fromtimestamp(dt)
             return a_datetime
+
+    @staticmethod
+    def open_file_directory(file_path):
+        """
+        打开文件所在目录并选中文件
+        :param file_path: 文件路径
+        :return:
+        """
+        file_path = file_path.replace('/', '\\')
+        ex = f"explorer /select,{file_path}"
+        os.system(ex)

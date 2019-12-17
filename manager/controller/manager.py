@@ -15,7 +15,6 @@ import queue
 import re
 import threading
 import time
-from configparser import ConfigParser
 from enum import unique, Enum
 from shutil import copyfile
 
@@ -28,10 +27,10 @@ from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
+from manager.view.manager import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
 from model.data import ImageFile, PreloadImage, MyImage
 from model.my_list_model import MyBaseListModel
-from manager.view.manager import Ui_Main
 
 
 @unique
@@ -40,7 +39,7 @@ class VIEW(Enum):
     GRAPHIC = 2
 
 
-class ImageManager(QMainWindow, Ui_Main):
+class ImageManager(QMainWindow, Ui_Manager):
     """
     更新 list 信号
     """
@@ -85,6 +84,7 @@ class ImageManager(QMainWindow, Ui_Main):
         # 关联事件
         self.listView.selectionModel().currentChanged.connect(self.__on_list_view_current_row_change)
         self.listView.set_key_press_delegate(self.key_press_delegate)
+        self.listView.set_action_show_file_directory_delegate(self.open_file_directory)
         self.pushButton_classify.clicked.connect(self.__classify)
         self.pushButton_search.clicked.connect(self.__search)
         self.pushButton_clean.clicked.connect(self.__clean_not_exist_images)
@@ -634,6 +634,10 @@ class ImageManager(QMainWindow, Ui_Main):
         return image, False
 
     def __clean_not_exist_images(self):
+        """
+        清理不存在的图片
+        :return:
+        """
         page = 0
         pagesize = 500
         count = self.__db_helper.get_table_count(f"select count(*) from myacg.image;")
@@ -650,8 +654,13 @@ class ImageManager(QMainWindow, Ui_Main):
                     self.__db_helper.delete(image.id)
             page += 1
 
-    def tray_icon(self):
+    def open_file_directory(self):
         """
-        托盘
+        打开文件所在目录并选中文件
         :return:
         """
+        select_rows = self.listView.selectionModel().selectedRows()
+        if not len(select_rows):
+            return
+        file_path = self.__image_model.get_item(select_rows[0].row()).full_path
+        FileHelper.open_file_directory(file_path)
