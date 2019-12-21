@@ -14,6 +14,7 @@ import os
 import random
 import threading
 import time
+from functools import partial
 
 import pyperclip
 from PyQt5 import QtWidgets, QtGui
@@ -48,29 +49,44 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         self.tray.setIcon(QtGui.QIcon("images/tranIcon.png"))
         self.tray.setToolTip("壁纸切换")
         self.tray.activated[QSystemTrayIcon.ActivationReason].connect(self.__on_tray_click)
-        self.menu = QtWidgets.QMenu()
+        menu = QtWidgets.QMenu()
         self.current_image_action = QtWidgets.QAction("", self)
         self.current_image_action.triggered.connect(self.__open_file_in_directory_and_copy_file_name)
-        self.menu.addAction(self.current_image_action)
-        self.menu.addSeparator()
+        menu.addAction(self.current_image_action)
+
+        # 更新等级
+        level_menu = menu.addMenu("等级")
+        self.levels = self.db_helper.get_model_data_list('level')
+        self.level_actions = list()
+        for i in range(len(self.levels)):
+            level = self.levels[i]
+            level_action = level_menu.addAction(level.name)
+            level_action.setCheckable(True)
+            level_action.triggered.connect(partial(self.__set_level, level.id))
+            self.level_actions.append(level_action)
+
+        # self.hint_action = menu.addAction("是否可见")
+
+        menu.addSeparator()
         setting = QtWidgets.QAction("设置", self)
         setting.triggered.connect(self.show)
-        self.menu.addAction(setting)
+        menu.addAction(setting)
         close = QtWidgets.QAction("退出", self)
         close.triggered.connect(self.close)
-        self.menu.addAction(close)
-        self.tray.setContextMenu(self.menu)
+        menu.addAction(close)
+        self.tray.setContextMenu(menu)
         self.tray.show()
-        self.tray.showMessage("标题", "开始切换壁纸", icon=1)
+        # self.tray.showMessage("标题", "开始切换壁纸", icon=1)
 
-        self.change_th = threading.Thread(target=self.__change_windows_background)
+        self.change_th = threading.Thread(target=self.__change_windows_background, daemon=True)
         self.change_th.start()
 
     def __save(self):
         self.sql_where = self.textEdit_sqlWhere.toPlainText()
-        self.time_interval = int(self.lineEdit_min.text())
+        time_interval = self.lineEdit_min.text()
+        self.time_interval = int(time_interval)
         self.config_helper.add_config_key("background", "sqlWhere", self.sql_where)
-        self.config_helper.add_config_key("background", "timeIntervalInMin", self.time_interval)
+        self.config_helper.add_config_key("background", "timeIntervalInMin", time_interval)
         self.hide()
 
     def __change_windows_background(self):
@@ -95,7 +111,20 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             if len(image_info) > 50:
                 image_info = f"{image_info[0:46]}..."
             self.current_image_action.setText(image_info)
+            self.update_level_action(image.level_id)
+            # for level in self.levels:
+            #     if level.id == image.level_id:
+            #         self.tray.showMessage(image.filename, level.name, icon=1)
+            #         break
             time.sleep(sleep_second)
+
+    def update_level_action(self, level_id):
+        for i in range(len(self.levels)):
+            level = self.levels[i]
+            if level.id == level_id:
+                self.level_actions[i].setChecked(True)
+            else:
+                self.level_actions[i].setChecked(False)
 
     def __on_tray_click(self, reason: QSystemTrayIcon.ActivationReason):
         if reason == QSystemTrayIcon.Trigger:
@@ -109,3 +138,8 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         ex = f"explorer /select,{file_path}"
         os.system(ex)
         pyperclip.copy(self.current_image.filename)
+
+    def __set_level(self, level_id):
+        self.current_image.level_id = level_id
+        self.db_helper.update_image(self.current_image)
+        self.update_level_action(level_id)
