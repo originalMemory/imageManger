@@ -18,8 +18,6 @@ import time
 from enum import unique, Enum
 from shutil import copyfile
 
-from PIL import Image
-from PIL.ImageQt import ImageQt
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
@@ -595,15 +593,15 @@ class ImageManager(QMainWindow, Ui_Manager):
         :param path: 图片路径
         :return:
         """
-        qim = ImageQt(path)
+        qim = QtGui.QImage(path)
         width = qim.width()
         height = qim.height()
         x_scale = self.graphicsView.width() / float(qim.width())
         y_scale = self.graphicsView.height() / float(qim.height())
         if x_scale < y_scale:
-            qim = qim.scaledToWidth(self.graphicsView.width(), Image.ANTIALIAS)
+            qim = qim.scaledToWidth(self.graphicsView.width(), Qt.SmoothTransformation)
         else:
-            qim = qim.scaledToHeight(self.graphicsView.height(), Image.ANTIALIAS)
+            qim = qim.scaledToHeight(self.graphicsView.height(), Qt.SmoothTransformation)
         pixmap = QtGui.QPixmap.fromImage(qim)
         return pixmap, width, height
 
