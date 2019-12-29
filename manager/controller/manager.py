@@ -133,17 +133,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.listView.setFocus()
 
         # 预加载图片
-        threading.Thread(target=self.__preload).start()
-        # self.tray_icon()
-        self.tray = QtWidgets.QSystemTrayIcon()
-        self.tray.setIcon(QtGui.QIcon("images/tranIcon.png"))
-        self.tray.setToolTip("壁纸切换")
-        self.menu = QtWidgets.QMenu()
-        settting = QtWidgets.QAction("设置", self)
-        self.menu.addAction(settting)
-        self.tray.setContextMenu(self.menu)
-        self.tray.show()
-        # tray.showMessage("标题", "开始切换壁纸", icon=1)
+        threading.Thread(target=self.__preload, daemon=True).start()
 
     def __add_complete(self):
         """
@@ -257,7 +247,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         """
         select_rows = self.listView.selectionModel().selectedRows()
         select_rows = [x for x in select_rows]
-        th = threading.Thread(target=self.__insert_or_update_db, args=(select_rows,))
+        th = threading.Thread(target=self.__insert_or_update_db, args=(select_rows,), daemon=True)
         th.start()
         end_index = select_rows[-1]
         self.__select_index(self.__image_model.index(end_index.row() + 1, end_index.column()))
@@ -548,7 +538,7 @@ class ImageManager(QMainWindow, Ui_Manager):
     def dropEvent(self, e: QtGui.QDropEvent) -> None:
         # 接收文件夹和文件以刷新图片列表
         urls = e.mimeData().urls()
-        th = threading.Thread(target=self.__load_list_data, args=(urls,))
+        th = threading.Thread(target=self.__load_list_data, args=(urls,), daemon=True)
         th.start()
 
     def __load_list_data(self, urls):
