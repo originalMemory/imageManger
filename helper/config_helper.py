@@ -50,21 +50,22 @@ class ConfigHelper:
             return
         if not config.has_section(section):
             config.add_section(section)
-        config[section][key] = value
+        config[section][key] = str(value)
         with open(self.__config_filename, 'w', encoding='utf-8') as f:
             config.write(f)
 
-    def get_config_key(self, section, key):
+    def get_config_key(self, section, key, default_value=""):
         """
         获取配置参数
         :param section:
         :param key:
+        :param default_value: 默认值
         :return: 配置参数的值（字符串）
         """
         config = self.__get_config()
         if not config:
-            return ""
+            return default_value
         if config.has_section(section) and config.has_option(section, key):
             return config.get(section, key)
         else:
-            return ""
+            return default_value
