@@ -195,6 +195,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             cur_time = time.time()
             status += f"\t图片加载：${round((cur_time - start_time) * 1000, 2)}ms"
         except Exception as e:
+            print(e)
             QMessageBox.information(self, "提示", str(e), QMessageBox.Ok)
         self.__analysis_file_info(path)
         self.statusbar.showMessage(status)
@@ -584,6 +585,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.__preload_image_size.put((width, height))
                 print(f"预加载成功：{full_path}")
             except Exception as e:
+                print(e)
                 print(f"预加载失败：{full_path}")
                 time.sleep(1)
 
