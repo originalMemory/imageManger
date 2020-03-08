@@ -190,7 +190,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             offset = 0
         self.__last_order_image_offset = offset
         self.__config_helper.add_config_key(
-            self.__config_section_history,
+            self.__config_section_background,
             self.__config_key_last_order_image_offset,
             self.__last_order_image_offset
         )
