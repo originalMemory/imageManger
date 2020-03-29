@@ -336,11 +336,15 @@ class ImageManager(QMainWindow, Ui_Manager):
         pixiv = 'pixiv'
         cosplay = '/Cosplay/'
         filter_list = [yande, pixiv, cosplay]
+        exclude_list = ['Cosplay/购买']
         is_in = False
         for f in filter_list:
             if f in file_path:
                 is_in = True
                 break
+        for e in exclude_list:
+            if e in file_path:
+                is_in = False
         if not is_in:
             return None
         if yande in filename:
