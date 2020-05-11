@@ -334,9 +334,9 @@ class ImageManager(QMainWindow, Ui_Manager):
         filename = os.path.basename(file_path)
         yande = 'yande'
         pixiv = 'pixiv'
-        cosplay = '/Cosplay/'
-        filter_list = [yande, pixiv, cosplay]
-        exclude_list = ['Cosplay/购买']
+        # cosplay = '/Cosplay/'
+        filter_list = [yande, pixiv]
+        exclude_list = ['Cosplay/购买', 'Cosplay/Flameworks']
         is_in = False
         for f in filter_list:
             if f in file_path:
@@ -383,19 +383,19 @@ class ImageManager(QMainWindow, Ui_Manager):
                     self.lineEdit_author.setText(author)
                     self.lineEdit_desc.setText(match.group('desc'))
                     self.lineEdit_source.setText("pixiv")
-        if cosplay in file_path:
-            match = re.search(r"Cosplay/(?P<works>.+?)/(?P<info>.+?)/", file_path)
-            if match:
-                self.lineEdit_works.setText(match.group('works'))
-                info_list = match.group('info').split(' - ')
-                info_list = [x.strip() for x in info_list]
-                if len(info_list) > 2:
-                    author = ' - '.join(info_list[0:-1])
-                else:
-                    author = info_list[0]
-                self.lineEdit_series.setText(author)
-                self.lineEdit_author.setText(info_list[-1])
-                self.comboBox_type.setCurrentIndex(1)
+        # if cosplay in file_path:
+        #     match = re.search(r"Cosplay/(?P<works>.+?)/(?P<info>.+?)/", file_path)
+        #     if match:
+        #         self.lineEdit_works.setText(match.group('works'))
+        #         info_list = match.group('info').split(' - ')
+        #         info_list = [x.strip() for x in info_list]
+        #         if len(info_list) > 2:
+        #             author = ' - '.join(info_list[0:-1])
+        #         else:
+        #             author = info_list[0]
+        #         self.lineEdit_series.setText(author)
+        #         self.lineEdit_author.setText(info_list[-1])
+        #         self.comboBox_type.setCurrentIndex(1)
 
     def __del_select_rows(self):
         """
