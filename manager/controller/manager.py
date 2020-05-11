@@ -347,22 +347,15 @@ class ImageManager(QMainWindow, Ui_Manager):
                 is_in = False
         if not is_in:
             return None
+
         if yande in filename:
-            # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-            match = re.search(r"yande.*?_\d*?_(?P<uploader>.+?)](?P<desc>.+?)\.", filename)
-            if match:
-                self.lineEdit_uploader.setText(match.group('uploader'))
-                desc = match.group('desc')
-                desc = desc.replace("_00", "")
+            desc, uploader = FileHelper.analysisYande(filename)
+            if desc:
                 self.lineEdit_desc.setText(desc)
                 self.lineEdit_source.setText("yande")
-            else:
-                # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-                match = re.search(r"yande(.re)? (?P<id>.+?) (?P<desc>.+?)\.", filename)
-                if match:
-                    self.lineEdit_desc.setText(match.group('desc'))
-                    self.lineEdit_source.setText("yande")
-
+            if uploader:
+                self.lineEdit_uploader.setText(uploader)
+                
         if pixiv in filename:
             # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
             match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_", filename)

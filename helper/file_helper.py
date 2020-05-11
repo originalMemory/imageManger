@@ -11,6 +11,7 @@
 """
 import datetime
 import os
+import re
 import time
 
 
@@ -93,3 +94,21 @@ class FileHelper:
         file_path = file_path.replace('/', '\\')
         ex = f"explorer /select,{file_path}"
         os.system(ex)
+
+    @staticmethod
+    def analysisYande(filename):
+        # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
+        match = re.search(r"yande.*?_\d*?_(?P<uploader>.+?)](?P<desc>.+?)\.", filename)
+        if match:
+            uploader = match.group('uploader')
+            desc = match.group('desc')
+            desc = desc.replace("_00", "")
+            return desc, uploader
+        else:
+            # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
+            match = re.search(r"yande(.re)? (?P<id>.+?) (?P<desc>.+?)\.", filename)
+            if match:
+                desc = match.group('desc')
+                return desc, None
+            else:
+                return None, None
