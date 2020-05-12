@@ -10,7 +10,6 @@
 @update  :
 """
 import pymysql
-from PyQt5.QtWidgets import QMessageBox
 
 from model.data import MyImage, BaseData, ImageFile
 
@@ -25,8 +24,8 @@ class DBHelper:
         'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
     }
 
-    def __init__(self, context):
-        self.context = context
+    def __init__(self, error_handler):
+        self.error_handler = error_handler
 
     def execute(self, sql_str):
         connect = None
@@ -94,7 +93,8 @@ class DBHelper:
         error_str = str(error)
         if 'a foreign key constraint fails' in error_str:
             error_str = "有关联数据，不能删除！"
-        QMessageBox.information(self.context, "提示", error_str, QMessageBox.Ok)
+        if self.error_handler:
+            self.error_handler(error_str)
 
     def get_model_data_list(self, table, where_str=None):
         """

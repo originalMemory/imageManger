@@ -47,7 +47,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         super(ImageManager, self).__init__(parent)
         self.setupUi(self)
 
-        self.__db_helper = DBHelper(self)  # 数据库操作
+        self.__db_helper = DBHelper(self.db_error_handler)  # 数据库操作
 
         self.__refresh_list_signal.connect(self.__refresh_list)
         # 下拉列表设置
@@ -651,3 +651,6 @@ class ImageManager(QMainWindow, Ui_Manager):
             return
         file_path = self.__image_model.get_item(select_rows[0].row()).full_path
         FileHelper.open_file_directory(file_path)
+
+    def db_error_handler(self, error_str):
+        QMessageBox.information(self, "提示", error_str, QMessageBox.Ok)
