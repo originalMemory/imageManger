@@ -10,9 +10,9 @@
 @update  :
 """
 
-from googletrans import Translator
 from openpyxl import Workbook
 from helper.db_helper import DBHelper
+
 
 def extractYandeTags():
     wb = Workbook()
@@ -41,11 +41,12 @@ def extractYandeTags():
                     count = 0
                 tags[tag] = count + 1
         offset += 500
-    
+
     tags = sorted(tags.items(), key=lambda x: x[1], reverse=True)
     for (tag, count) in tags:
         sheet.append((count, tag))
     wb.save("yande标签列表.xlsx")
+
 
 def error_handler(error_str):
     print(f"数据库错误：{error_str}")
