@@ -125,3 +125,4 @@ dmypy.json
 config.ini
 works.txt
 .idea/workspace.xml
+.vscode/
