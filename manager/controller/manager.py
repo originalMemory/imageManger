@@ -443,6 +443,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         image_sql_list, image_file_list = self.__db_helper.search_by_where(sql_where)
         if len(image_sql_list) > 0:
             self.__image_model.set_images(image_sql_list, image_file_list)
+            self.listView.setFocus()
             self.listView.scrollToTop()
 
     def __choose_export(self):
