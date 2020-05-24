@@ -81,6 +81,10 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         menu.addSeparator()
         self.__change_type_actions = list()
         self.create_change_type_menu(menu)
+
+        switch_next = QtWidgets.QAction("切换下一张", self)
+        switch_next.triggered.connect(self.__change_background)
+        menu.addAction(switch_next)
         # 加载默认参数
         type_value = self.__config_helper.get_config_key(
             self.__config_section_background,
@@ -106,7 +110,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         self.__tray.setContextMenu(menu)
         self.__tray.show()
 
-        threading.Thread(target=self.__change_windows_background, daemon=True).start()
+        threading.Thread(target=self.__change_windows_background_timely, daemon=True).start()
 
     def create_change_type_menu(self, menu):
         change_type_menu = menu.addMenu("切换方式")
@@ -154,34 +158,37 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         )
         self.hide()
 
-    def __change_windows_background(self):
-        SPI_SETDESKWALLPAPER = 20
+    def __change_windows_background_timely(self):
         while True:
             sleep_second = self.__time_interval * 60
-            image_count = self.__db_helper.get_image_count(self.__sql_where)
-            if self.__change_type == ChangeType.Order:
-                offset = self.__get_order_offset(image_count)
-            else:
-                offset = random.randint(0, image_count)
-            image = self.__db_helper.get_one_image_with_where(self.__sql_where, offset)
-            if not image:
-                QMessageBox.information(self, "提示", "sql 语句限制过多，获取不到图片", QMessageBox.Ok)
+            if self.__change_background():
                 time.sleep(sleep_second)
-                continue
 
-            if not os.path.exists(image.path):
-                continue
-            self.__current_image = image
-            print(image)
-            # 更换背景图
-            ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, image.path, 0)
+    def __change_background(self):
+        SPI_SETDESKWALLPAPER = 20
+        image_count = self.__db_helper.get_image_count(self.__sql_where)
+        if self.__change_type == ChangeType.Order:
+            offset = self.__get_order_offset(image_count)
+        else:
+            offset = random.randint(0, image_count)
+        image = self.__db_helper.get_one_image_with_where(self.__sql_where, offset)
+        if not image:
+            QMessageBox.information(self, "提示", "sql 语句限制过多，获取不到图片", QMessageBox.Ok)
+            return False
 
-            image_info = f"[{offset}/{image_count}] {image.author} - {image.filename}"
-            if len(image_info) > 50:
-                image_info = f"{image_info[0:46]}..."
-            self.__current_image_action.setText(image_info)
-            self.__update_level_action(image.level_id)
-            time.sleep(sleep_second)
+        if not os.path.exists(image.path):
+            return False
+        self.__current_image = image
+        print(image)
+        # 更换背景图
+        ctypes.windll.user32.SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, image.path, 0)
+
+        image_info = f"[{offset}/{image_count}] {image.author} - {image.filename}"
+        if len(image_info) > 50:
+            image_info = f"{image_info[0:46]}..."
+        self.__current_image_action.setText(image_info)
+        self.__update_level_action(image.level_id)
+        return True
 
     def __get_order_offset(self, image_count):
         if self.__last_order_image_offset < image_count - 1:
