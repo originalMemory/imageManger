@@ -50,7 +50,9 @@ class ConfigHelper:
             return
         if not config.has_section(section):
             config.add_section(section)
-        config[section][key] = str(value)
+        value = str(value)
+        value = value.replace('%', '%%')
+        config[section][key] = value
         with open(self.__config_filename, 'w', encoding='utf-8') as f:
             config.write(f)
 
@@ -66,6 +68,8 @@ class ConfigHelper:
         if not config:
             return default_value
         if config.has_section(section) and config.has_option(section, key):
-            return config.get(section, key)
+            value = config.get(section, key)
+            value = value.replace('%%', '%')
+            return value
         else:
             return default_value
