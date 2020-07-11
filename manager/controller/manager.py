@@ -355,7 +355,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.lineEdit_source.setText("yande")
             if uploader:
                 self.lineEdit_uploader.setText(uploader)
-                
+
         if pixiv in filename:
             # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
             match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_", filename)
@@ -448,23 +448,40 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def __choose_export(self):
         dir_path = self.lineEdit_export_dir.text()
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
         if not os.path.isdir(dir_path):
             return
+
         for i in range(self.__image_model.rowCount()):
             image = self.__image_model.get_item(i)
             if image.id:
                 image_sql = self.__image_model.get_database_item(image.id)
-                if os.path.exists(image_sql.path):
-                    filename = os.path.basename(image_sql.path)
-                    try:
-                        copyfile(image_sql.path, os.path.join(dir_path, filename))
-                    except Exception as e:
-                        print(e)
+                if not os.path.exists(image_sql.path):
+                    continue
+
+                try:
+                    self.copyfile_without_override(image_sql.path, dir_path)
+                except Exception as e:
+                    print(e)
             else:
-                filename = os.path.basename(image.full_path)
-                copyfile(image.full_path, os.path.join(dir_path, filename))
+                self.copyfile_without_override(image.full_path, dir_path)
 
             self.statusbar.showMessage(f"[{i + 1}/{self.__image_model.rowCount()}] {image.name} 复制成功！")
+
+    def copyfile_without_override(self, origin_file_path, dir_path):
+        filename = os.path.basename(origin_file_path)
+        target_file_path = os.path.join(dir_path, filename)
+        (shot_name, extension) = os.path.splitext(filename)
+        no = 1
+        while True:
+            if not os.path.exists(target_file_path):
+                break
+            filename = f"{shot_name}{no}{extension}"
+            target_file_path = os.path.join(dir_path, filename)
+            no += 1
+
+        copyfile(origin_file_path, os.path.join(dir_path, filename))
 
     # region 重写 Qt 控件方法
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
