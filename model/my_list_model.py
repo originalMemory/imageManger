@@ -78,6 +78,16 @@ class MyBaseListModel(QAbstractListModel):
         del self._data_list[row]
         self.endRemoveRows()
 
+    def update_item(self, index, new_item):
+        """
+        自定义。更新数据
+        :param index: 索引
+        :param new_item:
+        :return:
+        """
+        self._data_list[index.row()] = new_item
+        self.dataChanged(index, index, Qt.BackgroundRole)
+
     def get_item(self, row) -> BaseData:
         """
         自定义。获取数据

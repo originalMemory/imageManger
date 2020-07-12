@@ -36,7 +36,7 @@ class ImageFileListModel(MyBaseListModel):
                 return QVariant(self._data_list[index.row()].name)
             elif role == Qt.StatusTipRole:
                 return QVariant(self._data_list[index.row()].full_path)
-            elif role == Qt.BackgroundColorRole:
+            elif role == Qt.BackgroundRole:
                 if self._data_list[index.row()].id != 0:
                     return QBrush(QColor(84, 255, 159))
                 else:
@@ -102,7 +102,8 @@ class ImageFileListModel(MyBaseListModel):
         self.__add_image_data(relative_path, file_path, filename)
 
     def set_image_id(self, index, image_id):
-        self._data_list[index].id = image_id
+        self._data_list[index.row()].id = image_id
+        self.dataChanged(index, index, Qt.BackgroundRole)
 
     def __is_image(self, filename):
         extension = FileHelper.get_file_extension(filename).lower()

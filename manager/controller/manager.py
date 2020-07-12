@@ -38,10 +38,6 @@ class VIEW(Enum):
 
 
 class ImageManager(QMainWindow, Ui_Manager):
-    """
-    更新 list 信号
-    """
-    __refresh_list_signal = pyqtSignal()
 
     def __init__(self, parent=None):
         super(ImageManager, self).__init__(parent)
@@ -49,7 +45,6 @@ class ImageManager(QMainWindow, Ui_Manager):
 
         self.__db_helper = DBHelper(self.db_error_handler)  # 数据库操作
 
-        self.__refresh_list_signal.connect(self.__refresh_list)
         # 下拉列表设置
         self.__type_model = MyBaseListModel()
         self.comboBox_type.setModel(self.__type_model)
@@ -282,7 +277,6 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 # message = f"{item.name} 创建完成！"
-                self.__refresh_list_signal.emit()
             else:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
                 old_image = self.__image_model.get_database_item(image_id)
@@ -297,11 +291,6 @@ class ImageManager(QMainWindow, Ui_Manager):
                 message = f"{item.name} 更新完成！"
                 self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
         # end_index = select_rows[-1]
-        # self.__refresh_list_signal.emit(self.__image_model.index(end_index.row() + 1, end_index.column()))
-
-    def __refresh_list(self):
-        self.listView.clearFocus()
-        self.listView.setFocus()
 
     def __select_index(self, index: QModelIndex):
         if 0 < index.row() < self.__image_model.rowCount():
