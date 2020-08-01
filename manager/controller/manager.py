@@ -12,19 +12,18 @@
 import datetime
 import os
 import queue
-import re
 import threading
 import time
 from enum import unique, Enum
-from shutil import copyfile
 
 from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
+from PyQt5.QtCore import QModelIndex, Qt
 from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
+from helper.image_helper import ImageHelper
 from manager.view.manager import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
 from model.data import ImageFile, PreloadImage, MyImage
@@ -208,14 +207,18 @@ class ImageManager(QMainWindow, Ui_Manager):
         info = self.__db_helper.search_by_file_path(path)
         if not info:
             # 分析图片信息
-            size = FileHelper.get_file_size_in_mb(path)
-            create_time = FileHelper.get_create_time(path)
-            self.lineEdit_desc.setText("")
-            self.lineEdit_tag.setText("")
-            self.lineEdit_size.setText(f"{size} MB")
             self.lineEdit_path.setText(path)
-            self.dateTimeEdit_file_create.setDateTime(create_time)
-            self.__analyze_image_info(path)
+            info = ImageHelper.analyze_image_info(path)
+            self.lineEdit_size.setText(f"{info.size} MB")
+            self.dateTimeEdit_file_create.setDateTime(info.create_time)
+            self.lineEdit_desc.setText(info.desc)
+            self.lineEdit_tag.setText(info.tags)
+            if info.source:
+                self.lineEdit_source.setText(info.source)
+            if info.uploader:
+                self.lineEdit_uploader.setText(info.uploader)
+            if info.author:
+                self.lineEdit_author.setText(info.author)
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
@@ -300,85 +303,6 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.listView.clearFocus()
             self.listView.setFocus()
 
-    @staticmethod
-    def __get_image_width_and_height(image_path):
-        """
-        获取图片的宽高
-        :param image_path: 图片路径
-        :return:
-        """
-        try:
-            img = QtGui.QPixmap(image_path)
-            return img.width(), img.height()
-        except Exception as e:
-            print(e)
-            return 0, 0
-
-    def __analyze_image_info(self, file_path):
-        """
-        根据文件路径分析图片信息
-        :param file_path: 图片路径
-        :return:
-        """
-        filename = os.path.basename(file_path)
-        yande = 'yande'
-        pixiv = 'pixiv'
-        # cosplay = '/Cosplay/'
-        filter_list = [yande, pixiv]
-        exclude_list = ['Cosplay/购买', 'Cosplay/Flameworks']
-        is_in = False
-        for f in filter_list:
-            if f in file_path:
-                is_in = True
-                break
-        for e in exclude_list:
-            if e in file_path:
-                is_in = False
-        if not is_in:
-            return None
-
-        if yande in filename:
-            desc, uploader = FileHelper.analysisYande(filename)
-            if desc:
-                self.lineEdit_desc.setText(desc)
-                self.lineEdit_source.setText("yande")
-            if uploader:
-                self.lineEdit_uploader.setText(uploader)
-
-        if pixiv in filename:
-            # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
-            match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_", filename)
-            if match:
-                author = match.group('author')
-                author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
-                self.lineEdit_author.setText(author)
-                self.lineEdit_desc.setText(match.group('desc'))
-                tags = match.group('tags')
-                tags.replace(';', ',')
-                self.lineEdit_tag.setText(tags)
-                self.lineEdit_source.setText("pixiv")
-            else:
-                match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_", filename)
-                if match:
-                    author = match.group('author')
-                    author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
-                    self.lineEdit_author.setText(author)
-                    self.lineEdit_desc.setText(match.group('desc'))
-                    self.lineEdit_source.setText("pixiv")
-        # if cosplay in file_path:
-        #     match = re.search(r"Cosplay/(?P<works>.+?)/(?P<info>.+?)/", file_path)
-        #     if match:
-        #         self.lineEdit_works.setText(match.group('works'))
-        #         info_list = match.group('info').split(' - ')
-        #         info_list = [x.strip() for x in info_list]
-        #         if len(info_list) > 2:
-        #             author = ' - '.join(info_list[0:-1])
-        #         else:
-        #             author = info_list[0]
-        #         self.lineEdit_series.setText(author)
-        #         self.lineEdit_author.setText(info_list[-1])
-        #         self.comboBox_type.setCurrentIndex(1)
-
     def __del_select_rows(self):
         """
         删除选中行
@@ -450,27 +374,14 @@ class ImageManager(QMainWindow, Ui_Manager):
                     continue
 
                 try:
-                    self.copyfile_without_override(image_sql.path, dir_path)
+                    FileHelper.copyfile_without_override(image_sql.path, dir_path)
                 except Exception as e:
                     print(e)
             else:
-                self.copyfile_without_override(image.full_path, dir_path)
+                FileHelper.copyfile_without_override(image.full_path, dir_path)
 
             self.statusbar.showMessage(f"[{i + 1}/{self.__image_model.rowCount()}] {image.name} 复制成功！")
 
-    def copyfile_without_override(self, origin_file_path, dir_path):
-        filename = os.path.basename(origin_file_path)
-        target_file_path = os.path.join(dir_path, filename)
-        (shot_name, extension) = os.path.splitext(filename)
-        no = 1
-        while True:
-            if not os.path.exists(target_file_path):
-                break
-            filename = f"{shot_name}{no}{extension}"
-            target_file_path = os.path.join(dir_path, filename)
-            no += 1
-
-        copyfile(origin_file_path, os.path.join(dir_path, filename))
 
     # region 重写 Qt 控件方法
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
@@ -584,7 +495,8 @@ class ImageManager(QMainWindow, Ui_Manager):
 
             full_path = image_file.full_path
             try:
-                pixmap, width, height = self.__get_image_from_file(full_path)
+                pixmap, width, height = ImageHelper.get_image_from_file(full_path, self.graphicsView.width(),
+                                                                        self.graphicsView.height())
                 self.__preload_image_queue.put(PreloadImage(full_path, pixmap))
                 self.__preload_image_size.put((width, height))
                 print(f"预加载成功：{full_path}")
@@ -592,24 +504,6 @@ class ImageManager(QMainWindow, Ui_Manager):
                 print(e)
                 print(f"预加载失败：{full_path}")
                 time.sleep(1)
-
-    def __get_image_from_file(self, path):
-        """
-        从路径读取图片文件
-        :param path: 图片路径
-        :return:
-        """
-        qim = QtGui.QImage(path)
-        width = qim.width()
-        height = qim.height()
-        x_scale = self.graphicsView.width() / float(qim.width())
-        y_scale = self.graphicsView.height() / float(qim.height())
-        if x_scale < y_scale:
-            qim = qim.scaledToWidth(self.graphicsView.width(), Qt.SmoothTransformation)
-        else:
-            qim = qim.scaledToHeight(self.graphicsView.height(), Qt.SmoothTransformation)
-        pixmap = QtGui.QPixmap.fromImage(qim)
-        return pixmap, width, height
 
     def __get_image(self, path):
         # 优先从队列中获取
@@ -622,10 +516,13 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.lineEdit_height.setText(str(size[1]))
                 return image.pixmap, True
         print("从文件中读取")
-        image, width, height = self.__get_image_from_file(path)
+        image, width, height = ImageHelper.get_image_from_file(path, self.graphicsView.width(),
+                                                               self.graphicsView.height())
         self.lineEdit_width.setText(str(width))
         self.lineEdit_height.setText(str(height))
         return image, False
+
+    # endregion
 
     def __clean_not_exist_images(self):
         """

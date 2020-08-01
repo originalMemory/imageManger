@@ -14,6 +14,10 @@ import os
 import re
 import time
 
+from shutil import copyfile
+
+from PyQt5 import QtGui
+
 
 class FileHelper:
 
@@ -96,19 +100,16 @@ class FileHelper:
         os.system(ex)
 
     @staticmethod
-    def analysisYande(filename):
-        # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-        match = re.search(r"yande.*?_\d*?_(?P<uploader>.+?)](?P<desc>.+?)\.", filename)
-        if match:
-            uploader = match.group('uploader')
-            desc = match.group('desc')
-            desc = desc.replace("_00", "")
-            return desc, uploader
-        else:
-            # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-            match = re.search(r"yande(.re)? (?P<id>.+?) (?P<desc>.+?)\.", filename)
-            if match:
-                desc = match.group('desc')
-                return desc, None
-            else:
-                return None, None
+    def copyfile_without_override(origin_file_path, dir_path):
+        filename = os.path.basename(origin_file_path)
+        target_file_path = os.path.join(dir_path, filename)
+        (shot_name, extension) = os.path.splitext(filename)
+        no = 1
+        while True:
+            if not os.path.exists(target_file_path):
+                break
+            filename = f"{shot_name}{no}{extension}"
+            target_file_path = os.path.join(dir_path, filename)
+            no += 1
+
+        copyfile(origin_file_path, os.path.join(dir_path, filename))

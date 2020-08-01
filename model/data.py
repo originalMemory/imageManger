@@ -9,8 +9,8 @@
 @create  : 2019/9/21 15:05:36
 @update  :
 """
-import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 
 from PyQt5.QtGui import QPixmap
 
@@ -20,58 +20,58 @@ class MyImage:
     """
     Mysql 中 image 表的数据类型映射
     """
-    id: int
-    desc: str
-    author: str
+    id: int = field(default=0)
+    desc: str = field(default="")
+    author: str = field(default="")
     """
     类型 id
     """
-    type_id: int
+    type_id: int = field(default=0)
     """
     等级 id
     """
-    level_id: int
+    level_id: int = field(default=0)
     """
     标签
     """
-    tags: str
+    tags: str = field(default="")
     """
     作品
     """
-    works: str
+    works: str = field(default="")
     """
     角色
     """
-    role: str
+    role: str = field(default="")
     """
     来源站点
     """
-    source: str
-    width: int
-    height: int
-    size: float
-    filename: str
-    path: str
+    source: str = field(default="")
+    width: int = field(default=0)
+    height: int = field(default=0)
+    size: float = field(default=0.0)
+    filename: str = field(default="")
+    path: str = field(default="")
     """
     文件创建时间
     """
-    file_create_time: datetime
+    file_create_time: datetime = field(default=datetime.now())
     """
     信息创建时间
     """
-    create_time: datetime
+    create_time: datetime = field(default=datetime.now())
     """
     信息更新时间
     """
-    update_time: datetime
+    update_time: datetime = field(default=datetime.now())
     """
     系列
     """
-    series: str
+    series: str = field(default="")
     """
     上传者
     """
-    uploader: str
+    uploader: str = field(default="")
 
     @staticmethod
     def from_mysql_dict(query):
