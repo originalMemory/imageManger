@@ -86,7 +86,7 @@ class MyBaseListModel(QAbstractListModel):
         :return:
         """
         self._data_list[index.row()] = new_item
-        self.dataChanged(index, index, Qt.BackgroundRole)
+        # self.dataChanged.emit(index, index, [Qt.BackgroundRole])
 
     def get_item(self, row) -> BaseData:
         """

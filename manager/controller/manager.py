@@ -17,7 +17,7 @@ import time
 from enum import unique, Enum
 
 from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import QModelIndex, Qt
+from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 
 from helper.config_helper import ConfigHelper
@@ -37,6 +37,7 @@ class VIEW(Enum):
 
 
 class ImageManager(QMainWindow, Ui_Manager):
+    _signal_update_image_id = pyqtSignal(QModelIndex, int)
 
     def __init__(self, parent=None):
         super(ImageManager, self).__init__(parent)
@@ -92,6 +93,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_source.returnPressed.connect(self.__classify)
         self.lineEdit_uploader.returnPressed.connect(self.__classify)
         self.lineEdit_author.returnPressed.connect(self.__classify)
+        self._signal_update_image_id.connect(self._update_image_id)
 
         # 设置 tab 切换顺序
         self.setTabOrder(self.lineEdit_desc, self.lineEdit_tag)
@@ -273,7 +275,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             if image.id == 0:
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(path)
-                self.__image_model.set_image_id(select_rows[i].row(), image_id)
+                self._signal_update_image_id.emit(select_rows[i], image_id)
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 # message = f"{item.name} 创建完成！"
@@ -291,6 +293,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                 message = f"{item.name} 更新完成！"
                 self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
         # end_index = select_rows[-1]
+
+    def _update_image_id(self, index: QModelIndex, image_id: int):
+        self.__image_model.set_image_id(index,image_id)
 
     def __select_index(self, index: QModelIndex):
         if 0 < index.row() < self.__image_model.rowCount():

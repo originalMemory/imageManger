@@ -159,6 +159,19 @@ class DBHelper:
         print(sql_str)
         self.execute(sql_str)
 
+    def search_by_md5(self, md5):
+        """
+        根据md5搜索图片
+        :param md5:
+        :return:
+        """
+        info = None
+        sql_str = f"select * from myacg.image where md5='{md5}' limit 1"
+        query = self.query_with_return_one(sql_str)
+        if query:
+            info = MyImage.from_mysql_dict(query)
+        return info
+
     def search_by_file_path(self, file_path):
         """
         根据路径搜索图片

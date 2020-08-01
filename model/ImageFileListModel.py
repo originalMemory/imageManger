@@ -80,6 +80,14 @@ class ImageFileListModel(MyBaseListModel):
         if not self.__is_image(filename):
             return
         image = self.__db_helper.search_by_file_path(full_path)
+        if not image:
+            # 根据md5再做1次判断，md5相同时更新路径
+            md5 = FileHelper.get_md5(full_path)
+            image = self.__db_helper.search_by_md5(md5)
+            if image:
+                image.path = full_path
+                self.__db_helper.update_image(image)
+
         if image:
             image_id = image.id
             self._data_list_in_database.append(image)
@@ -103,7 +111,7 @@ class ImageFileListModel(MyBaseListModel):
 
     def set_image_id(self, index, image_id):
         self._data_list[index.row()].id = image_id
-        self.dataChanged(index, index, Qt.BackgroundRole)
+        self.dataChanged.emit(index, index, [Qt.BackgroundRole])
 
     def __is_image(self, filename):
         extension = FileHelper.get_file_extension(filename).lower()
