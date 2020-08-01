@@ -52,6 +52,7 @@ class MyImage:
     size: float = field(default=0.0)
     filename: str = field(default="")
     path: str = field(default="")
+    md5: str = field(default="")
     """
     文件创建时间
     """
@@ -90,6 +91,7 @@ class MyImage:
             size=query['size'],
             filename=query['filename'],
             path=query['path'],
+            md5=query['md5'],
             file_create_time=query['file_create_time'],
             create_time=query['create_time'],
             update_time=query['update_time'],

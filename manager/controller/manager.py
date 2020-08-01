@@ -264,16 +264,13 @@ class ImageManager(QMainWindow, Ui_Manager):
         uploader = self.lineEdit_uploader.text()
         for i in range(len(select_rows)):
             item = self.__image_model.get_item(select_rows[i].row())
-            filename = item.name
             path = item.full_path
-            file_create_time = FileHelper.get_create_time_str(path)
-            size = FileHelper.get_file_size_in_mb(path)
-            width = self.lineEdit_width.text()
-            height = self.lineEdit_height.text()
-            image_id = item.id
-            image = MyImage(image_id, desc, author, type_id, level_id, tags, works, role, source, width, height, size,
-                            filename, path, file_create_time, "", "", series, uploader)
-            if image_id == 0:
+            image = MyImage(id=item.id, desc=desc, author=author, type_id=type_id, level_id=level_id, tags=tags,
+                            works=works, role=role, source=source, width=self.lineEdit_width.text(),
+                            height=self.lineEdit_height.text(), size=FileHelper.get_file_size_in_mb(path),
+                            filename=item.name, path=path, md5=FileHelper.get_md5(path),
+                            file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader)
+            if image.id == 0:
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(path)
                 self.__image_model.set_image_id(select_rows[i].row(), image_id)
@@ -282,7 +279,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 # message = f"{item.name} 创建完成！"
             else:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
-                old_image = self.__image_model.get_database_item(image_id)
+                old_image = self.__image_model.get_database_item(image.id)
                 if old_image and len(select_rows) > 1:
                     image.desc = old_image.desc
                     image.author = old_image.author
@@ -381,7 +378,6 @@ class ImageManager(QMainWindow, Ui_Manager):
                 FileHelper.copyfile_without_override(image.full_path, dir_path)
 
             self.statusbar.showMessage(f"[{i + 1}/{self.__image_model.rowCount()}] {image.name} 复制成功！")
-
 
     # region 重写 Qt 控件方法
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
@@ -529,21 +525,15 @@ class ImageManager(QMainWindow, Ui_Manager):
         清理不存在的图片
         :return:
         """
-        page = 0
-        pagesize = 500
-        count = self.__db_helper.get_table_count(f"select count(*) from myacg.image;")
-        while True:
-            image_list = self.__db_helper.get_images(page, pagesize)
+        th = threading.Thread(
+            target=ImageHelper.refresh_recode_info,
+            args=(self.db_error_handler,self.show_status_message,),
+            daemon=True
+        )
+        th.start()
 
-            if len(image_list) == 0:
-                break
-            self.statusbar.showMessage(f"[{(page + 1) * pagesize}/{count}] 无效验证")
-            for image in image_list:
-                if "?" in image.path:
-                    continue
-                if not os.path.exists(image.path):
-                    self.__db_helper.delete(image.id)
-            page += 1
+    def show_status_message(self, message):
+        self.statusbar.showMessage(message)
 
     def open_file_directory(self):
         """

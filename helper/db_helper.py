@@ -128,9 +128,10 @@ class DBHelper:
         series = image.series.replace("'", "\\'")
         uploader = image.uploader.replace("'", "\\'")
         sql_str = f"""INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, 
-            path, width, height, `size`, file_create_time, series, uploader) values ('{desc}', '{author}',
+            path, width, height, `size`, file_create_time, series, uploader, md5) values ('{desc}', '{author}',
             {image.type_id}, {image.level_id}, '{tags}', '{works}', '{role}', '{image.source}', '{filename}', '{path}',
-            {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}');"""
+            {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}',
+            '{image.md5}');"""
         print(sql_str)
         self.execute(sql_str)
 
@@ -152,8 +153,10 @@ class DBHelper:
         uploader = image.uploader.replace("'", "\\'")
         sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type_id={image.type_id},
             level_id={image.level_id}, tags='{tags}', works='{works}', role='{role}', source='{image.source}',
-            filename='{filename}', path='{path}', width={image.width}, height={image.height}, `size`={image.size},
-            file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}' where id={image.id}"""
+            filename='{filename}', path='{path}', md5='{image.md5}', width={image.width}, height={image.height},
+            `size`={image.size}, file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}' 
+            where id={image.id}"""
+        print(sql_str)
         self.execute(sql_str)
 
     def search_by_file_path(self, file_path):
