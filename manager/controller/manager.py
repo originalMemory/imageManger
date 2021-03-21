@@ -56,9 +56,9 @@ class ImageManager(QMainWindow, Ui_Manager):
         levels = self.__db_helper.get_model_data_list('level')
         for i in range(len(levels)):
             level = levels[i]
-            if level.name == "码":
+            if level.id == 10:
                 levels.remove(level)
-                levels.insert(5, level)
+                levels.insert(4, level)
         self.__level_model.add_items(levels)
         self.comboBox_level.setCurrentIndex(0)
 
@@ -149,8 +149,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         :return:
         """
         path_list = \
-            QtWidgets.QFileDialog.getOpenFileNames(self, "选择文件", "D:\\图片\\[wlop (Wang Ling)] Artwork 2017 集合",
-                                                   '图片(*.jpg *.png *.gif *.jpeg *.bmp)')[0]
+            QtWidgets.QFileDialog.getOpenFileNames(self, "选择文件", filter='图片(*.jpg *.png *.gif *.jpeg *.bmp)')[0]
         # 生成List使用的Model
         for path in path_list:
             tp_lists = path.split('/')
