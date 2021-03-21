@@ -11,6 +11,7 @@
 import os
 import re
 
+from PIL import Image
 from PyQt5 import QtGui
 from PyQt5.QtCore import Qt
 
@@ -156,3 +157,60 @@ class ImageHelper:
                 db_helper.update_image(image)
             page += 1
 
+    @staticmethod
+    def get_sized_image(image_path, *, size=None, width=None, height=None):
+        """
+        读取指定大小的图片，采用填充模式缩放
+        :param image_path: 图片路径
+        :param size: (宽，高)
+        :param width: 宽
+        :param height: 高
+        :return: 图片
+        """
+        image = Image.open(image_path)
+        if not image:
+            return
+        if len(size) == 2:
+            width = size[0]
+            height = size[1]
+        if not width:
+            width = image.size[0]
+        if not height:
+            height = image.size[1]
+        image_width, image_height = image.size
+        target_scale = width / height
+        new_width = int(image_height * target_scale)
+        if new_width < image_width:
+            width_crop = (image_width - new_width) / 2
+            image = image.crop((width_crop, 0, image_width - width_crop, image_height))
+        else:
+            new_height = image_width // target_scale
+            height_crop = (image_height - new_height) / 2
+            image = image.crop((0, height_crop, image_width, image_height - height_crop))
+        return image.resize((width, height), Image.ANTIALIAS)
+
+    @staticmethod
+    def merge_horizontal_img(images, offset_y, save_name):
+        """
+        横向合并图片
+        :param images: 图片列表
+        :param offset_y: 横图竖直偏移
+        :param save_name: 保存名称
+        :return:
+        """
+        widths, heights = zip(*(i.size for i in images))
+
+        total_width = sum(widths)
+        max_height = max(heights)
+
+        new_im = Image.new('RGB', (total_width, max_height))
+
+        start_x = 0
+        for image in images:
+            if image.size[0] > image.size[1]:
+                start_y = offset_y
+            else:
+                start_y = 0
+            new_im.paste(image, (start_x, start_y))
+            start_x += image.size[0]
+        new_im.save(save_name, quality=100, subsampling=0)
