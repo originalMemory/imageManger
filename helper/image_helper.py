@@ -170,7 +170,7 @@ class ImageHelper:
         image = Image.open(image_path)
         if not image:
             return
-        if len(size) == 2:
+        if size and len(size) == 2:
             width = size[0]
             height = size[1]
         if not width:
@@ -190,11 +190,11 @@ class ImageHelper:
         return image.resize((width, height), Image.ANTIALIAS)
 
     @staticmethod
-    def merge_horizontal_img(images, offset_y, save_name):
+    def merge_horizontal_img(images, start_y_list, save_name):
         """
         横向合并图片
         :param images: 图片列表
-        :param offset_y: 横图竖直偏移
+        :param start_y_list: 竖直偏移列表
         :param save_name: 保存名称
         :return:
         """
@@ -206,11 +206,9 @@ class ImageHelper:
         new_im = Image.new('RGB', (total_width, max_height))
 
         start_x = 0
-        for image in images:
-            if image.size[0] > image.size[1]:
-                start_y = offset_y
-            else:
-                start_y = 0
+        for i in range(len(images)):
+            image = images[i]
+            start_y = start_y_list[i]
             new_im.paste(image, (start_x, start_y))
             start_x += image.size[0]
         new_im.save(save_name, quality=100, subsampling=0)

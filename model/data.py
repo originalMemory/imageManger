@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from PyQt5.QtGui import QPixmap
+from PyQt5.QtWidgets import QAction
+from screeninfo import Monitor
 
 
 @dataclass
@@ -116,3 +118,11 @@ class ImageFile(BaseData):
 class PreloadImage:
     full_path: str
     pixmap: QPixmap
+
+
+@dataclass
+class MonitorSetting:
+    monitor: Monitor
+    image_desc_action: QAction
+    image_level_actions: list
+    image: MyImage = None
