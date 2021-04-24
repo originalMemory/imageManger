@@ -22,6 +22,8 @@ from model.my_list_model import MyBaseListModel
 
 class ImageFileListModel(MyBaseListModel):
 
+    delete_repeat = False
+
     def __init__(self, context):
         super().__init__()
         self._base_dir = ""
@@ -81,10 +83,15 @@ class ImageFileListModel(MyBaseListModel):
             return
         image = self.__db_helper.search_by_file_path(full_path)
         if not image:
-            # 根据md5再做1次判断，md5相同时更新路径
+            # 根据md5再做1次判断
             md5 = FileHelper.get_md5(full_path)
             image = self.__db_helper.search_by_md5(md5)
-            if image:
+            if image and image.path != full_path:
+                # 已有图片存在且删除重复时删除当前图片
+                if os.path.exists(image.path) and self.delete_repeat:
+                    print(f'删除重复图片: {full_path}')
+                    os.remove(full_path)
+                    return
                 image.path = full_path
                 self.__db_helper.update_image(image)
 

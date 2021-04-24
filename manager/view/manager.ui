@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1754</width>
-    <height>1117</height>
+    <width>1774</width>
+    <height>1171</height>
    </rect>
   </property>
   <property name="acceptDrops">
@@ -692,6 +692,19 @@
         <string>去除无效图</string>
        </property>
       </widget>
+      <widget class="QCheckBox" name="checkBox_delete_repeat">
+       <property name="geometry">
+        <rect>
+         <x>1610</x>
+         <y>130</y>
+         <width>71</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>删除重复</string>
+       </property>
+      </widget>
      </widget>
     </item>
     <item>
@@ -739,7 +752,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1754</width>
+     <width>1774</width>
      <height>23</height>
     </rect>
    </property>

@@ -64,11 +64,10 @@ class ImageManager(QMainWindow, Ui_Manager):
 
         # 图片信息
         self.__image_model = ImageFileListModel(self)
+        self.__image_model.delete_repeat = self.checkBox_delete_repeat.isChecked()
         self.__config = ConfigHelper(self)
 
-        last_dir = self.__config.get_config_key('history', 'lastDir')
-        if os.path.isdir(last_dir) and os.path.exists(last_dir):
-            self.__image_model.add_path(last_dir)
+        threading.Thread(target=self._load_default_images, daemon=True).start()
         self.lineEdit_sql_where.setText(self.__config.get_config_key('history', 'sqlWhere'))
         self.lineEdit_export_dir.setText(self.__config.get_config_key('history', 'lastExportDir'))
 
@@ -81,6 +80,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.pushButton_classify.clicked.connect(self.__classify)
         self.pushButton_search.clicked.connect(self.__search)
         self.pushButton_clean.clicked.connect(self.__clean_not_exist_images)
+        self.checkBox_delete_repeat.clicked.connect(self._on_check_box_delete_repeat_click)
         self.actionOpen.triggered.connect(self.__open_files)
         self.lineEdit_sql_where.returnPressed.connect(self.__search)
         self.pushButton_export_dir.clicked.connect(self.__choose_export_dir)
@@ -142,6 +142,13 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.completer.setFilterMode(Qt.MatchContains)
             self.lineEdit_works.setCompleter(self.completer)
             print(self.__completer_list)
+
+    def _load_default_images(self):
+        last_dir = self.__config.get_config_key('history', 'lastDir')
+        if os.path.isdir(last_dir) and os.path.exists(last_dir):
+            self.__image_model.add_path(last_dir)
+            if self.__image_model.rowCount() > 0:
+                self.listView.setCurrentIndex(self.__image_model.index(0, 0))
 
     def __open_files(self):
         """
@@ -382,6 +389,10 @@ class ImageManager(QMainWindow, Ui_Manager):
                 FileHelper.copyfile_without_override(image.full_path, dir_path)
 
             self.statusbar.showMessage(f"[{i + 1}/{self.__image_model.rowCount()}] {image.name} 复制成功！")
+
+    def _on_check_box_delete_repeat_click(self):
+        print(f'是否删除重复：{self.checkBox_delete_repeat.isChecked()}')
+        self.__image_model.delete_repeat = self.checkBox_delete_repeat.isChecked()
 
     # region 重写 Qt 控件方法
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:

@@ -10,6 +10,7 @@
 @update  :
 """
 import sys
+import PyQt5.sip
 
 from PyQt5.QtWidgets import QApplication
 
