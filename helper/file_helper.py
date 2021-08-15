@@ -101,15 +101,21 @@ class FileHelper:
         os.system(ex)
 
     @staticmethod
-    def copyfile_without_override(origin_file_path, dir_path):
+    def copyfile_without_override(origin_file_path, dir_path, new_filename):
         filename = os.path.basename(origin_file_path)
-        target_file_path = os.path.join(dir_path, filename)
         (shot_name, extension) = os.path.splitext(filename)
+        if new_filename:
+            filename = f"{new_filename}{extension}"
+        target_file_path = os.path.join(dir_path, filename)
         no = 1
         while True:
             if not os.path.exists(target_file_path):
                 break
-            filename = f"{shot_name}{no}{extension}"
+            if new_filename:
+                name = new_filename
+            else:
+                name = shot_name
+            filename = f"{name}{no}{extension}"
             target_file_path = os.path.join(dir_path, filename)
             no += 1
 

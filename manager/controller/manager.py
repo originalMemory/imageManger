@@ -104,7 +104,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.setTabOrder(self.lineEdit_role, self.lineEdit_works)
         self.setTabOrder(self.lineEdit_works, self.lineEdit_series)
         self.setTabOrder(self.lineEdit_series, self.lineEdit_source)
-        self.setTabOrder(self.lineEdit_source, self.lineEdit_uploader)
+        self.setTabOrder(self.lineEdit_source, self.lineEdit_sequence)
+        self.setTabOrder(self.lineEdit_sequence, self.lineEdit_uploader)
         self.setTabOrder(self.lineEdit_uploader, self.lineEdit_author)
         self.setTabOrder(self.lineEdit_author, self.pushButton_classify)
         self.setTabOrder(self.pushButton_classify, self.pushButton_search)
@@ -264,6 +265,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_role.setText(info.role)
         self.lineEdit_author.setText(info.author)
         self.lineEdit_series.setText(info.series)
+        self.lineEdit_sequence.setText(str(info.sequence))
         self.lineEdit_uploader.setText(info.uploader)
         self.lineEdit_size.setText(f"{info.size} MB")
         self.comboBox_type.setCurrentIndex(self.__type_model.get_index(info.type_id))
@@ -295,6 +297,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         works = self.lineEdit_works.text()
         role = self.lineEdit_role.text()
         source = self.lineEdit_source.text()
+        sequence = int(self.lineEdit_sequence.text())
         series = self.lineEdit_series.text()
         uploader = self.lineEdit_uploader.text()
         for i in range(len(select_rows)):
@@ -304,7 +307,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                             works=works, role=role, source=source, width=self.lineEdit_width.text(),
                             height=self.lineEdit_height.text(), size=FileHelper.get_file_size_in_mb(path),
                             filename=item.name, path=path, md5=FileHelper.get_md5(path),
-                            file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader)
+                            file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader,
+                            dir_path=f'{os.path.dirname(path)}/', sequence=sequence)
             if image.id == 0:
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(path)
@@ -328,7 +332,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         # end_index = select_rows[-1]
 
     def _update_image_id(self, index: QModelIndex, image_id: int):
-        self.__image_model.set_image_id(index,image_id)
+        self.__image_model.set_image_id(index, image_id)
 
     def __select_index(self, index: QModelIndex):
         if 0 < index.row() < self.__image_model.rowCount():
@@ -409,7 +413,10 @@ class ImageManager(QMainWindow, Ui_Manager):
                     continue
 
                 try:
-                    FileHelper.copyfile_without_override(image_sql.path, dir_path)
+                    new_filename = None
+                    if image_sql.type_id == 2:
+                        new_filename = f"{image_sql.works}_{image_sql.role}_{image_sql.series}_{image_sql.author}"
+                    FileHelper.copyfile_without_override(image_sql.path, dir_path, new_filename)
                 except Exception as e:
                     print(e)
             else:
@@ -480,6 +487,16 @@ class ImageManager(QMainWindow, Ui_Manager):
             current_index = self.listView.currentIndex()
             if current_index.row() < self.__image_model.rowCount() - 1:
                 self.listView.setCurrentIndex(self.__image_model.index(current_index.row() + 1, current_index.column()))
+            return True
+        if event.key() == Qt.Key_J:
+            cur_index = self.comboBox_level.currentIndex()
+            if cur_index > 0:
+                self.comboBox_level.setCurrentIndex(cur_index - 1)
+            return True
+        if event.key() == Qt.Key_K:
+            cur_index = self.comboBox_level.currentIndex()
+            if cur_index < self.__level_model.rowCount() - 1:
+                self.comboBox_level.setCurrentIndex(cur_index + 1)
             return True
         return False
 
@@ -574,7 +591,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         """
         th = threading.Thread(
             target=ImageHelper.refresh_recode_info,
-            args=(self.db_error_handler,self.show_status_message,),
+            args=(self.db_error_handler, self.show_status_message,),
             daemon=True
         )
         th.start()

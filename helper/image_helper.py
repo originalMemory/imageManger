@@ -142,19 +142,19 @@ class ImageHelper:
             if len(image_list) == 0:
                 break
             for index, image in enumerate(image_list):
-                message_handler(f"[{page * pagesize + index}/{count}] 更新数据中")
+                print(f"[{page * pagesize + index}/{count}] 更新数据中")
                 if "?" in image.path:
                     continue
                 if not os.path.exists(image.path):
                     db_helper.delete(image.id)
                     continue
-                if not image.series:
-                    image.series = ""
-                if not image.uploader:
-                    image.uploader = ""
-                image.width, image.height = ImageHelper.get_image_width_and_height(image.path)
-                image.md5 = FileHelper.get_md5(image.path)
-                db_helper.update_image(image)
+                # if not image.series:
+                #     image.series = ""
+                # if not image.uploader:
+                #     image.uploader = ""
+                # image.width, image.height = ImageHelper.get_image_width_and_height(image.path)
+                # image.md5 = FileHelper.get_md5(image.path)
+                # db_helper.update_image(image)
             page += 1
 
     @staticmethod

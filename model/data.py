@@ -53,6 +53,11 @@ class MyImage:
     height: int = field(default=0)
     size: float = field(default=0.0)
     filename: str = field(default="")
+    dir_path: str = field(default="")
+    """
+    作品序号，用于快速对比合集资源
+    """
+    sequence: int = field(default=0)
     path: str = field(default="")
     md5: str = field(default="")
     """
@@ -92,6 +97,8 @@ class MyImage:
             height=query['height'],
             size=query['size'],
             filename=query['filename'],
+            dir_path=query['dir_path'],
+            sequence=query['sequence'],
             path=query['path'],
             md5=query['md5'],
             file_create_time=query['file_create_time'],

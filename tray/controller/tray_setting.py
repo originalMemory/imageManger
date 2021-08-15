@@ -191,6 +191,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         while True:
             sleep_second = self.__time_interval * 60
             if self.__change_background():
+                print(f'睡眠{sleep_second}s')
                 time.sleep(sleep_second)
 
     def __change_background(self):
@@ -211,11 +212,15 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             setting.image_desc_action.setText(desc)
             self.__update_level_action(i, image.level_id)
 
-            image_data = ImageHelper.get_sized_image(
-                image.path,
-                width=setting.monitor.width,
-                height=setting.monitor.height
-            )
+            try:
+                image_data = ImageHelper.get_sized_image(
+                    image.path,
+                    width=setting.monitor.width,
+                    height=setting.monitor.height
+                )
+            except IOError as e:
+                print(f'读取图片错误 - {e}')
+                return False
             if image_data:
                 images.append(image_data)
                 start_y_list.append(setting.monitor.y - self._monitor_start_y)
