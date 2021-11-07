@@ -70,8 +70,9 @@ class ImageHelper:
         filename = os.path.basename(file_path)
         yande = 'yande'
         pixiv = 'pixiv'
+        konachan = 'konachan'
         # cosplay = '/Cosplay/'
-        filter_list = [yande, pixiv]
+        filter_list = [yande, pixiv, konachan]
         exclude_list = ['Cosplay/购买', 'Cosplay/Flameworks']
         is_in = False
         for f in filter_list:
@@ -86,12 +87,12 @@ class ImageHelper:
 
         if yande in filename:
             info.source = 'yande'
-            info.desc, info.uploader = ImageHelper.analyze_yande(filename)
+            info.tags, info.uploader = ImageHelper.analyze_yande(filename)
 
         if pixiv in filename:
             info.source = 'pixiv'
             # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
-            match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_", filename)
+            match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_00", filename)
             if match:
                 author = match.group('author')
                 info.author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
@@ -100,29 +101,38 @@ class ImageHelper:
                 tags.replace(';', ',')
                 info.tags = tags
             else:
-                match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_", filename)
+                match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<tags>.+?)_", filename)
                 if match:
                     author = match.group('author')
                     author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
                     info.author = author
-                    info.desc = match.group('desc')
+                    info.tags = match.group('tags')
+
+        if konachan in filename:
+            info.source = konachan
+            # [konachan_241354_RyuZU]blindfold breast_grab breasts demiroid elbow_gloves
+            match = re.search(r"konachan_\d*?_(?P<uploader>.+?)](?P<desc>.+?)\.", filename)
+            if match:
+                info.uploader = match.group('uploader')
+                info.tags = match.group('tags').replace("_00000", "")
+
         return info
 
     @staticmethod
     def analyze_yande(filename):
         # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-        match = re.search(r"yande.*?_\d*?_(?P<uploader>.+?)](?P<desc>.+?)\.", filename)
+        match = re.search(r"yande.*?_\d*?_(?P<uploader>.+?)](?P<tags>.+?)_00", filename)
         if match:
             uploader = match.group('uploader')
-            desc = match.group('desc')
-            desc = desc.replace("_00", "")
-            return desc, uploader
+            tags = match.group('tags')
+            tags = tags.replace("_00", "")
+            return tags, uploader
         else:
             # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-            match = re.search(r"yande(.re)? (?P<id>.+?) (?P<desc>.+?)\.", filename)
+            match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.", filename)
             if match:
-                desc = match.group('desc')
-                return desc, None
+                tags = match.group('tags')
+                return tags, None
             else:
                 return None, None
 

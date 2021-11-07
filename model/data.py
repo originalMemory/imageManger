@@ -16,6 +16,8 @@ from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import QAction
 from screeninfo import Monitor
 
+from helper.file_helper import FileHelper
+
 
 @dataclass
 class MyImage:
@@ -59,6 +61,7 @@ class MyImage:
     """
     sequence: int = field(default=0)
     path: str = field(default="")
+    relative_path: str = field(default="")
     md5: str = field(default="")
     """
     文件创建时间
@@ -99,7 +102,7 @@ class MyImage:
             filename=query['filename'],
             dir_path=query['dir_path'],
             sequence=query['sequence'],
-            path=query['path'],
+            relative_path=query['path'],
             md5=query['md5'],
             file_create_time=query['file_create_time'],
             create_time=query['create_time'],
@@ -107,6 +110,7 @@ class MyImage:
             series=query['series'],
             uploader=query['uploader']
         )
+        image.path = FileHelper.get_full_path(image.relative_path)
         return image
 
 

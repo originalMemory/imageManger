@@ -19,6 +19,8 @@ from shutil import copyfile
 
 from PyQt5 import QtGui
 
+from helper.config_helper import ConfigHelper
+
 
 class FileHelper:
 
@@ -43,6 +45,8 @@ class FileHelper:
         :param file_path: 文件路径
         :return:
         """
+        if not os.path.exists(file_path):
+            return 0
         size = os.path.getsize(file_path)
         size = size / float(1024 * 1024)
         return round(size, 2)
@@ -135,3 +139,14 @@ class FileHelper:
         # md5 = str(hash_code).lower()
         return hash_code
 
+    @staticmethod
+    def get_full_path(relative_path):
+        prefix = FileHelper.get_path_prefix()
+        if not prefix or os.path.exists(relative_path):
+            return relative_path
+        else:
+            return os.path.join(prefix, relative_path)
+
+    @staticmethod
+    def get_path_prefix():
+        return ConfigHelper(None).get_config_key('common', 'pathPrefix')

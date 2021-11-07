@@ -125,7 +125,7 @@ class DBHelper:
         role = image.role.replace("'", "\\'")
         filename = image.filename.replace("'", "\\'")
         dir_path = image.dir_path.replace("'", "\\'")
-        path = image.path.replace("'", "\\'")
+        path = image.relative_path.replace("'", "\\'")
         series = image.series.replace("'", "\\'")
         uploader = image.uploader.replace("'", "\\'")
         sql_str = f"""INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, 
@@ -150,7 +150,7 @@ path, width, height, `size`, file_create_time, series, uploader, md5, dir_path, 
         role = image.role.replace("'", "\\'")
         filename = image.filename.replace("'", "\\'")
         dir_path = image.dir_path.replace("'", "\\'")
-        path = image.path.replace("'", "\\'")
+        path = image.relative_path.replace("'", "\\'")
         series = image.series.replace("'", "\\'")
         uploader = image.uploader.replace("'", "\\'")
         sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type_id={image.type_id},

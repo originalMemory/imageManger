@@ -37,7 +37,7 @@ class VIEW(Enum):
 
 
 class ImageManager(QMainWindow, Ui_Manager):
-    _signal_update_image_id = pyqtSignal(QModelIndex, int)
+    _signal_update_image_id = pyqtSignal(QModelIndex, ImageFile)
 
     def __init__(self, parent=None):
         super(ImageManager, self).__init__(parent)
@@ -93,6 +93,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_source.returnPressed.connect(self.__classify)
         self.lineEdit_uploader.returnPressed.connect(self.__classify)
         self.lineEdit_author.returnPressed.connect(self.__classify)
+        self.lineEdit_sequence.returnPressed.connect(self.__classify)
         self._signal_update_image_id.connect(self._update_image_id)
 
         # 设置 tab 切换顺序
@@ -240,7 +241,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.__show_image(current.row())
 
     def __analysis_file_info(self, path):
-        info = self.__db_helper.search_by_file_path(path)
+        info = self.__db_helper.search_by_file_path(path.replace(FileHelper.get_path_prefix(), ''))
         if not info:
             # 分析图片信息
             self.lineEdit_path.setText(path)
@@ -255,6 +256,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.lineEdit_uploader.setText(info.uploader)
             if info.author:
                 self.lineEdit_author.setText(info.author)
+            if not self.lineEdit_sequence.text():
+                self.lineEdit_sequence.setText('0')
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
@@ -303,18 +306,45 @@ class ImageManager(QMainWindow, Ui_Manager):
         for i in range(len(select_rows)):
             item = self.__image_model.get_item(select_rows[i].row())
             path = item.full_path
+            need_refresh_item = False
+            if source == 'yande' and (not tags and desc):
+                tags = desc
+                tags = tags.replace('000', '')
+                desc = ''
+            if source in ['pixiv', 'yande'] and tags in path:
+                if source == 'pixiv':
+                    sub_str = f'_{tags}'
+                elif source == 'yande':
+                    sub_str = f'{tags}_00000'
+                new_path = path.replace(sub_str, '')
+                try:
+                    if os.path.exists(new_path):
+                        os.remove(path)
+                    else:
+                        os.rename(path, new_path)
+                    path = new_path
+                    need_refresh_item = True
+                except Exception as e:
+                    print(f"重命名失败：{e}")
+                    continue
+                new_item = ImageFile(id=item.id, name=item.name.replace(sub_str, ''), full_path=path)
+            else:
+                new_item = item
+            relative_path = path.replace(FileHelper.get_path_prefix(), '')
             image = MyImage(id=item.id, desc=desc, author=author, type_id=type_id, level_id=level_id, tags=tags,
                             works=works, role=role, source=source, width=self.lineEdit_width.text(),
                             height=self.lineEdit_height.text(), size=FileHelper.get_file_size_in_mb(path),
-                            filename=item.name, path=path, md5=FileHelper.get_md5(path),
+                            filename=item.name, path=path, relative_path=relative_path,
+                            md5=FileHelper.get_md5(path),
                             file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader,
                             dir_path=f'{os.path.dirname(path)}/', sequence=sequence)
             if image.id == 0:
                 self.__db_helper.insert_image(image)
-                image_id = self.__db_helper.get_id_by_path(path)
-                self._signal_update_image_id.emit(select_rows[i], image_id)
+                image_id = self.__db_helper.get_id_by_path(relative_path)
                 self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
+                need_refresh_item = True
+                new_item.id = image_id
                 # message = f"{item.name} 创建完成！"
             else:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
@@ -329,10 +359,12 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 message = f"{item.name} 更新完成！"
                 self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
+            if need_refresh_item:
+                self._signal_update_image_id.emit(select_rows[i], new_item)
         # end_index = select_rows[-1]
 
-    def _update_image_id(self, index: QModelIndex, image_id: int):
-        self.__image_model.set_image_id(index, image_id)
+    def _update_image_id(self, index: QModelIndex, image_file: ImageFile):
+        self.__image_model.update_item(index, image_file)
 
     def __select_index(self, index: QModelIndex):
         if 0 < index.row() < self.__image_model.rowCount():

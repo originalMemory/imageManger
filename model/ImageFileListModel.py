@@ -93,6 +93,7 @@ class ImageFileListModel(MyBaseListModel):
                     os.remove(full_path)
                     return
                 image.path = full_path
+                image.relative_path = full_path.replace(FileHelper.get_path_prefix(), '')
                 self.__db_helper.update_image(image)
 
         if image:
