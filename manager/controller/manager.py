@@ -38,6 +38,7 @@ class VIEW(Enum):
 
 class ImageManager(QMainWindow, Ui_Manager):
     _signal_update_image_id = pyqtSignal(QModelIndex, ImageFile)
+    _signal_handle_error = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super(ImageManager, self).__init__(parent)
@@ -95,6 +96,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_author.returnPressed.connect(self.__classify)
         self.lineEdit_sequence.returnPressed.connect(self.__classify)
         self._signal_update_image_id.connect(self._update_image_id)
+        self._signal_handle_error.connect(self._handle_error)
 
         # 设置 tab 切换顺序
         self.setTabOrder(self.lineEdit_desc, self.lineEdit_tag)
@@ -334,10 +336,9 @@ class ImageManager(QMainWindow, Ui_Manager):
             image = MyImage(id=item.id, desc=desc, author=author, type_id=type_id, level_id=level_id, tags=tags,
                             works=works, role=role, source=source, width=self.lineEdit_width.text(),
                             height=self.lineEdit_height.text(), size=FileHelper.get_file_size_in_mb(path),
-                            filename=item.name, path=path, relative_path=relative_path,
-                            md5=FileHelper.get_md5(path),
+                            path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
                             file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader,
-                            dir_path=f'{os.path.dirname(path)}/', sequence=sequence)
+                            sequence=sequence)
             if image.id == 0:
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(relative_path)
@@ -362,6 +363,9 @@ class ImageManager(QMainWindow, Ui_Manager):
             if need_refresh_item:
                 self._signal_update_image_id.emit(select_rows[i], new_item)
         # end_index = select_rows[-1]
+
+    def _handle_error(self, msg):
+        QMessageBox.information(self, "提示", msg, QMessageBox.Ok)
 
     def _update_image_id(self, index: QModelIndex, image_file: ImageFile):
         self.__image_model.update_item(index, image_file)
@@ -643,4 +647,4 @@ class ImageManager(QMainWindow, Ui_Manager):
         FileHelper.open_file_directory(file_path)
 
     def db_error_handler(self, error_str):
-        QMessageBox.information(self, "提示", error_str, QMessageBox.Ok)
+        self._signal_handle_error.emit(error_str)

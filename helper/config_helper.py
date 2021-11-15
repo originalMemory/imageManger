@@ -19,7 +19,7 @@ class ConfigHelper:
 
     __config_filename = "config.ini"
 
-    def __init__(self, context):
+    def __init__(self, context=None):
         self.context = context
 
     def __get_config(self) -> ConfigParser:

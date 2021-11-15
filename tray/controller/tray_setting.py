@@ -206,7 +206,8 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             image, index, count = self._get_image(setting.monitor.width >= setting.monitor.height)
             if image and os.path.exists(image.path):
                 setting.image = image
-            desc = f"[{index}/{count}] {image.author} - {image.filename}"
+            filename = image.relative_path.split('/')[-1]
+            desc = f"[{index}/{count}] {image.author} - {filename}"
             if len(desc) > 50:
                 desc = f"{desc[0:46]}..."
             setting.image_desc_action.setText(desc)

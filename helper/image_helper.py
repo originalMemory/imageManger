@@ -129,7 +129,7 @@ class ImageHelper:
             return tags, uploader
         else:
             # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-            match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.", filename)
+            match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.(?:jpg|png|gif|jpeg|bmp)", filename)
             if match:
                 tags = match.group('tags')
                 return tags, None

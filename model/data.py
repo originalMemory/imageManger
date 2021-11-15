@@ -54,8 +54,6 @@ class MyImage:
     width: int = field(default=0)
     height: int = field(default=0)
     size: float = field(default=0.0)
-    filename: str = field(default="")
-    dir_path: str = field(default="")
     """
     作品序号，用于快速对比合集资源
     """
@@ -99,8 +97,6 @@ class MyImage:
             width=query['width'],
             height=query['height'],
             size=query['size'],
-            filename=query['filename'],
-            dir_path=query['dir_path'],
             sequence=query['sequence'],
             relative_path=query['path'],
             md5=query['md5'],

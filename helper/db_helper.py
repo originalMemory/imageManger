@@ -9,23 +9,50 @@
 @create  : 2019/5/27 21:03:31
 @update  :
 """
+import time
+
 import pymysql
 
+from helper.config_helper import ConfigHelper
 from model.data import MyImage, BaseData, ImageFile
 
 
+def get_time(f):
+    def inner(*arg, **kwarg):
+        s_time = time.time()
+        res = f(*arg, **kwarg)
+        e_time = time.time()
+        print('耗时：{}秒'.format(e_time - s_time))
+        return res
+
+    return inner
+
+
 class DBHelper:
-    config = {
-        'host': 'localhost',  # 地址
-        'user': 'root',  # 用户名
-        'passwd': '123',  # 密码
-        'db': 'myacg',  # 使用的数据库名
-        'charset': 'utf8',  # 编码类型
-        'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
-    }
 
     def __init__(self, error_handler):
         self.error_handler = error_handler
+        # 本地数据库
+        self.config = {
+            'host': 'localhost',  # 地址
+            'user': 'root',  # 用户名
+            'passwd': '123',  # 密码
+            'db': 'myacg',  # 使用的数据库名
+            'charset': 'utf8',  # 编码类型
+            'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
+        }
+
+        # 线上数据库
+        # config_helper = ConfigHelper()
+        # section = 'database'
+        # self.config = {
+        #     'host': config_helper.get_config_key(section, 'host'),  # 地址
+        #     'user': config_helper.get_config_key(section, 'user'),  # 用户名
+        #     'passwd': config_helper.get_config_key(section, 'password'),  # 密码
+        #     'db': 'myacg',  # 使用的数据库名
+        #     'charset': 'utf8',  # 编码类型
+        #     'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
+        # }
 
     def execute(self, sql_str):
         connect = None
@@ -123,16 +150,14 @@ class DBHelper:
         tags = image.tags.replace("'", "\\'")
         works = image.works.replace("'", "\\'")
         role = image.role.replace("'", "\\'")
-        filename = image.filename.replace("'", "\\'")
-        dir_path = image.dir_path.replace("'", "\\'")
         path = image.relative_path.replace("'", "\\'")
         series = image.series.replace("'", "\\'")
         uploader = image.uploader.replace("'", "\\'")
-        sql_str = f"""INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, filename, 
-path, width, height, `size`, file_create_time, series, uploader, md5, dir_path, sequence) values ('{desc}', '{author}',
-{image.type_id}, {image.level_id}, '{tags}', '{works}', '{role}', '{image.source}', '{filename}', '{path}',
+        sql_str = f"""INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, 
+path, width, height, `size`, file_create_time, series, uploader, md5, sequence) values ('{desc}', '{author}',
+{image.type_id}, {image.level_id}, '{tags}', '{works}', '{role}', '{image.source}', '{path}',
 {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}', '{image.md5}',
-'{dir_path}',{image.sequence});"""
+{image.sequence});"""
         print(sql_str)
         self.execute(sql_str)
 
@@ -148,17 +173,17 @@ path, width, height, `size`, file_create_time, series, uploader, md5, dir_path, 
         tags = image.tags.replace("'", "\\'")
         works = image.works.replace("'", "\\'")
         role = image.role.replace("'", "\\'")
-        filename = image.filename.replace("'", "\\'")
-        dir_path = image.dir_path.replace("'", "\\'")
         path = image.relative_path.replace("'", "\\'")
         series = image.series.replace("'", "\\'")
-        uploader = image.uploader.replace("'", "\\'")
+        if image.uploader:
+            uploader = image.uploader.replace("'", "\\'")
+        else:
+            uploader = ''
         sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type_id={image.type_id},
             level_id={image.level_id}, tags='{tags}', works='{works}', role='{role}', source='{image.source}',
-            filename='{filename}', path='{path}', md5='{image.md5}', width={image.width}, height={image.height},
+            path='{path}', md5='{image.md5}', width={image.width}, height={image.height},
             `size`={image.size}, file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}',
-            dir_path='{dir_path}',sequence={image.sequence} 
-            where id={image.id}"""
+            ,sequence={image.sequence} where id={image.id}"""
         print(sql_str)
         self.execute(sql_str)
 
