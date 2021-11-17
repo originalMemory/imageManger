@@ -33,7 +33,7 @@ class DBHelper:
     def __init__(self, error_handler):
         self.error_handler = error_handler
         # 本地数据库
-        self.config = {
+        self.local_config = {
             'host': 'localhost',  # 地址
             'user': 'root',  # 用户名
             'passwd': '123',  # 密码
@@ -43,22 +43,39 @@ class DBHelper:
         }
 
         # 线上数据库
-        # config_helper = ConfigHelper()
-        # section = 'database'
-        # self.config = {
-        #     'host': config_helper.get_config_key(section, 'host'),  # 地址
-        #     'user': config_helper.get_config_key(section, 'user'),  # 用户名
-        #     'passwd': config_helper.get_config_key(section, 'password'),  # 密码
-        #     'db': 'myacg',  # 使用的数据库名
-        #     'charset': 'utf8',  # 编码类型
-        #     'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
-        # }
+        config_helper = ConfigHelper()
+        section = 'database'
+        self.server_config = {
+            'host': config_helper.get_config_key(section, 'host'),  # 地址
+            'user': config_helper.get_config_key(section, 'user'),  # 用户名
+            'passwd': config_helper.get_config_key(section, 'password'),  # 密码
+            'db': 'myacg',  # 使用的数据库名
+            'charset': 'utf8',  # 编码类型
+            'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
+        }
 
     def execute(self, sql_str):
+        print(sql_str)
         connect = None
         is_success = True
         try:
-            connect = pymysql.connect(**self.config)
+            connect = pymysql.connect(**self.local_config)
+            cursor = connect.cursor()
+            cursor.execute(sql_str)
+            connect.commit()
+        except pymysql.Error as error:
+            self.__show_error(error)
+            is_success = False
+        finally:
+            if connect:
+                connect.close()
+        return is_success
+
+    def execute_server(self, sql_str):
+        connect = None
+        is_success = True
+        try:
+            connect = pymysql.connect(**self.server_config)
             cursor = connect.cursor()
             cursor.execute(sql_str)
             connect.commit()
@@ -74,7 +91,7 @@ class DBHelper:
         connect = None
         is_success = True
         try:
-            connect = pymysql.connect(**self.config)
+            connect = pymysql.connect(**self.local_config)
             cursor = connect.cursor()
             cursor.executemany(sql_str, val)
             connect.commit()
@@ -90,7 +107,7 @@ class DBHelper:
         connect = None
         query = None
         try:
-            connect = pymysql.connect(**self.config)
+            connect = pymysql.connect(**self.local_config)
             cursor = connect.cursor()
             cursor.execute(sql_str)
             query = cursor.fetchall()
@@ -105,7 +122,7 @@ class DBHelper:
         connect = None
         query = None
         try:
-            connect = pymysql.connect(**self.config)
+            connect = pymysql.connect(**self.local_config)
             cursor = connect.cursor()
             cursor.execute(sql_str)
             query = cursor.fetchone()
@@ -158,8 +175,8 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 {image.type_id}, {image.level_id}, '{tags}', '{works}', '{role}', '{image.source}', '{path}',
 {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}', '{image.md5}',
 {image.sequence});"""
-        print(sql_str)
         self.execute(sql_str)
+        self.execute_server(sql_str)
 
     def update_image(self, image: MyImage):
         """
@@ -183,9 +200,9 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
             level_id={image.level_id}, tags='{tags}', works='{works}', role='{role}', source='{image.source}',
             path='{path}', md5='{image.md5}', width={image.width}, height={image.height},
             `size`={image.size}, file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}',
-            ,sequence={image.sequence} where id={image.id}"""
-        print(sql_str)
+            sequence={image.sequence} where id={image.id}"""
         self.execute(sql_str)
+        self.execute_server(sql_str)
 
     def search_by_md5(self, md5):
         """
@@ -226,6 +243,7 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
     def delete(self, image_id):
         sql_str = f"delete from myacg.image where id={image_id}"
         self.execute(sql_str)
+        self.execute_server(sql_str)
 
     def search_by_where(self, sql_where):
         image_sql_list = []
