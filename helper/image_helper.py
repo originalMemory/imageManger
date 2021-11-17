@@ -111,7 +111,7 @@ class ImageHelper:
         if konachan in filename:
             info.source = konachan
             # [konachan_241354_RyuZU]blindfold breast_grab breasts demiroid elbow_gloves
-            match = re.search(r"konachan_\d*?_(?P<uploader>.+?)](?P<desc>.+?)\.", filename)
+            match = re.search(r"konachan_\d*?_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
             if match:
                 info.uploader = match.group('uploader')
                 info.tags = match.group('tags').replace("_00000", "")
