@@ -38,6 +38,7 @@ class VIEW(Enum):
 
 class ImageManager(QMainWindow, Ui_Manager):
     _signal_update_image_id = pyqtSignal(QModelIndex, ImageFile)
+    _signal_update_status = pyqtSignal(str)
     _signal_handle_error = pyqtSignal(str)
 
     def __init__(self, parent=None):
@@ -96,6 +97,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_author.returnPressed.connect(self.__classify)
         self.lineEdit_sequence.returnPressed.connect(self.__classify)
         self._signal_update_image_id.connect(self._update_image_id)
+        self._signal_update_status.connect(self._update_status)
         self._signal_handle_error.connect(self._handle_error)
 
         # 设置 tab 切换顺序
@@ -124,6 +126,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         role_completer = self._create_completer(self.__role_completer_list)
         self.lineEdit_role.setCompleter(role_completer)
         self.lineEdit_role.editingFinished.connect(self.__add_role_complete)
+        self.checkBox_delete_repeat.setChecked(True)
+        self.__image_model.delete_repeat = True
 
         # Image.MAX_IMAGE_PIXELS = 1882320000
         self.listView.setFocus()
@@ -240,7 +244,11 @@ class ImageManager(QMainWindow, Ui_Manager):
         :param previous:
         :return:
         """
-        self.__show_image(current.row())
+        try:
+            self.__show_image(current.row())
+        except Exception as e:
+            print(e)
+            print(f"换行加载失败：{current.row()}")
 
     def __analysis_file_info(self, path):
         info = self.__db_helper.search_by_file_path(path.replace(FileHelper.get_path_prefix(), ''))
@@ -332,6 +340,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                 new_item = ImageFile(id=item.id, name=item.name.replace(sub_str, ''), full_path=path)
             else:
                 new_item = item
+            if not os.path.exists(path):
+                print(f'文件不存在：{path}')
+                return
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             image = MyImage(id=item.id, desc=desc, author=author, type_id=type_id, level_id=level_id, tags=tags,
                             works=works, role=role, source=source, width=self.lineEdit_width.text(),
@@ -369,6 +380,9 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def _update_image_id(self, index: QModelIndex, image_file: ImageFile):
         self.__image_model.update_item(index, image_file)
+
+    def _update_status(self, msg):
+        self.statusbar.showMessage(msg)
 
     def __select_index(self, index: QModelIndex):
         if 0 < index.row() < self.__image_model.rowCount():
@@ -435,6 +449,10 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.listView.scrollToTop()
 
     def __choose_export(self):
+        th = threading.Thread(target=self.__export_images, daemon=True)
+        th.start()
+
+    def __export_images(self):
         dir_path = self.lineEdit_export_dir.text()
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
@@ -458,7 +476,8 @@ class ImageManager(QMainWindow, Ui_Manager):
             else:
                 FileHelper.copyfile_without_override(image.full_path, dir_path)
 
-            self.statusbar.showMessage(f"[{i + 1}/{self.__image_model.rowCount()}] {image.name} 复制成功！")
+            msg = f"[{i + 1}/{self.__image_model.rowCount()}] {image.name} 复制成功！"
+            self._signal_update_status.emit(msg)
 
     def _on_check_box_delete_repeat_click(self):
         print(f'是否删除重复：{self.checkBox_delete_repeat.isChecked()}')
@@ -578,19 +597,19 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def __preload(self):
         while True:
-            if self.__preload_image_queue.qsize() == 5:
-                time.sleep(1)
-                continue
-
-            index = self.listView.currentIndex().row()
-            preload_index = index + self.__preload_image_queue.qsize() + 1
-            image_file = self.__image_model.get_item(preload_index)
-            if not image_file:
-                time.sleep(1)
-                continue
-
-            full_path = image_file.full_path
             try:
+                if self.__preload_image_queue.qsize() == 5:
+                    time.sleep(1)
+                    continue
+
+                index = self.listView.currentIndex().row()
+                preload_index = index + self.__preload_image_queue.qsize() + 1
+                image_file = self.__image_model.get_item(preload_index)
+                if not image_file:
+                    time.sleep(1)
+                    continue
+
+                full_path = image_file.full_path
                 pixmap, width, height = ImageHelper.get_image_from_file(full_path, self.graphicsView.width(),
                                                                         self.graphicsView.height())
                 self.__preload_image_queue.put(PreloadImage(full_path, pixmap))

@@ -119,7 +119,7 @@ class FileHelper:
                 name = new_filename
             else:
                 name = shot_name
-            filename = f"{name}{no}{extension}"
+            filename = f"{name}_{no}{extension}"
             target_file_path = os.path.join(dir_path, filename)
             no += 1
 

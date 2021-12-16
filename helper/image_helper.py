@@ -14,6 +14,7 @@ import re
 from PIL import Image
 from PyQt5 import QtGui
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QImageReader, QImage
 
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
@@ -30,11 +31,20 @@ class ImageHelper:
         :param expect_height: 期望展示的高
         :return: qtImage，宽，高
         """
-        qim = QtGui.QImage(path)
+        # 使用 QImageReader 加载图片以避免直播使用 QImage 导致因扩展名加载失败
+        reader = QImageReader(path)
+        reader.setDecideFormatFromContent(True)
+        if not reader.canRead():
+            print(f'加载图片失败： {reader.errorString()}')
+            return None, 0, 0
+        qim = QImage()
+        if not reader.read(qim):
+            print(f'加载图片失败： {reader.errorString()}')
+            return None, 0, 0
         width = qim.width()
         height = qim.height()
-        x_scale = expect_width / float(qim.width())
-        y_scale = expect_height / float(qim.height())
+        x_scale = expect_width / float(width)
+        y_scale = expect_height / float(height)
         if x_scale < y_scale:
             qim = qim.scaledToWidth(expect_width, Qt.SmoothTransformation)
         else:
@@ -88,8 +98,7 @@ class ImageHelper:
         if yande in filename:
             info.source = 'yande'
             info.tags, info.uploader = ImageHelper.analyze_yande(filename)
-
-        if pixiv in filename:
+        elif pixiv in filename:
             info.source = 'pixiv'
             # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
             match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_00", filename)
@@ -107,8 +116,7 @@ class ImageHelper:
                     author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
                     info.author = author
                     info.tags = match.group('tags')
-
-        if konachan in filename:
+        elif konachan in filename:
             info.source = konachan
             # [konachan_241354_RyuZU]blindfold breast_grab breasts demiroid elbow_gloves
             match = re.search(r"konachan_\d*?_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
