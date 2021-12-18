@@ -10,6 +10,7 @@
 @update  :
 """
 import time
+from enum import unique, Enum
 
 import pymysql
 
@@ -28,12 +29,21 @@ def get_time(f):
     return inner
 
 
+@unique
+class DBExecuteType(Enum):
+    Run = 0
+    FetchAll = 1
+    FetchOne = 2
+
+
 class DBHelper:
+    local_conn = None
+    server_conn = None
 
     def __init__(self, error_handler):
         self.error_handler = error_handler
         # 本地数据库
-        self.local_config = {
+        local_config = {
             'host': 'localhost',  # 地址
             'user': 'root',  # 用户名
             'passwd': '123',  # 密码
@@ -41,11 +51,12 @@ class DBHelper:
             'charset': 'utf8',  # 编码类型
             'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
         }
+        self.local_conn = self._connect(local_config)
 
         # 线上数据库
         config_helper = ConfigHelper()
         section = 'database'
-        self.server_config = {
+        server_config = {
             'host': config_helper.get_config_key(section, 'host'),  # 地址
             'user': config_helper.get_config_key(section, 'user'),  # 用户名
             'passwd': config_helper.get_config_key(section, 'password'),  # 密码
@@ -53,85 +64,56 @@ class DBHelper:
             'charset': 'utf8',  # 编码类型
             'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
         }
+        self.server_conn = self._connect(server_config)
 
-    def execute(self, sql_str):
-        print(sql_str)
-        connect = None
-        is_success = True
+    def _connect(self, config):
         try:
-            connect = pymysql.connect(**self.local_config)
-            cursor = connect.cursor()
+            conn = pymysql.connect(**config)
+            conn.ping()
+            return conn
+        except pymysql.Error as error:
+            print(f'{config} 数据库连接失败：{error}')
+
+    def execute(self, sql_str, execute_type):
+        if not self.local_conn and not self.server_conn:
+            self.error_handler('没有数据库连接')
+        res = None
+        if execute_type == DBExecuteType.Run:
+            # 写入时远程和本地都要写入，数据以远程为准
+            res = self._execute_with_conn(sql_str, self.server_conn, execute_type)
+            self._execute_with_conn(sql_str, self.local_conn, execute_type)
+        elif execute_type in [DBExecuteType.FetchOne, DBExecuteType.FetchAll]:
+            # 查询时如果本地有就不去查远程了，提高查询速度
+            if self.local_conn:
+                res = self._execute_with_conn(sql_str, self.local_conn, execute_type)
+            else:
+                res = self._execute_with_conn(sql_str, self.server_conn, execute_type)
+        return res
+
+    def _execute_with_conn(self, sql_str, conn, execute_type):
+        if conn == self.local_conn:
+            type_str = '本地'
+        else:
+            type_str = '远程'
+        print(f'连接类型：{type_str}，执行语句：\n{sql_str}')
+        if not conn:
+            print('连接不存在，停止执行')
+        try:
+            # 校验是否能连接成功
+            conn.ping(reconnect=True)
+            cursor = conn.cursor()
             cursor.execute(sql_str)
-            connect.commit()
+            if execute_type == DBExecuteType.Run:
+                conn.commit()
+                return True
+            elif execute_type == DBExecuteType.FetchAll:
+                return cursor.fetchall()
+            elif execute_type == DBExecuteType.FetchOne:
+                return cursor.fetchone()
         except pymysql.Error as error:
             self.__show_error(error)
-            is_success = False
-        finally:
-            if connect:
-                connect.close()
-        return is_success
-
-    def execute_server(self, sql_str):
-        connect = None
-        is_success = True
-        try:
-            connect = pymysql.connect(**self.server_config)
-            cursor = connect.cursor()
-            cursor.execute(sql_str)
-            connect.commit()
-        except pymysql.Error as error:
-            self.__show_error(error)
-            is_success = False
-        finally:
-            if connect:
-                connect.close()
-        return is_success
-
-    def execute_many(self, sql_str, val):
-        connect = None
-        is_success = True
-        try:
-            connect = pymysql.connect(**self.local_config)
-            cursor = connect.cursor()
-            cursor.executemany(sql_str, val)
-            connect.commit()
-        except pymysql.Error as error:
-            self.__show_error(error)
-            is_success = False
-        finally:
-            if connect:
-                connect.close()
-        return is_success
-
-    def query_with_return_all(self, sql_str):
-        connect = None
-        query = None
-        try:
-            connect = pymysql.connect(**self.local_config)
-            cursor = connect.cursor()
-            cursor.execute(sql_str)
-            query = cursor.fetchall()
-        except pymysql.Error as error:
-            self.__show_error(error)
-        finally:
-            if connect:
-                connect.close()
-        return query
-
-    def query_with_return_one(self, sql_str):
-        connect = None
-        query = None
-        try:
-            connect = pymysql.connect(**self.local_config)
-            cursor = connect.cursor()
-            cursor.execute(sql_str)
-            query = cursor.fetchone()
-        except pymysql.Error as error:
-            self.__show_error(error)
-        finally:
-            if connect:
-                connect.close()
-        return query
+            if execute_type == DBExecuteType.Run:
+                return False
 
     def __show_error(self, error):
         error_str = str(error)
@@ -151,9 +133,10 @@ class DBHelper:
         if where_str:
             sql_str += f" where {where_str}"
         sql_str += ";"
-        query = self.query_with_return_all(sql_str)
-        lists = [BaseData(x['id'], x['name']) for x in query]
-        return lists
+        query = self.execute(sql_str, execute_type=DBExecuteType.FetchAll)
+        if query:
+            lists = [BaseData(x['id'], x['name']) for x in query]
+            return lists
 
     def insert_image(self, image: MyImage):
         """
@@ -175,8 +158,7 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 {image.type_id}, {image.level_id}, '{tags}', '{works}', '{role}', '{image.source}', '{path}',
 {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}', '{image.md5}',
 {image.sequence});"""
-        self.execute(sql_str)
-        self.execute_server(sql_str)
+        return self.execute(sql_str, execute_type=DBExecuteType.Run)
 
     def update_image(self, image: MyImage):
         """
@@ -201,8 +183,7 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
             path='{path}', md5='{image.md5}', width={image.width}, height={image.height},
             `size`={image.size}, file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}',
             sequence={image.sequence} where id={image.id}"""
-        self.execute(sql_str)
-        self.execute_server(sql_str)
+        return self.execute(sql_str, execute_type=DBExecuteType.Run)
 
     def search_by_md5(self, md5):
         """
@@ -210,12 +191,10 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
         :param md5:
         :return:
         """
-        info = None
         sql_str = f"select * from myacg.image where md5='{md5}' limit 1"
-        query = self.query_with_return_one(sql_str)
+        query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
         if query:
-            info = MyImage.from_mysql_dict(query)
-        return info
+            return MyImage.from_mysql_dict(query)
 
     def search_by_file_path(self, file_path):
         """
@@ -223,18 +202,15 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
         :param file_path:
         :return:
         """
-        info = None
         file_path = file_path.replace("'", "\\'")
         sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
-        query = self.query_with_return_one(sql_str)
-        if query:
-            info = MyImage.from_mysql_dict(query)
-        return info
+        query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
+        return MyImage.from_mysql_dict(query)
 
     def get_id_by_path(self, file_path):
         file_path = file_path.replace("'", "\\'")
         sql_str = f"select id from myacg.image where path='{file_path}' limit 1"
-        query = self.query_with_return_one(sql_str)
+        query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
         if query:
             return query['id']
         else:
@@ -242,14 +218,13 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 
     def delete(self, image_id):
         sql_str = f"delete from myacg.image where id={image_id}"
-        self.execute(sql_str)
-        self.execute_server(sql_str)
+        self.execute(sql_str, execute_type=DBExecuteType.Run)
 
     def search_by_where(self, sql_where):
         image_sql_list = []
         image_file_list = []
         sql_str = f"select * from myacg.image where {sql_where}"
-        queries = self.query_with_return_all(sql_str)
+        queries = self.execute(sql_str, execute_type=DBExecuteType.FetchAll)
         for query in queries:
             image_sql = MyImage.from_mysql_dict(query)
             image_sql_list.append(image_sql)
@@ -262,7 +237,7 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 
     def get_images(self, page, pagesize):
         sql_str = f"select * from myacg.image limit {pagesize} offset {page * pagesize};"
-        queries = self.query_with_return_all(sql_str)
+        queries = self.execute(sql_str, DBExecuteType.FetchAll)
         image_sql_list = []
         for query in queries:
             image_sql = MyImage.from_mysql_dict(query)
@@ -276,7 +251,7 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
         :return:
         """
         count = 0
-        query = self.query_with_return_one(count_sql)
+        query = self.execute(count_sql, DBExecuteType.FetchOne)
         if query:
             for key, value in query.items():
                 count = value
@@ -292,6 +267,6 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 
     def get_one_image_with_where(self, sql_where, offset):
         sql = f"select * from myacg.image where {sql_where} limit 1 offset {offset};"
-        query = self.query_with_return_one(sql)
+        query = self.execute(sql, DBExecuteType.FetchOne)
         if query:
             return MyImage.from_mysql_dict(query)
