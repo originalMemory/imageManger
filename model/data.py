@@ -27,13 +27,13 @@ class MyImage:
     desc: str = field(default="")
     author: str = field(default="")
     """
-    类型 id
+    类型
     """
-    type_id: int = field(default=0)
+    type: int = field(default=0)
     """
-    等级 id
+    等级
     """
-    level_id: int = field(default=0)
+    level: int = field(default=0)
     """
     标签
     """
@@ -87,8 +87,8 @@ class MyImage:
             id=query['id'],
             desc=query['desc'],
             author=query['author'],
-            type_id=query['type_id'],
-            level_id=query['level_id'],
+            type=query['type'],
+            level=query['level'],
             tags=query['tags'],
             works=query['works'],
             role=query['role'],

@@ -56,11 +56,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.__level_model = MyBaseListModel()
         self.comboBox_level.setModel(self.__level_model)
         levels = self.__db_helper.get_model_data_list('level')
-        for i in range(len(levels)):
-            level = levels[i]
-            if level.id == 10:
-                levels.remove(level)
-                levels.insert(4, level)
+        levels = sorted(levels, key=lambda x: x.id)
         self.__level_model.add_items(levels)
         self.comboBox_level.setCurrentIndex(0)
 
@@ -281,8 +277,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_sequence.setText(str(info.sequence))
         self.lineEdit_uploader.setText(info.uploader)
         self.lineEdit_size.setText(f"{info.size} MB")
-        self.comboBox_type.setCurrentIndex(self.__type_model.get_index(info.type_id))
-        self.comboBox_level.setCurrentIndex(self.__level_model.get_index(info.level_id))
+        self.comboBox_type.setCurrentIndex(self.__type_model.get_index(info.type))
+        self.comboBox_level.setCurrentIndex(self.__level_model.get_index(info.level))
         self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
         self.dateTimeEdit_create.setDateTime(info.create_time)
         self.dateTimeEdit_update.setDateTime(info.update_time)
@@ -301,9 +297,9 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def __insert_or_update_db(self, select_rows):
         index = self.comboBox_type.currentIndex()
-        type_id = self.__type_model.get_item(index).id
+        type = self.__type_model.get_item(index).id
         index = self.comboBox_level.currentIndex()
-        level_id = self.__level_model.get_item(index).id
+        level = self.__level_model.get_item(index).id
         desc = self.lineEdit_desc.text()
         author = self.lineEdit_author.text()
         tags = self.lineEdit_tag.text()
@@ -344,7 +340,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 print(f'文件不存在：{path}')
                 return
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
-            image = MyImage(id=item.id, desc=desc, author=author, type_id=type_id, level_id=level_id, tags=tags,
+            image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags,
                             works=works, role=role, source=source, width=self.lineEdit_width.text(),
                             height=self.lineEdit_height.text(), size=FileHelper.get_file_size_in_mb(path),
                             path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
@@ -364,7 +360,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 if old_image and len(select_rows) > 1:
                     image.desc = old_image.desc
                     image.author = old_image.author
-                    image.level_id = old_image.level_id
+                    image.level = old_image.level
                     image.tags = old_image.tags
                     image.works = old_image.works
                 self.__db_helper.update_image(image)
@@ -447,6 +443,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.__image_model.set_images(image_sql_list, image_file_list)
             self.listView.setFocus()
             self.listView.scrollToTop()
+        self.__config.add_config_key('history', 'sqlWhere', self.lineEdit_sql_where.text())
 
     def __choose_export(self):
         th = threading.Thread(target=self.__export_images, daemon=True)
@@ -468,7 +465,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
                 try:
                     new_filename = None
-                    if image_sql.type_id == 2:
+                    if image_sql.type == 2:
                         new_filename = f"{image_sql.works}_{image_sql.role}_{image_sql.series}_{image_sql.author}"
                     FileHelper.copyfile_without_override(image_sql.path, dir_path, new_filename)
                 except Exception as e:
@@ -577,7 +574,6 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         self.__config.add_config_key('history', 'lastExportDir', self.lineEdit_export_dir.text())
-        self.__config.add_config_key('history', 'sqlWhere', self.lineEdit_sql_where.text())
         # 关闭时保存自动填充作品列表的配置文件
         self._save_str_list_to_file(self.__works_completer_list, self.__works_completer_filename)
         self._save_str_list_to_file(self.__role_completer_list, self.__role_completer_filename)

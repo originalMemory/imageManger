@@ -211,7 +211,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             if len(desc) > 50:
                 desc = f"{desc[0:46]}..."
             setting.image_desc_action.setText(desc)
-            self.__update_level_action(i, image.level_id)
+            self.__update_level_action(i, image.level)
 
             try:
                 image_data = ImageHelper.get_sized_image(
@@ -280,17 +280,17 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             self.lineEdit_order_offset.setText(str(offset))
         return offset
 
-    def __update_level_action(self, index, level_id):
+    def __update_level_action(self, index, level):
         """
         更新当前显示器壁纸等级状态
         :param index: 显示器索引
-        :param level_id: 等级 id
+        :param level: 等级 id
         :return:
         """
         level_actions = self._monitor_settings[index].image_level_actions
         for i in range(len(self.__levels)):
             level = self.__levels[i]
-            level_actions[i].setChecked(level.id == level_id)
+            level_actions[i].setChecked(level.id == level)
 
     def __on_tray_click(self, reason: QSystemTrayIcon.ActivationReason):
         if reason == QSystemTrayIcon.Trigger:
@@ -304,8 +304,8 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         os.system(ex)
         pyperclip.copy(image.filename)
 
-    def __set_level(self, index, level_id):
+    def __set_level(self, index, level):
         image = self._monitor_settings[index].image
-        image.level_id = level_id
+        image.level = level
         self.__db_helper.update_image(image)
-        self.__update_level_action(index, level_id)
+        self.__update_level_action(index, level)

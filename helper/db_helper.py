@@ -129,7 +129,7 @@ class DBHelper:
         :param where_str: 查询条件
         :return:
         """
-        sql_str = f"select `id`,`name` from `{table}`"
+        sql_str = f"select `id`,`name`,`value` from `{table}`"
         if where_str:
             sql_str += f" where {where_str}"
         sql_str += ";"
@@ -153,9 +153,9 @@ class DBHelper:
         path = image.relative_path.replace("'", "\\'")
         series = image.series.replace("'", "\\'")
         uploader = image.uploader.replace("'", "\\'")
-        sql_str = f"""INSERT INTO myacg.image(`desc`, author, type_id, level_id, tags, works, role, source, 
+        sql_str = f"""INSERT INTO myacg.image(`desc`, author, type, level, tags, works, role, source, 
 path, width, height, `size`, file_create_time, series, uploader, md5, sequence) values ('{desc}', '{author}',
-{image.type_id}, {image.level_id}, '{tags}', '{works}', '{role}', '{image.source}', '{path}',
+{image.type}, {image.level}, '{tags}', '{works}', '{role}', '{image.source}', '{path}',
 {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}', '{image.md5}',
 {image.sequence});"""
         return self.execute(sql_str, execute_type=DBExecuteType.Run)
@@ -178,8 +178,8 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
             uploader = image.uploader.replace("'", "\\'")
         else:
             uploader = ''
-        sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type_id={image.type_id},
-            level_id={image.level_id}, tags='{tags}', works='{works}', role='{role}', source='{image.source}',
+        sql_str = f"""update myacg.image set `desc`='{desc}',author='{author}', type={image.type},
+            level={image.level}, tags='{tags}', works='{works}', role='{role}', source='{image.source}',
             path='{path}', md5='{image.md5}', width={image.width}, height={image.height},
             `size`={image.size}, file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}',
             sequence={image.sequence} where id={image.id}"""
