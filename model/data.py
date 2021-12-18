@@ -12,8 +12,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QAction
+from PyQt6.QtGui import QPixmap, QAction
 from screeninfo import Monitor
 
 from helper.file_helper import FileHelper

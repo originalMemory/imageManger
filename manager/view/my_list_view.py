@@ -11,8 +11,8 @@
 """
 import os
 
-from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import Qt
+from PyQt6 import QtWidgets, QtGui
+from PyQt6.QtCore import Qt
 
 
 class MyListView(QtWidgets.QListView):
@@ -38,7 +38,7 @@ class MyListView(QtWidgets.QListView):
         """
         # 必须将ContextMenuPolicy设置为Qt.CustomContextMenu
         # 否则无法使用customContextMenuRequested信号
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.__show_context_menu)
 
         # 创建 menu

@@ -12,9 +12,9 @@ import os
 import re
 
 from PIL import Image
-from PyQt5 import QtGui
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QImageReader, QImage
+from PyQt6 import QtGui
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QImageReader, QImage
 
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
@@ -46,9 +46,9 @@ class ImageHelper:
         x_scale = expect_width / float(width)
         y_scale = expect_height / float(height)
         if x_scale < y_scale:
-            qim = qim.scaledToWidth(expect_width, Qt.SmoothTransformation)
+            qim = qim.scaledToWidth(expect_width, Qt.TransformationMode.SmoothTransformation)
         else:
-            qim = qim.scaledToHeight(expect_height, Qt.SmoothTransformation)
+            qim = qim.scaledToHeight(expect_height, Qt.TransformationMode.SmoothTransformation)
         pixmap = QtGui.QPixmap.fromImage(qim)
         return pixmap, width, height
 

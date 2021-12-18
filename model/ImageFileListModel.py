@@ -11,8 +11,8 @@
 """
 import os
 
-from PyQt5.QtCore import QModelIndex, QVariant, Qt, QAbstractListModel
-from PyQt5.QtGui import QBrush, QColor
+from PyQt6.QtCore import QModelIndex, QVariant, Qt
+from PyQt6.QtGui import QBrush, QColor
 
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
@@ -34,11 +34,11 @@ class ImageFileListModel(MyBaseListModel):
 
     def data(self, index: QModelIndex, role: int = ...):
         if index.isValid() or (0 <= index.row() < len(self._data_list)):
-            if role == Qt.DisplayRole:
+            if role == Qt.ItemDataRole.DisplayRole:
                 return QVariant(self._data_list[index.row()].name)
-            elif role == Qt.StatusTipRole:
+            elif role == Qt.ItemDataRole.StatusTipRole:
                 return QVariant(self._data_list[index.row()].full_path)
-            elif role == Qt.BackgroundRole:
+            elif role == Qt.ItemDataRole.BackgroundRole:
                 if self._data_list[index.row()].id != 0:
                     return QBrush(QColor(84, 255, 159))
                 else:
@@ -119,7 +119,7 @@ class ImageFileListModel(MyBaseListModel):
 
     def set_image_id(self, index, image_id):
         self._data_list[index.row()].id = image_id
-        self.dataChanged.emit(index, index, [Qt.BackgroundRole])
+        self.dataChanged(index, index, [Qt.ItemDataRole.BackgroundRole])
 
     def __is_image(self, filename):
         extension = FileHelper.get_file_extension(filename).lower()

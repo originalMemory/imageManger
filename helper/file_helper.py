@@ -17,7 +17,7 @@ import time
 
 from shutil import copyfile
 
-from PyQt5 import QtGui
+from PyQt6 import QtGui
 
 from helper.config_helper import ConfigHelper
 

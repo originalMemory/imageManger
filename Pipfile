@@ -4,11 +4,11 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-pyqt5 = '*'
-pillow = '*'
-pyperclip = '*'
 pymysql = "*"
-pyinstaller = "*"
+pyqt6 = "*"
+pillow = "*"
+screeninfo = "*"
+pyperclip = "*"
 
 [dev-packages]
 

@@ -11,7 +11,7 @@
 """
 import sys
 
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 
 from manager.controller.manager import ImageManager
 
@@ -20,6 +20,6 @@ if __name__ == '__main__':
     try:
         myWin = ImageManager()
         myWin.show()
-        sys.exit(app.exec_())
+        sys.exit(app.exec())
     except Exception as e:
         print(e)

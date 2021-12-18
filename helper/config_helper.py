@@ -12,7 +12,7 @@
 import os
 from configparser import ConfigParser
 
-from PyQt5.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QMessageBox
 
 
 class ConfigHelper:
@@ -33,9 +33,9 @@ class ConfigHelper:
                 config.read(self.__config_filename, encoding='utf-8')
                 return config
             except Exception as e:
-                QMessageBox.information(self.context, "提示", str(e), QMessageBox.Ok)
+                QMessageBox.information(self.context, "提示", str(e), QMessageBox.StandardButton.Ok)
         else:
-            QMessageBox.information(self.context, "提示", "配置文件不存在", QMessageBox.Ok)
+            QMessageBox.information(self.context, "提示", "配置文件不存在", QMessageBox.StandardButton.Ok)
 
     def add_config_key(self, section, key, value):
         """

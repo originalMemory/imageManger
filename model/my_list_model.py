@@ -10,7 +10,7 @@
 @update  :
 """
 
-from PyQt5.QtCore import QAbstractListModel, QModelIndex, QVariant, Qt
+from PyQt6.QtCore import QAbstractListModel, QModelIndex, QVariant, Qt
 
 from model.data import BaseData
 
@@ -33,7 +33,7 @@ class MyBaseListModel(QAbstractListModel):
         """
         # 设置表格显示使用的数据
         if index.isValid() or (0 <= index.row() < len(self._data_list)):
-            if role == Qt.DisplayRole:
+            if role == Qt.ItemDataRole.DisplayRole:
                 return QVariant(self._data_list[index.row()].name)
         else:
             return QVariant()
@@ -86,7 +86,7 @@ class MyBaseListModel(QAbstractListModel):
         :return:
         """
         self._data_list[index.row()] = new_item
-        self.dataChanged.emit(index, index, [Qt.BackgroundRole, Qt.DisplayRole])
+        self.dataChanged.emit(index, index, [Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.DisplayRole])
 
     def get_item(self, row) -> BaseData:
         """

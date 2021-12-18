@@ -11,7 +11,7 @@
 """
 import sys
 
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication
 
 from tray.controller.tray_setting import TraySetting
 

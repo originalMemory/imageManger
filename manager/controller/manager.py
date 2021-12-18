@@ -16,9 +16,9 @@ import threading
 import time
 from enum import unique, Enum
 
-from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtCore import QModelIndex, Qt, pyqtSignal
-from PyQt5.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
+from PyQt6 import QtWidgets, QtGui
+from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
+from PyQt6.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
@@ -146,8 +146,8 @@ class ImageManager(QMainWindow, Ui_Manager):
     @staticmethod
     def _create_completer(completer_list):
         completer = QCompleter(completer_list)
-        completer.setCompletionMode(QCompleter.InlineCompletion)
-        completer.setFilterMode(Qt.MatchContains)
+        completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
         return completer
 
     def __add_works_complete(self):
@@ -159,8 +159,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         if cur_completion == "":
             self.__works_completer_list.append(self.lineEdit_works.text())
             completer = QCompleter(self.__works_completer_list)
-            completer.setCompletionMode(QCompleter.InlineCompletion)
-            completer.setFilterMode(Qt.MatchContains)
+            completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
             self.lineEdit_works.setCompleter(completer)
             print(self.__works_completer_list)
 
@@ -173,8 +173,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         if cur_completion == "":
             self.__role_completer_list.append(self.lineEdit_role.text())
             completer = QCompleter(self.__role_completer_list)
-            completer.setCompletionMode(QCompleter.InlineCompletion)
-            completer.setFilterMode(Qt.MatchContains)
+            completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
             self.lineEdit_role.setCompleter(completer)
             print(self.__role_completer_list)
 
@@ -199,7 +199,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 name="%s/%s" % (tp_lists[-2], tp_lists[-1]),
                 full_path=path
             )
-            self.__image_model.addItem(item_data)
+            self.__image_model.add_item(item_data)
 
     def __choose_export_dir(self):
         """
@@ -233,7 +233,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             status += f"\t图片加载：${round((cur_time - start_time) * 1000, 2)}ms"
         except Exception as e:
             print(e)
-            QMessageBox.information(self, "提示", str(e), QMessageBox.Ok)
+            QMessageBox.information(self, "提示", str(e), QMessageBox.StandardButton.Ok)
         self.__analysis_file_info(path)
         self.statusbar.showMessage(status)
 
@@ -486,69 +486,69 @@ class ImageManager(QMainWindow, Ui_Manager):
     # region 重写 Qt 控件方法
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         # 键盘快捷键事件
-        if event.key() == Qt.Key_R and QApplication.keyboardModifiers() == Qt.ControlModifier:
+        if event.key() == Qt.Key.Key_R and QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
             self.__classify()
             self.listView.setFocus()
-        if event.key() == Qt.Key_E and QApplication.keyboardModifiers() == Qt.ControlModifier:
+        if event.key() == Qt.Key.Key_E and QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
             self.comboBox_level.setFocus()
-        if event.key() == Qt.Key_W and QApplication.keyboardModifiers() == Qt.ControlModifier:
+        if event.key() == Qt.Key.Key_W and QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
             self.lineEdit_works.setText("")
-        # if event.key() == Qt.Key_Delete:
+        # if event.key() == Qt.Key.Key_Delete:
         #     self.__del_select_rows()
 
     def key_press_delegate(self, event: QtGui.QKeyEvent):
         level_index = None
-        if event.key() == Qt.Key_1:
+        if event.key() == Qt.Key.Key_1:
             level_index = 1
-        if event.key() == Qt.Key_2:
+        if event.key() == Qt.Key.Key_2:
             level_index = 2
-        if event.key() == Qt.Key_3:
+        if event.key() == Qt.Key.Key_3:
             level_index = 3
-        if event.key() == Qt.Key_4:
+        if event.key() == Qt.Key.Key_4:
             level_index = 4
-        if event.key() == Qt.Key_5:
+        if event.key() == Qt.Key.Key_5:
             level_index = 5
-        if event.key() == Qt.Key_6:
+        if event.key() == Qt.Key.Key_6:
             level_index = 6
-        if event.key() == Qt.Key_7:
+        if event.key() == Qt.Key.Key_7:
             level_index = 7
-        if event.key() == Qt.Key_8:
+        if event.key() == Qt.Key.Key_8:
             level_index = 8
-        if event.key() == Qt.Key_9:
+        if event.key() == Qt.Key.Key_9:
             level_index = 9
 
         if level_index and self.__level_model.rowCount() >= level_index:
             self.comboBox_level.setCurrentIndex(level_index - 1)
             return True
 
-        if event.key() == Qt.Key_R:
+        if event.key() == Qt.Key.Key_R:
             self.__classify()
             return True
-        if event.key() == Qt.Key_E:
+        if event.key() == Qt.Key.Key_E:
             self.lineEdit_role.setFocus()
             return True
-        if event.key() == Qt.Key_C:
+        if event.key() == Qt.Key.Key_C:
             self.lineEdit_works.setText("")
             return True
-        if event.key() == Qt.Key_D:
+        if event.key() == Qt.Key.Key_D:
             self.__del_select_rows()
             return True
-        if event.key() == Qt.Key_W:
+        if event.key() == Qt.Key.Key_W:
             current_index = self.listView.currentIndex()
             if current_index.row() > 0:
                 self.listView.setCurrentIndex(self.__image_model.index(current_index.row() - 1, current_index.column()))
             return True
-        if event.key() == Qt.Key_S:
+        if event.key() == Qt.Key.Key_S:
             current_index = self.listView.currentIndex()
             if current_index.row() < self.__image_model.rowCount() - 1:
                 self.listView.setCurrentIndex(self.__image_model.index(current_index.row() + 1, current_index.column()))
             return True
-        if event.key() == Qt.Key_J:
+        if event.key() == Qt.Key.Key_J:
             cur_index = self.comboBox_level.currentIndex()
             if cur_index > 0:
                 self.comboBox_level.setCurrentIndex(cur_index - 1)
             return True
-        if event.key() == Qt.Key_K:
+        if event.key() == Qt.Key.Key_K:
             cur_index = self.comboBox_level.currentIndex()
             if cur_index < self.__level_model.rowCount() - 1:
                 self.comboBox_level.setCurrentIndex(cur_index + 1)

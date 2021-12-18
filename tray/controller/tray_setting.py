@@ -20,8 +20,8 @@ import pyperclip
 import win32api
 import win32con
 import win32gui
-from PyQt5 import QtWidgets, QtGui
-from PyQt5.QtWidgets import QMessageBox, QSystemTrayIcon
+from PyQt6 import QtWidgets, QtGui
+from PyQt6.QtWidgets import QMessageBox, QSystemTrayIcon
 from screeninfo import get_monitors
 
 from helper.config_helper import ConfigHelper
