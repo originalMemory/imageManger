@@ -19,6 +19,6 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     try:
         myWin = TraySetting()
-        sys.exit(app.exec_())
+        sys.exit(app.exec())
     except Exception as e:
         print(e)

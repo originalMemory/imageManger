@@ -9,6 +9,7 @@
 @create  : 2019/5/27 21:03:31
 @update  :
 """
+import threading
 import time
 from enum import unique, Enum
 
@@ -42,6 +43,7 @@ class DBHelper:
 
     def __init__(self, error_handler):
         self.error_handler = error_handler
+        self.lock = threading.Lock()
         # 本地数据库
         local_config = {
             'host': 'localhost',  # 地址
@@ -91,26 +93,32 @@ class DBHelper:
         return res
 
     def _execute_with_conn(self, sql_str, conn, execute_type):
-        if conn == self.local_conn:
-            type_str = '本地'
-        else:
-            type_str = '远程'
-        print(f'连接类型：{type_str}，执行语句：\n{sql_str}')
+        if execute_type == DBExecuteType.Run:
+            if conn == self.local_conn:
+                type_str = '本地'
+            else:
+                type_str = '远程'
+            print(f'连接类型：{type_str}，执行语句：\n{sql_str}')
         if not conn:
             print('连接不存在，停止执行')
         try:
             # 校验是否能连接成功
+            self.lock.acquire()
             conn.ping(reconnect=True)
             cursor = conn.cursor()
             cursor.execute(sql_str)
+            res = None
             if execute_type == DBExecuteType.Run:
-                conn.commit()
-                return True
+                res = True
             elif execute_type == DBExecuteType.FetchAll:
-                return cursor.fetchall()
+                res = cursor.fetchall()
             elif execute_type == DBExecuteType.FetchOne:
-                return cursor.fetchone()
+                res = cursor.fetchone()
+            conn.commit()
+            self.lock.release()
+            return res
         except pymysql.Error as error:
+            self.lock.release()
             self.__show_error(error)
             if execute_type == DBExecuteType.Run:
                 return False
@@ -129,13 +137,13 @@ class DBHelper:
         :param where_str: 查询条件
         :return:
         """
-        sql_str = f"select `id`,`name`,`value` from `{table}`"
+        sql_str = f"select `name`,`value` from `{table}`"
         if where_str:
             sql_str += f" where {where_str}"
         sql_str += ";"
         query = self.execute(sql_str, execute_type=DBExecuteType.FetchAll)
         if query:
-            lists = [BaseData(x['id'], x['name']) for x in query]
+            lists = [BaseData(x['value'], x['name']) for x in query]
             return lists
 
     def insert_image(self, image: MyImage):
@@ -205,7 +213,8 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
         file_path = file_path.replace("'", "\\'")
         sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
         query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
-        return MyImage.from_mysql_dict(query)
+        if query:
+            return MyImage.from_mysql_dict(query)
 
     def get_id_by_path(self, file_path):
         file_path = file_path.replace("'", "\\'")
@@ -225,6 +234,8 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
         image_file_list = []
         sql_str = f"select * from myacg.image where {sql_where}"
         queries = self.execute(sql_str, execute_type=DBExecuteType.FetchAll)
+        if not isinstance(queries, list):
+            return image_sql_list, image_file_list
         for query in queries:
             image_sql = MyImage.from_mysql_dict(query)
             image_sql_list.append(image_sql)

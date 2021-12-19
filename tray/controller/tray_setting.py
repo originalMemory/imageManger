@@ -66,7 +66,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         self.__tray = QtWidgets.QSystemTrayIcon()
         self.__tray.setIcon(QtGui.QIcon("images/tranIcon.png"))
         self.__tray.setToolTip("壁纸切换")
-        self.__tray.activated[QSystemTrayIcon.ActivationReason].connect(self.__on_tray_click)
+        # self.__tray.activated[QSystemTrayIcon.ActivationReason].connect(self.__on_tray_click)
         menu = QtWidgets.QMenu()
 
         # 创建显示器对应壁纸项
@@ -78,7 +78,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         self.__change_type_actions = list()
         self.create_change_type_menu(menu)
 
-        switch_next = QtWidgets.QAction("切换下一张", self)
+        switch_next = QtGui.QAction("切换下一张", self)
         switch_next.triggered.connect(self.__change_background)
         menu.addAction(switch_next)
         # 加载默认参数
@@ -97,10 +97,10 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         self.__last_order_image_offset = int(offset)
 
         menu.addSeparator()
-        setting = QtWidgets.QAction("设置", self)
+        setting = QtGui.QAction("设置", self)
         setting.triggered.connect(self.show)
         menu.addAction(setting)
-        close = QtWidgets.QAction("退出", self)
+        close = QtGui.QAction("退出", self)
         close.triggered.connect(self.close)
         menu.addAction(close)
         self.__tray.setContextMenu(menu)
@@ -118,7 +118,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         monitors = get_monitors()
         for i in range(len(monitors)):
             monitor = monitors[i]
-            desc_action = QtWidgets.QAction("", self)
+            desc_action = QtGui.QAction("", self)
             desc_action.triggered.connect(partial(self.__open_file_in_directory_and_copy_file_name, i))
             menu.addAction(desc_action)
 
@@ -151,7 +151,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         self.__change_type_actions.append(change_random)
 
     def __create_type_action(self, name, change_type):
-        action = QtWidgets.QAction(name, self)
+        action = QtGui.QAction(name, self)
         action.setCheckable(True)
         action.triggered.connect(partial(self.__set_change_type, change_type))
         return action

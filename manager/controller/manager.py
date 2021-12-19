@@ -240,11 +240,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         :param previous:
         :return:
         """
-        try:
-            self.__show_image(current.row())
-        except Exception as e:
-            print(e)
-            print(f"换行加载失败：{current.row()}")
+        self.__show_image(current.row())
 
     def __analysis_file_info(self, path):
         info = self.__db_helper.search_by_file_path(path.replace(FileHelper.get_path_prefix(), ''))
@@ -372,7 +368,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         # end_index = select_rows[-1]
 
     def _handle_error(self, msg):
-        QMessageBox.information(self, "提示", msg, QMessageBox.Ok)
+        QMessageBox.information(self, "提示", msg, QMessageBox.StandardButton.Ok)
 
     def _update_image_id(self, index: QModelIndex, image_file: ImageFile):
         self.__image_model.update_item(index, image_file)
