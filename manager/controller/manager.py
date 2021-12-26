@@ -44,6 +44,15 @@ class ImageManager(QMainWindow, Ui_Manager):
     def __init__(self, parent=None):
         super(ImageManager, self).__init__(parent)
         self.setupUi(self)
+        self.__config = ConfigHelper(self)
+        rect_info = self.__config.get_config_key('history', 'rect')
+        rect = rect_info.split(',')
+        if len(rect) == 4:
+            left, top, width, height = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
+            self.move(left, top)
+            self.resize(width, height)
+        else:
+            self.__config.add_config_key('history', 'rect', '')
 
         self.__db_helper = DBHelper(self.db_error_handler)  # 数据库操作
 
@@ -63,7 +72,6 @@ class ImageManager(QMainWindow, Ui_Manager):
         # 图片信息
         self.__image_model = ImageFileListModel(self)
         self.__image_model.delete_repeat = self.checkBox_delete_repeat.isChecked()
-        self.__config = ConfigHelper(self)
 
         threading.Thread(target=self._load_default_images, daemon=True).start()
         self.lineEdit_sql_where.setText(self.__config.get_config_key('history', 'sqlWhere'))
@@ -309,6 +317,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             item = self.__image_model.get_item(select_rows[i].row())
             path = item.full_path
             need_refresh_item = False
+            width, height = ImageHelper.get_image_width_and_height(path)
             if source == 'yande' and (not tags and desc):
                 tags = desc
                 tags = tags.replace('000', '')
@@ -337,8 +346,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                 return
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags,
-                            works=works, role=role, source=source, width=self.lineEdit_width.text(),
-                            height=self.lineEdit_height.text(), size=FileHelper.get_file_size_in_mb(path),
+                            works=works, role=role, source=source, width=width,
+                            height=height, size=FileHelper.get_file_size_in_mb(path),
                             path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
                             file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader,
                             sequence=sequence)
@@ -573,6 +582,9 @@ class ImageManager(QMainWindow, Ui_Manager):
         # 关闭时保存自动填充作品列表的配置文件
         self._save_str_list_to_file(self.__works_completer_list, self.__works_completer_filename)
         self._save_str_list_to_file(self.__role_completer_list, self.__role_completer_filename)
+        rect = self.geometry()
+        rect_info = f'{rect.left()},{rect.top()},{rect.width()},{rect.height()}'
+        self.__config.add_config_key('history', 'rect', rect_info)
 
     @staticmethod
     def _save_str_list_to_file(str_list, filename):

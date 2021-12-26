@@ -32,17 +32,13 @@ class ImageHelper:
         :return: qtImage，宽，高
         """
         # 使用 QImageReader 加载图片以避免直播使用 QImage 导致因扩展名加载失败
-        reader = QImageReader(path)
-        reader.setDecideFormatFromContent(True)
-        if not reader.canRead():
-            print(f'加载图片失败： {reader.errorString()}')
-            return None, 0, 0
-        qim = QImage()
-        if not reader.read(qim):
-            print(f'加载图片失败： {reader.errorString()}')
+        qim = ImageHelper._get_image(path)
+        if not qim:
             return None, 0, 0
         width = qim.width()
         height = qim.height()
+        if not width or not height:
+            return None, 0, 0
         x_scale = expect_width / float(width)
         y_scale = expect_height / float(height)
         if x_scale < y_scale:
@@ -53,6 +49,20 @@ class ImageHelper:
         return pixmap, width, height
 
     @staticmethod
+    def _get_image(path):
+        reader = QImageReader(path)
+        reader.setDecideFormatFromContent(True)
+        qim = None
+        can_read = reader.canRead()
+        if not can_read:
+            print(f'加载图片失败： {reader.errorString()}')
+            qim = QtGui.QImage(path)
+        elif not reader.read(qim):
+            print(f'加载图片失败： {reader.errorString()}')
+            qim = QtGui.QImage(path)
+        return qim
+
+    @staticmethod
     def get_image_width_and_height(image_path):
         """
         获取图片的宽高
@@ -60,10 +70,10 @@ class ImageHelper:
         :return:
         """
         try:
-            img = QtGui.QPixmap(image_path)
+            img = ImageHelper._get_image(image_path)
             return img.width(), img.height()
         except Exception as e:
-            print(e)
+            print(f'获取图片宽高失败 {e}')
             return 0, 0
 
     @staticmethod
