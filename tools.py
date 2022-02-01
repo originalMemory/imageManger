@@ -13,23 +13,24 @@ import os
 
 from PIL import Image, ImageFile
 
-from helper.db_helper import DBHelper
+from helper.db_helper import DBHelper, DBExecuteType
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
 from model.data import MyImage
+from PIL import Image, ImageFile
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
 
 
-def analysis_and_rename_file(dir_path, prefix):
+def analysis_and_rename_file(dir_path, prefix, handler):
     for root, dirs, files in os.walk(dir_path):
         length = len(files)
         for i in range(length):
             file = files[i]
             file_path = os.path.join(root, file)
             print(f'[{i}/{length}] {file_path}')
-            update_image(file_path, prefix)
+            handler(file_path, prefix)
 
 
 db_helper = DBHelper(None)
@@ -71,6 +72,60 @@ def update_image(file_path, prefix):
                     file_create_time=FileHelper.get_create_time_str(new_path), series=old.series,
                     uploader=info.uploader, sequence=old.sequence)
     db_helper.update_image(image)
+
+
+def recheck_size(start_page):
+    page_size = 500
+    error_f = open('error.log', 'a+', encoding='utf-8')
+    not_exist_f = open('notExist.log', 'a+', encoding='utf-8')
+    count = db_helper.get_table_count("select count(*) from myacg.image;")
+    while True:
+        offset = (start_page - 1) * page_size
+        sql = f"select * from image limit {page_size} offset {offset};"
+        queries = db_helper.execute(sql, DBExecuteType.FetchAll)
+        if not queries:
+            print('没有数据，结束检查')
+            break
+        infos = [MyImage.from_mysql_dict(x) for x in queries]
+        n = len(infos)
+        for i in range(n):
+            info = infos[i]
+            print(f'[{offset + i}/{count}] {info.id}, {info.relative_path}')
+            if not os.path.exists(info.path):
+                not_exist_f.write(f'{info.id},{info.path}\n')
+                print('图片不存在')
+                db_helper.delete(info.id)
+                continue
+            try:
+                width, height = Image.open(info.path).size
+            except Exception as e:
+                error_f.write(f'{info.id},{info.relative_path},{info.width},{info.height},{e}\n')
+                print('尺寸读取失败')
+                continue
+            if not width or not height:
+                error_f.write(f'{info.id},{info.relative_path},{info.width},{info.height}\n')
+                print('尺寸读取失败')
+                continue
+            if width == info.width and height == info.height:
+                continue
+            print(f'宽度：{info.width} -> {width}，高度：{info.height} -> {height}')
+            info.width = width
+            info.height = height
+            db_helper.update_image(info)
+        start_page += 1
+    error_f.close()
+    not_exist_f.close()
+
+
+def check_no_record_image(file_path, prefix):
+    if not ImageHelper.is_image(file_path):
+        return
+    relative_path = file_path.replace('\\', '/').replace(prefix, '')
+    info = db_helper.search_by_file_path(relative_path)
+    if not info:
+        with open('notRecord.log', 'a+', encoding='utf-8') as f:
+            f.write(f'{file_path}\n')
+        print('文件不存在')
 
 
 def rename_png2jpg(dir_path):
@@ -130,7 +185,17 @@ def compress(source_dir, target_dir):
     print(f'总压缩比：{round(total_percent / n, 2):.2f}%')
 
 
+def check_exist(file_path, prefix):
+    if not ImageHelper.is_image(file_path):
+        return
+    md5 = FileHelper.get_md5(file_path)
+    info = db_helper.search_by_md5(md5)
+    if info:
+        print('已存在，删除该文件')
+        os.remove(file_path)
+
+
 if __name__ == '__main__':
-    analysis_and_rename_file(r'Z:\图片\yande\64', 'Z:/')
-    # compress('/Volumes/ex/待测试/壁纸/横/', '/Volumes/ex/压缩壁纸/横2/')
+    # analysis_and_rename_file(r'Z:\写真', 'Z:/', check_no_record_image)
+    analysis_and_rename_file(r'E:\下载\第四资源站', 'Z:/', check_exist)
     # rename_png2jpg(r'E:\下载\第四资源站\楚楚子 png待功能完善')

@@ -11,10 +11,10 @@
 import os
 import re
 
-from PIL import Image
+from PIL import Image, ImageQt
 from PyQt6 import QtGui
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QImageReader, QImage
+from PyQt6.QtGui import QImageReader
 
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
@@ -31,12 +31,16 @@ class ImageHelper:
         :param expect_height: 期望展示的高
         :return: qtImage，宽，高
         """
-        # 使用 QImageReader 加载图片以避免直播使用 QImage 导致因扩展名加载失败
-        qim = ImageHelper._get_image(path)
+        try:
+            qim = ImageQt.ImageQt(path)
+        except Exception as e:
+            print(f'获取图片宽高失败 {e}')
+            return None, 0, 0
         if not qim:
             return None, 0, 0
         width = qim.width()
         height = qim.height()
+
         if not width or not height:
             return None, 0, 0
         x_scale = expect_width / float(width)
@@ -49,7 +53,7 @@ class ImageHelper:
         return pixmap, width, height
 
     @staticmethod
-    def _get_image(path):
+    def _get_image_by_qimage_reader(path):
         reader = QImageReader(path)
         reader.setDecideFormatFromContent(True)
         qim = None
@@ -70,8 +74,8 @@ class ImageHelper:
         :return:
         """
         try:
-            img = ImageHelper._get_image(image_path)
-            return img.width(), img.height()
+            width,height = Image.open(image_path).size
+            return width,height
         except Exception as e:
             print(f'获取图片宽高失败 {e}')
             return 0, 0
@@ -146,13 +150,18 @@ class ImageHelper:
             tags = tags.replace("_00", "")
             return tags, uploader
         else:
-            # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-            match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.(?:jpg|png|gif|jpeg|bmp)", filename)
+            # [yande_492889_Mr_GT].jpg
+            match = re.search(r"yande_\d*?_(?P<uploader>.+?)]", filename)
             if match:
-                tags = match.group('tags')
-                return tags, None
+                uploader = match.group('uploader')
+                return None, uploader
             else:
-                return None, None
+                # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
+                match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.(?:jpg|png|gif|jpeg|bmp)", filename)
+                if match:
+                    tags = match.group('tags')
+                    return tags, None
+        return None, None
 
     @staticmethod
     def refresh_recode_info(error_handler, message_handler):
@@ -240,3 +249,10 @@ class ImageHelper:
             new_im.paste(image, (start_x, start_y))
             start_x += image.size[0]
         new_im.save(save_name, quality=100, subsampling=0)
+
+    @staticmethod
+    def is_image(filename):
+        image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif',
+                                 '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico']
+        extension = FileHelper.get_file_extension(filename).lower()
+        return extension in image_extension_list

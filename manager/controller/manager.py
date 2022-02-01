@@ -48,7 +48,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         rect_info = self.__config.get_config_key('history', 'rect')
         rect = rect_info.split(',')
         if len(rect) == 4:
-            left, top, width, height = int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3])
+            left, top, width, height = int(rect[0]), int(rect[1]) - 32, int(rect[2]), int(rect[3])
             self.move(left, top)
             self.resize(width, height)
         else:
@@ -258,8 +258,10 @@ class ImageManager(QMainWindow, Ui_Manager):
             info = ImageHelper.analyze_image_info(path)
             self.lineEdit_size.setText(f"{info.size} MB")
             self.dateTimeEdit_file_create.setDateTime(info.create_time)
-            self.lineEdit_desc.setText(info.desc)
-            self.lineEdit_tag.setText(info.tags)
+            if info.desc:
+                self.lineEdit_desc.setText(info.desc)
+            if info.tags:
+                self.lineEdit_tag.setText(info.tags)
             if info.source:
                 self.lineEdit_source.setText(info.source)
             if info.uploader:
@@ -322,22 +324,23 @@ class ImageManager(QMainWindow, Ui_Manager):
                 tags = desc
                 tags = tags.replace('000', '')
                 desc = ''
-            if source in ['pixiv', 'yande'] and tags in path:
+            if source in ['pixiv', 'yande'] and tags and tags in path:
                 if source == 'pixiv':
                     sub_str = f'_{tags}'
                 elif source == 'yande':
                     sub_str = f'{tags}_00000'
                 new_path = path.replace(sub_str, '')
-                try:
-                    if os.path.exists(new_path):
-                        os.remove(path)
-                    else:
-                        os.rename(path, new_path)
-                    path = new_path
-                    need_refresh_item = True
-                except Exception as e:
-                    print(f"重命名失败：{e}")
-                    continue
+                if new_path != path:
+                    try:
+                        if os.path.exists(new_path):
+                            os.remove(path)
+                        else:
+                            os.rename(path, new_path)
+                        path = new_path
+                        need_refresh_item = True
+                    except Exception as e:
+                        print(f"重命名失败：{e}")
+                        continue
                 new_item = ImageFile(id=item.id, name=item.name.replace(sub_str, ''), full_path=path)
             else:
                 new_item = item
@@ -472,6 +475,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                     new_filename = None
                     if image_sql.type == 2:
                         new_filename = f"{image_sql.works}_{image_sql.role}_{image_sql.series}_{image_sql.author}"
+                    if image_sql.type == 3:
+                        new_filename = f"{image_sql.works}_{image_sql.series}_{image_sql.author}"
                     FileHelper.copyfile_without_override(image_sql.path, dir_path, new_filename)
                 except Exception as e:
                     print(e)
@@ -518,6 +523,8 @@ class ImageManager(QMainWindow, Ui_Manager):
             level_index = 8
         if event.key() == Qt.Key.Key_9:
             level_index = 9
+        if event.key() == Qt.Key.Key_0:
+            level_index = 10
 
         if level_index and self.__level_model.rowCount() >= level_index:
             self.comboBox_level.setCurrentIndex(level_index - 1)
