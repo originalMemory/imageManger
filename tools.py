@@ -10,7 +10,11 @@
 @update  :
 """
 import os
+import random
+import time
 
+from bs4 import BeautifulSoup
+import requests
 from PIL import Image, ImageFile
 
 from helper.db_helper import DBHelper, DBExecuteType
@@ -195,7 +199,42 @@ def check_exist(file_path, prefix):
         os.remove(file_path)
 
 
+def get_html(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36'}
+    proxies = {"http": "http://127.0.0.1:7890", "https": 'http://127.0.0.1:7890'}
+    return requests.get(url, headers=headers, proxies=proxies, timeout=12).text
+
+
+def get_not_exist_yande_tag():
+    imgs, _ = db_helper.search_by_where("source='yande' and tags=''")
+    n = len(imgs)
+    for i in range(n):
+        img = imgs[i]
+        no = ImageHelper.get_yande_no(img.relative_path)
+        if not no:
+            continue
+        url = f'https://yande.re/post/show/{no}'
+        html = get_html(url)
+        val = BeautifulSoup(html, 'lxml')
+        ul = val.find('ul', id='tag-sidebar')
+        tags = []
+        for child in ul.children:
+            if child.name != 'li':
+                continue
+            tag = child.a.next_sibling.next_sibling.get_text()
+            tags.append(tag.replace(' ', '_'))
+        tag_str = ' '.join(tags)
+        tag_str = tag_str.replace("'", "\\'")
+        print(f'[{i}/{n}]{img.id} - {tag_str}')
+        img.tags = tag_str
+        db_helper.execute(f"update image set tags='{tag_str}' where id={img.id}", DBExecuteType.Run)
+        duration = random.uniform(0, 3)
+        print(f'休眠 {duration}s')
+        time.sleep(duration)
+
+
 if __name__ == '__main__':
     # analysis_and_rename_file(r'Z:\写真', 'Z:/', check_no_record_image)
-    analysis_and_rename_file(r'E:\下载\第四资源站', 'Z:/', check_exist)
     # rename_png2jpg(r'E:\下载\第四资源站\楚楚子 png待功能完善')
+    get_not_exist_yande_tag()

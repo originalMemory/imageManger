@@ -74,8 +74,8 @@ class ImageHelper:
         :return:
         """
         try:
-            width,height = Image.open(image_path).size
-            return width,height
+            width, height = Image.open(image_path).size
+            return width, height
         except Exception as e:
             print(f'获取图片宽高失败 {e}')
             return 0, 0
@@ -162,6 +162,19 @@ class ImageHelper:
                     tags = match.group('tags')
                     return tags, None
         return None, None
+
+    @staticmethod
+    def get_yande_no(filename):
+        # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
+        match = re.search(r"yande.*?_(?P<no>\d+?)_", filename)
+        if match:
+            return match.group('no')
+        else:
+            # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
+            match = re.search(r"yande(.re)? (?P<no>\d+?) ", filename)
+            if match:
+                return match.group('no')
+        return None
 
     @staticmethod
     def refresh_recode_info(error_handler, message_handler):
@@ -253,6 +266,6 @@ class ImageHelper:
     @staticmethod
     def is_image(filename):
         image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif',
-                                 '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico']
+                                '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico']
         extension = FileHelper.get_file_extension(filename).lower()
         return extension in image_extension_list
