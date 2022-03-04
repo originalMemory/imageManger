@@ -171,9 +171,16 @@ class ImageHelper:
             return match.group('no')
         else:
             # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-            match = re.search(r"yande(.re)? (?P<no>\d+?) ", filename)
+            match = re.search(r"yande(.re)? (?P<no>\d+?)[ \.]", filename)
             if match:
                 return match.group('no')
+        return None
+
+    @staticmethod
+    def get_pixiv_no(filename):
+        match = re.search(r"pixiv_??(?P<no>\d+?)[a-zA-Z\]]", filename)
+        if match:
+            return match.group('no')
         return None
 
     @staticmethod
