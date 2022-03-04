@@ -154,11 +154,17 @@ class ImageManager(QMainWindow, Ui_Manager):
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
         return completer
 
+    def _is_anime(self):
+        type = self.__type_model.get_item(self.comboBox_type.currentIndex()).id
+        return type == 1
+
     def __add_works_complete(self):
         """
         添加自动补全作品
         :return:
         """
+        if not self._is_anime():
+            return
         cur_completion = self.lineEdit_works.completer().currentCompletion()
         if cur_completion == "":
             self.__works_completer_list.append(self.lineEdit_works.text())
@@ -173,6 +179,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         添加自动补全角色
         :return:
         """
+        if not self._is_anime():
+            return
         cur_completion = self.lineEdit_role.completer().currentCompletion()
         if cur_completion == "":
             self.__role_completer_list.append(self.lineEdit_role.text())
@@ -270,6 +278,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.lineEdit_author.setText(info.author)
             if not self.lineEdit_sequence.text():
                 self.lineEdit_sequence.setText('0')
+            if info.sequence:
+                self.lineEdit_sequence.setText(str(info.sequence))
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
@@ -346,7 +356,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 new_item = item
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
-                return
+                continue
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags,
                             works=works, role=role, source=source, width=width,
@@ -603,8 +613,6 @@ class ImageManager(QMainWindow, Ui_Manager):
     # region 预加载图片
     __preload_count = 5
     __preload_image_queue = queue.Queue(__preload_count)
-    __preload_image_size = queue.Queue(__preload_count)
-    __preload_lock = threading.Lock()
 
     def __preload(self):
         while True:
@@ -623,8 +631,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 full_path = image_file.full_path
                 pixmap, width, height = ImageHelper.get_image_from_file(full_path, self.graphicsView.width(),
                                                                         self.graphicsView.height())
-                self.__preload_image_queue.put(PreloadImage(full_path, pixmap))
-                self.__preload_image_size.put((width, height))
+                self.__preload_image_queue.put((PreloadImage(full_path, pixmap), width, height))
                 print(f"预加载成功：{full_path}")
             except Exception as e:
                 print(e)
@@ -634,14 +641,14 @@ class ImageManager(QMainWindow, Ui_Manager):
     def __get_image(self, path):
         # 优先从队列中获取
         while self.__preload_image_queue.qsize() > 0:
-            image = self.__preload_image_queue.get()
-            size = self.__preload_image_size.get()
+            image, width, height = self.__preload_image_queue.get()
             if isinstance(image, PreloadImage) and image.full_path == path:
                 print("从预载中读取")
-                self.lineEdit_width.setText(str(size[0]))
-                self.lineEdit_height.setText(str(size[1]))
+                self.lineEdit_width.setText(str(width))
+                self.lineEdit_height.setText(str(height))
                 return image.pixmap, True
         print("从文件中读取")
+        self.__preload_image_queue.queue.clear()
         image, width, height = ImageHelper.get_image_from_file(path, self.graphicsView.width(),
                                                                self.graphicsView.height())
         self.lineEdit_width.setText(str(width))
