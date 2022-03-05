@@ -111,18 +111,18 @@ class ImageHelper:
 
         if yande in filename:
             info.source = 'yande'
-            info.tags, info.uploader = ImageHelper.analyze_yande(filename)
+            info.tags, info.uploader, info.sequence = ImageHelper.analyze_yande(filename)
         elif pixiv in filename:
             info.source = 'pixiv'
             # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
-            match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_00", filename)
+            match = re.search(r"pixiv.*?_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_00", filename)
             if match:
                 author = match.group('author')
                 info.author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
                 info.desc = match.group('desc')
                 tags = match.group('tags')
-                tags.replace(';', ',')
                 info.tags = tags
+                info.sequence = int(match.group('no'))
             else:
                 match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<tags>.+?)_", filename)
                 if match:
@@ -133,35 +133,36 @@ class ImageHelper:
         elif konachan in filename:
             info.source = konachan
             # [konachan_241354_RyuZU]blindfold breast_grab breasts demiroid elbow_gloves
-            match = re.search(r"konachan_\d*?_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
+            match = re.search(r"konachan_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
             if match:
                 info.uploader = match.group('uploader')
                 info.tags = match.group('tags').replace("_00000", "")
+                info.sequence = int(match.group('no'))
 
         return info
 
     @staticmethod
     def analyze_yande(filename):
         # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-        match = re.search(r"yande.*?_\d*?_(?P<uploader>.+?)](?P<tags>.+?)_00", filename)
+        match = re.search(r"yande.*?_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)_00", filename)
         if match:
             uploader = match.group('uploader')
             tags = match.group('tags')
             tags = tags.replace("_00", "")
-            return tags, uploader
+            return tags, uploader, int(match.group('no'))
         else:
             # [yande_492889_Mr_GT].jpg
             match = re.search(r"yande_\d*?_(?P<uploader>.+?)]", filename)
             if match:
                 uploader = match.group('uploader')
-                return None, uploader
+                return None, uploader, None
             else:
                 # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
                 match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.(?:jpg|png|gif|jpeg|bmp)", filename)
                 if match:
                     tags = match.group('tags')
-                    return tags, None
-        return None, None
+                    return tags, None, None
+        return None, None, None
 
     @staticmethod
     def get_yande_no(filename):
