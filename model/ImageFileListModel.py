@@ -78,7 +78,7 @@ class ImageFileListModel(MyBaseListModel):
             relative_path = "%s/%s/%s" % (self._base_dir, dir_name, filename)
             self.__add_image_data(relative_path, file_path, filename)
 
-    def __add_image_data(self, relative_path, full_path, filename):
+    def __add_image_data(self, show_path, full_path, filename):
         if not self.__is_image(filename):
             return
         image = self.__db_helper.search_by_file_path(full_path)
@@ -93,15 +93,16 @@ class ImageFileListModel(MyBaseListModel):
                     os.remove(full_path)
                     return
                 image.path = full_path
-                image.relative_path = full_path.replace(FileHelper.get_path_prefix(), '')
-                self.__db_helper.update_image(image)
+                new_path = full_path.replace(FileHelper.get_path_prefix(), '')
+                image.relative_path = new_path
+                self.__db_helper.update_path(image.id, new_path)
 
         if image:
             image_id = image.id
             self._data_list_in_database.append(image)
         else:
             image_id = 0
-        item_data = ImageFile(image_id, relative_path, full_path)
+        item_data = ImageFile(image_id, show_path, full_path)
         self.add_item(item_data)
 
     def add_path(self, path):

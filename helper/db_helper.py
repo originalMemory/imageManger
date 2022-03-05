@@ -83,6 +83,8 @@ class DBHelper:
         if execute_type == DBExecuteType.Run:
             # 写入时远程和本地都要写入，数据以远程为准
             res = self._execute_with_conn(sql_str, self.server_conn, execute_type)
+            if not res:
+                return res
             self._execute_with_conn(sql_str, self.local_conn, execute_type)
         elif execute_type in [DBExecuteType.FetchOne, DBExecuteType.FetchAll]:
             # 查询时如果本地有就不去查远程了，提高查询速度
@@ -101,6 +103,7 @@ class DBHelper:
             print(f'连接类型：{type_str}，执行语句：\n{sql_str}')
         if not conn:
             print('连接不存在，停止执行')
+            return
         try:
             # 校验是否能连接成功
             self.lock.acquire()
@@ -192,6 +195,10 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
             `size`={image.size}, file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}',
             sequence={image.sequence} where id={image.id}"""
         return self.execute(sql_str, execute_type=DBExecuteType.Run)
+
+    def update_path(self, img_id, relative_path):
+        path = relative_path.replace("'", "\\'")
+        return self.execute(f"update myacg.image set path='{path}' where id={img_id}", execute_type=DBExecuteType.Run)
 
     def search_by_md5(self, md5):
         """
