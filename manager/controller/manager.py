@@ -138,6 +138,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
         # 预加载图片
         threading.Thread(target=self.__preload, daemon=True).start()
+        threading.Thread(target=self._insert_or_update, daemon=True).start()
 
     @staticmethod
     def _read_completer_file(filename):
@@ -306,12 +307,19 @@ class ImageManager(QMainWindow, Ui_Manager):
         """
         select_rows = self.listView.selectionModel().selectedRows()
         select_rows = [x for x in select_rows]
-        th = threading.Thread(target=self.__insert_or_update_db, args=(select_rows,), daemon=True)
-        th.start()
+        if len(select_rows) > 1:
+            threading.Thread(target=self._prepare_classify, args=(select_rows,), daemon=True).start()
+        else:
+            self._prepare_classify(select_rows)
         end_index = select_rows[-1]
-        self.__select_index(self.__image_model.index(end_index.row() + 1, end_index.column()))
+        next_index = self.__image_model.index(end_index.row() + 1, end_index.column())
+        if 0 < next_index.row() < self.__image_model.rowCount():
+            self.listView.setCurrentIndex(next_index)
+        else:
+            self.listView.clearFocus()
+        self.listView.setFocus()
 
-    def __insert_or_update_db(self, select_rows):
+    def _prepare_classify(self, select_rows):
         index = self.comboBox_type.currentIndex()
         type = self.__type_model.get_item(index).id
         index = self.comboBox_level.currentIndex()
@@ -325,16 +333,42 @@ class ImageManager(QMainWindow, Ui_Manager):
         sequence = int(self.lineEdit_sequence.text())
         series = self.lineEdit_series.text()
         uploader = self.lineEdit_uploader.text()
-        for i in range(len(select_rows)):
-            item = self.__image_model.get_item(select_rows[i].row())
+        for row in select_rows:
+            item = self.__image_model.get_item(row.row())
             path = item.full_path
+            relative_path = path.replace(FileHelper.get_path_prefix(), '')
+            # width 和 height 放到编程里更新
+            image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags, works=works,
+                            role=role, source=source, width=0, height=0, size=FileHelper.get_file_size_in_mb(path),
+                            path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
+                            file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader,
+                            sequence=sequence)
+            if image.id != 0:
+                # 批量更新时，保持原来的描述、作者、等级、标签、作品
+                old_image = self.__image_model.get_database_item(image.id)
+                if old_image and len(select_rows) > 1:
+                    image.desc = old_image.desc
+                    image.author = old_image.author
+                    image.level = old_image.level
+                    image.tags = old_image.tags
+                    image.works = old_image.works
+            self._change_tasks.put((row, image))
+
+    _change_tasks = queue.Queue()
+
+    def _insert_or_update(self):
+        while True:
+            row, image = self._change_tasks.get()
+            item = self.__image_model.get_item(row.row())
+            path = image.path
             need_refresh_item = False
             width, height = ImageHelper.get_image_width_and_height(path)
-            if source == 'yande' and (not tags and desc):
-                tags = desc
-                tags = tags.replace('000', '')
-                desc = ''
+            image.width = width
+            image.height = height
+            source = image.source
+            tags = image.tags
             if source in ['pixiv', 'yande'] and tags and tags in path:
+                sub_str = ''
                 if source == 'pixiv':
                     sub_str = f'_{tags}'
                 elif source == 'yande':
@@ -351,43 +385,26 @@ class ImageManager(QMainWindow, Ui_Manager):
                     except Exception as e:
                         print(f"重命名失败：{e}")
                         continue
-                new_item = ImageFile(id=item.id, name=item.name.replace(sub_str, ''), full_path=path)
+                new_item = ImageFile(id=image.id, name=item.name.replace(sub_str, ''), full_path=path)
             else:
                 new_item = item
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
                 continue
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
-            image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags,
-                            works=works, role=role, source=source, width=width,
-                            height=height, size=FileHelper.get_file_size_in_mb(path),
-                            path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
-                            file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader,
-                            sequence=sequence)
+            image.relative_path = relative_path
+            image.path = path
             if image.id == 0:
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(relative_path)
-                self.dateTimeEdit_create.setDateTime(datetime.datetime.now())
-                self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 need_refresh_item = True
                 new_item.id = image_id
-                # message = f"{item.name} 创建完成！"
             else:
-                # 批量更新时，保持原来的描述、作者、等级、标签、作品
-                old_image = self.__image_model.get_database_item(image.id)
-                if old_image and len(select_rows) > 1:
-                    image.desc = old_image.desc
-                    image.author = old_image.author
-                    image.level = old_image.level
-                    image.tags = old_image.tags
-                    image.works = old_image.works
                 self.__db_helper.update_image(image)
-                self.dateTimeEdit_update.setDateTime(datetime.datetime.now())
                 message = f"{item.name} 更新完成！"
-                self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {message}")
+                self.statusbar.showMessage(f"[{row.row() + 1}/{self.__image_model.rowCount()}] {message}")
             if need_refresh_item:
-                self._signal_update_image_id.emit(select_rows[i], new_item)
-        # end_index = select_rows[-1]
+                self._signal_update_image_id.emit(row, new_item)
 
     def _handle_error(self, msg):
         QMessageBox.information(self, "提示", msg, QMessageBox.StandardButton.Ok)
@@ -397,14 +414,6 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def _update_status(self, msg):
         self.statusbar.showMessage(msg)
-
-    def __select_index(self, index: QModelIndex):
-        if 0 < index.row() < self.__image_model.rowCount():
-            self.listView.setCurrentIndex(index)
-            self.listView.setFocus()
-        else:
-            self.listView.clearFocus()
-            self.listView.setFocus()
 
     def __del_select_rows(self):
         """
