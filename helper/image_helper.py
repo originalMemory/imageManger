@@ -179,7 +179,7 @@ class ImageHelper:
 
     @staticmethod
     def get_pixiv_no(filename):
-        match = re.search(r"pixiv_??(?P<no>\d+?)[a-zA-Z\]]", filename)
+        match = re.search(r"pixiv_??(?P<no>\d+?)_", filename)
         if match:
             return match.group('no')
         return None

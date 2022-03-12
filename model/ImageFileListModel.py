@@ -16,6 +16,7 @@ from PyQt6.QtGui import QBrush, QColor
 
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
+from helper.image_helper import ImageHelper
 from model.data import ImageFile, MyImage
 from model.my_list_model import MyBaseListModel
 
@@ -87,15 +88,38 @@ class ImageFileListModel(MyBaseListModel):
             md5 = FileHelper.get_md5(full_path)
             image = self.__db_helper.search_by_md5(md5)
             if image and image.path != full_path:
-                # 已有图片存在且删除重复时删除当前图片
-                if os.path.exists(image.path) and self.delete_repeat:
-                    print(f'删除重复图片: {full_path}')
-                    os.remove(full_path)
-                    return
-                image.path = full_path
-                new_path = full_path.replace(FileHelper.get_path_prefix(), '')
-                image.relative_path = new_path
-                self.__db_helper.update_path(image.id, new_path)
+                # 当前是 pixiv ，数据库是 yande 时更新为 pixiv 的信息
+                if image.source == 'yande' and ImageHelper.get_pixiv_no(full_path):
+                    info = ImageHelper.analyze_image_info(full_path)
+                    image.source = 'pixiv'
+                    image.desc = info.desc
+                    image.tags = info.tags
+                    image.author = info.author
+                    image.uploader = ''
+                    image.sequence = info.sequence
+                    image.file_create_time = FileHelper.get_create_time_str(full_path)
+                    yande_path = image.path
+                    sub_str = f'_{info.tags}'
+                    source_pixiv_path = full_path
+                    full_path = full_path.replace(sub_str, '')
+                    show_path = show_path.replace(sub_str, '')
+                    new_path = full_path.replace(FileHelper.get_path_prefix(), '')
+                    image.relative_path = new_path
+                    image.path = full_path
+                    self.__db_helper.update_image(image)
+                    os.rename(source_pixiv_path, full_path)
+                    os.remove(yande_path)
+                    print(f'pixiv 替换 yande\nyande: {yande_path}, pixiv: {full_path}')
+                else:
+                    # 已有图片存在且删除重复时删除当前图片
+                    if os.path.exists(image.path) and self.delete_repeat:
+                        print(f'删除重复图片: {full_path}, 原图地址：{image.path}')
+                        os.remove(full_path)
+                        return
+                    image.path = full_path
+                    new_path = full_path.replace(FileHelper.get_path_prefix(), '')
+                    image.relative_path = new_path
+                    self.__db_helper.update_path(image.id, new_path)
 
         if image:
             image_id = image.id
