@@ -9,6 +9,7 @@
 @create  : 2019/5/27 21:03:31
 @update  :
 """
+import datetime
 import threading
 import time
 from enum import unique, Enum
@@ -63,7 +64,7 @@ class DBHelper:
             'user': config_helper.get_config_key(section, 'user'),  # 用户名
             'passwd': config_helper.get_config_key(section, 'password'),  # 密码
             'db': 'myacg',  # 使用的数据库名
-            'charset': 'utf8',  # 编码类型
+            'charset': 'utf8mb4',  # 编码类型
             'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
         }
         self.server_conn = self._connect(server_config)
@@ -103,7 +104,7 @@ class DBHelper:
             print(f'连接类型：{type_str}，执行语句：\n{sql_str}')
         if not conn:
             print('连接不存在，停止执行')
-            return
+            return False
         try:
             # 校验是否能连接成功
             self.lock.acquire()
@@ -128,6 +129,8 @@ class DBHelper:
 
     def __show_error(self, error):
         error_str = str(error)
+        print(error_str)
+        exit(1)
         if 'a foreign key constraint fails' in error_str:
             error_str = "有关联数据，不能删除！"
         if self.error_handler:
@@ -151,7 +154,7 @@ class DBHelper:
 
     def insert_image(self, image: MyImage):
         """
-        保存图片分类信息
+        保存图片分类信息，不包括 id，创建时间和更新时间
         :param image: 图片信息
         :return:
         """
@@ -171,10 +174,34 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 {image.sequence});"""
         return self.execute(sql_str, execute_type=DBExecuteType.Run)
 
-    def update_image(self, image: MyImage):
+    def insert_full_image(self, image: MyImage, conn):
+        """
+        保存全部的图片分类信息
+        :param image: 图片信息
+        :param conn: 要写入的数据库
+        :return:
+        """
+        # 替换单引号以保证插入
+        desc = image.desc.replace("'", "\\'")
+        author = image.author.replace("'", "\\'")
+        tags = image.tags.replace("'", "\\'")
+        works = image.works.replace("'", "\\'")
+        role = image.role.replace("'", "\\'")
+        path = image.relative_path.replace("'", "\\'")
+        series = image.series.replace("'", "\\'")
+        uploader = image.uploader.replace("'", "\\'")
+        sql_str = f"""INSERT INTO myacg.image(id, `desc`, author, type, level, tags, works, role, source, 
+path, width, height, `size`, file_create_time, series, uploader, md5, sequence, create_time, update_time) values 
+({image.id}, '{desc}', '{author}', {image.type}, {image.level}, '{tags}', '{works}', '{role}', '{image.source}',
+ '{path}', {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}',
+  '{image.md5}', {image.sequence}, '{image.create_time}', '{image.update_time}');"""
+        return self.execute(sql_str, execute_type=DBExecuteType.Run)
+
+    def update_image(self, image: MyImage, conn=None):
         """
         更新图片分类信息
         :param image: 图片信息
+        :param conn: 图片信息
         :return:
         """
         # 替换单引号以保证插入
@@ -194,7 +221,10 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
             path='{path}', md5='{image.md5}', width={image.width}, height={image.height},
             `size`={image.size}, file_create_time='{image.file_create_time}', series='{series}', uploader='{uploader}',
             sequence={image.sequence} where id={image.id}"""
-        return self.execute(sql_str, execute_type=DBExecuteType.Run)
+        if conn:
+            return self._execute_with_conn(sql_str, conn, DBExecuteType.Run)
+        else:
+            return self.execute(sql_str, execute_type=DBExecuteType.Run)
 
     def update_path(self, img_id, relative_path):
         path = relative_path.replace("'", "\\'")
@@ -211,15 +241,19 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
         if query:
             return MyImage.from_mysql_dict(query)
 
-    def search_by_file_path(self, file_path):
+    def search_by_file_path(self, file_path, conn=None):
         """
         根据路径搜索图片
         :param file_path:
+        :param conn:
         :return:
         """
         file_path = file_path.replace("'", "\\'")
         sql_str = f"select * from myacg.image where path='{file_path}' limit 1"
-        query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
+        if conn:
+            query = self._execute_with_conn(sql_str, conn, DBExecuteType.FetchOne)
+        else:
+            query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
         if query:
             return MyImage.from_mysql_dict(query)
 
@@ -288,3 +322,17 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
         query = self.execute(sql, DBExecuteType.FetchOne)
         if query:
             return MyImage.from_mysql_dict(query)
+
+    def sync_data(self, source_conn, dest_conn):
+        date = datetime.datetime.now()
+        sql = f"select * from myacg.image where update_time>'{date}'"
+        queries = self._execute_with_conn(sql, source_conn, DBExecuteType.FetchAll)
+        for i, query in enumerate(queries):
+            image = MyImage.from_mysql_dict(query)
+            print(f'[{i}/{len(queries)}] {image.id}')
+            local_image = self.search_by_file_path(image.relative_path, dest_conn)
+            if local_image:
+                self.update_image(image, dest_conn)
+            else:
+                self.insert_full_image(image, dest_conn)
+

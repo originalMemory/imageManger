@@ -22,7 +22,7 @@ product_desc = "自用图片管理程序"
 
 build_exe_options = {
     # 包含外围的ini、jpg文件，以及data目录下所有文件，以上所有的文件路径都是相对于cxsetup.py的路径。
-    "include_files": ["config.ini", "works.txt", "role.txt"],
+    "include_files": ["record.ini", "works.txt", "role.txt"],
     # "packages": ["os"],  # 包含用到的包
     # "includes": ["PIL"],
     # "excludes": ["tkinter"],  # 提出wx里tkinter包

@@ -9,6 +9,8 @@ pyqt6 = "*"
 pillow = "*"
 screeninfo = "*"
 pyperclip = "*"
+beautifulsoup4 = "*"
+requests = "*"
 
 [dev-packages]
 
