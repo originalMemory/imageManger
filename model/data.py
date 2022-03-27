@@ -21,6 +21,7 @@ from helper.file_helper import FileHelper
 
 @unique
 class TagType(Enum):
+    Empty = ''
     Label = 'label'
     Role = 'role'
     Works = 'works'
@@ -135,6 +136,9 @@ class MyImage:
     上传者
     """
     uploader: str = field(default="")
+    """
+    本地字段，本地地址
+    """
     path: str = field(default="")
 
     @staticmethod

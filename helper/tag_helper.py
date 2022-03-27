@@ -72,7 +72,7 @@ class TagHelper:
             i += 1
 
     def get_not_exist_pixiv_tag(self):
-        imgs, _ = self.db_helper.search_by_where("source='pixiv' and tags=''")
+        imgs, _ = self.db_helper.search_by_where("source='pixiv' and length(tags)<20")
         n = len(imgs)
         i = 0
         while i < n:
@@ -82,7 +82,7 @@ class TagHelper:
                 print(f'[{i}/{n}]找不到 no {img.id} - {img.relative_path}')
                 i += 1
                 continue
-            html = self._get_html(f'https://www.pixiv.net/artworks/{no}', '../cookies.txt')
+            html = self._get_html(f'https://www.pixiv.net/artworks/{no}', 'cookies.txt')
             if not html:
                 time.sleep(3)
                 continue
@@ -110,7 +110,7 @@ class TagHelper:
             time.sleep(duration)
             i += 1
 
-    def get_not_tran_yande_tag(self):
+    def get_tag_source_data(self, sql):
         queries = self.db_helper.execute("select * from myacg.tran_source", DBExecuteType.FetchAll)
         sources = [TranSource.from_dict(x) for x in queries]
         queries = self.db_helper.execute("select * from myacg.tran_dest", DBExecuteType.FetchAll)
@@ -119,17 +119,26 @@ class TagHelper:
             dest = TranDest.from_dict(query)
             dest_id_di[str(dest.id)] = dest
         tags = []
-        queries = self.db_helper.execute("select * from myacg.image where source='yande' and tags regexp '[a-z]'",
-                                         DBExecuteType.FetchAll)
+        queries = self.db_helper.execute(sql, DBExecuteType.FetchAll)
         for i in range(len(queries)):
             img = MyImage.from_mysql_dict(queries[i])
             print(f'[{i}/{len(queries)}]{img.id} - {img.tags}')
-            for tag in img.tags.split(','):
+            split_chars = [';']
+            source_tags = []
+            for char in split_chars:
+                if char in img.tags:
+                    source_tags = img.tags.split(char)
+            for tag in source_tags:
                 if tag.isdigit():
                     continue
                 tags.append(tag)
         counter = Counter(tags)
         counter = counter.most_common()
+        return sources, dest_id_di, counter
+
+    def get_not_tran_yande_tag(self):
+        sources, dest_id_di, counter = self.get_tag_source_data(
+            "select * from myacg.image where source='yande' and tags regexp '[a-z]'")
         lines = ['数量,原名,翻译名,类型,备注\n']
         n = len(counter)
         for i in range(n):
@@ -160,7 +169,39 @@ class TagHelper:
             line = f"{count},{tag},{';'.join(trans)},{';'.join(types)},{extra}\n"
             print(f'[{i}/{n}]{line.strip()}')
             lines.append(line)
-        with open('yande.csv', 'w+') as f:
+        with open('tags.csv', 'w+') as f:
+            f.writelines(lines)
+
+    def get_not_tran_pixiv_tag(self):
+        sources, dest_id_di, counter = self.get_tag_source_data(
+            "select * from myacg.image where source='pixiv'")
+        lines = ['数量,原名,翻译名,类型,备注\n']
+        n = len(counter)
+        for i in range(n):
+            mix_tag, count = counter[i]
+            if count < 10:
+                continue
+            trans = []
+            types = []
+            if '(' in mix_tag:
+                trans.append(mix_tag.split('(')[1][:-1])
+                types.append('label')
+            if 'R-18' == mix_tag:
+                trans.append(mix_tag)
+                types.append('label')
+            for source in sources:
+                if source.name not in mix_tag:
+                    continue
+                for dest_id in source.dest_ids.split(','):
+                    dest = dest_id_di[dest_id]
+                    if dest.name:
+                        trans.append(dest.name)
+                        types.append(dest.type.value)
+                break
+            line = f"{count},{mix_tag},{';'.join(trans)},{';'.join(types)},\n"
+            print(f'[{i}/{n}]{line.strip()}')
+            lines.append(line)
+        with open('pixiv.csv', 'w+', encoding='utf-8') as f:
             f.writelines(lines)
 
     def analysis_tags(self):
@@ -176,12 +217,12 @@ class TagHelper:
             dest = TranDest.from_dict(query)
             dest_name_di[dest.name] = dest
             dest_id_di[dest.id] = dest
-        queries = self.db_helper.execute("select * from myacg.image where source='yande' and tags regexp '[a-z]'",
+        queries = self.db_helper.execute("select * from myacg.image where source='pixiv' and length(tags)>5",
                                          DBExecuteType.FetchAll)
         for i in range(len(queries)):
             image = MyImage.from_mysql_dict(queries[i])
             print(f'[{i}/{len(queries)}]{image.id} - {image.tags}')
-            split_chars = [',', ';', ' ']
+            split_chars = [';', ',', ' ']
             for char in split_chars:
                 if char in image.tags:
                     tags = image.tags.split(char)
@@ -205,6 +246,9 @@ class TagHelper:
                             works = dest.name
                         elif dest.type == TagType.Author:
                             author = dest.name
+                        elif dest.type == TagType.Empty:
+                            new_tags.add(tag)
+                            break
                         new_tags.add(str(dest_id))
                     continue
                 new_tags.add(tag)
@@ -217,7 +261,7 @@ class TagHelper:
                 DBExecuteType.Run)
 
     def record_trans_tags(self):
-        with open('yande.csv') as f:
+        with open('tags.csv', encoding='utf-8') as f:
             lines = f.readlines()
         for i in range(len(lines)):
             line = lines[i].strip()
@@ -232,10 +276,9 @@ class TagHelper:
                     print('数据不匹配')
                     continue
                 dest = dests[j]
+                type = ''
                 if j < len(types):
                     type = types[j]
-                else:
-                    type = 'label'
                 self.insert_or_update_tag(type, source, dest, extra)
 
     def insert_or_update_tag(self, type, source, dest, extra):
@@ -309,3 +352,15 @@ class TagHelper:
         obj = json.loads(meta.attrs['content'])
         name = obj['user'][no]['name']
         return no, name
+
+    @staticmethod
+    def split_tags(tags):
+        split_chars = [';', ',', ' ']
+        for char in split_chars:
+            if char not in tags:
+                continue
+            return tags.split(char)
+        return [tags]
+
+if __name__ == '__main__':
+    TagHelper().record_trans_tags()

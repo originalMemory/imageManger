@@ -42,7 +42,7 @@ class DBHelper:
     local_conn = None
     server_conn = None
 
-    def __init__(self, error_handler):
+    def __init__(self, error_handler, with_server=False):
         self.error_handler = error_handler
         self.lock = threading.Lock()
         # 本地数据库
@@ -51,23 +51,24 @@ class DBHelper:
             'user': 'root',  # 用户名
             'passwd': '123',  # 密码
             'db': 'myacg',  # 使用的数据库名
-            'charset': 'utf8',  # 编码类型
+            'charset': 'utf8mb4',  # 编码类型
             'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
         }
         self.local_conn = self._connect(local_config)
 
-        # 线上数据库
-        config_helper = ConfigHelper()
-        section = 'database'
-        server_config = {
-            'host': config_helper.get_config_key(section, 'host'),  # 地址
-            'user': config_helper.get_config_key(section, 'user'),  # 用户名
-            'passwd': config_helper.get_config_key(section, 'password'),  # 密码
-            'db': 'myacg',  # 使用的数据库名
-            'charset': 'utf8mb4',  # 编码类型
-            'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
-        }
-        self.server_conn = self._connect(server_config)
+        if with_server:
+            # 线上数据库
+            config_helper = ConfigHelper()
+            section = 'database'
+            server_config = {
+                'host': config_helper.get_config_key(section, 'host'),  # 地址
+                'user': config_helper.get_config_key(section, 'user'),  # 用户名
+                'passwd': config_helper.get_config_key(section, 'password'),  # 密码
+                'db': 'myacg',  # 使用的数据库名
+                'charset': 'utf8mb4',  # 编码类型
+                'cursorclass': pymysql.cursors.DictCursor  # 按字典输出
+            }
+            self.server_conn = self._connect(server_config)
 
     def _connect(self, config):
         try:
@@ -78,22 +79,7 @@ class DBHelper:
             print(f'{config} 数据库连接失败：{error}')
 
     def execute(self, sql_str, execute_type):
-        if not self.local_conn and not self.server_conn:
-            self.error_handler('没有数据库连接')
-        res = None
-        if execute_type == DBExecuteType.Run:
-            # 写入时远程和本地都要写入，数据以远程为准
-            res = self._execute_with_conn(sql_str, self.server_conn, execute_type)
-            if not res:
-                return res
-            self._execute_with_conn(sql_str, self.local_conn, execute_type)
-        elif execute_type in [DBExecuteType.FetchOne, DBExecuteType.FetchAll]:
-            # 查询时如果本地有就不去查远程了，提高查询速度
-            if self.local_conn:
-                res = self._execute_with_conn(sql_str, self.local_conn, execute_type)
-            else:
-                res = self._execute_with_conn(sql_str, self.server_conn, execute_type)
-        return res
+        return self._execute_with_conn(sql_str, self.local_conn, execute_type)
 
     def _execute_with_conn(self, sql_str, conn, execute_type):
         if execute_type == DBExecuteType.Run:
@@ -130,9 +116,6 @@ class DBHelper:
     def __show_error(self, error):
         error_str = str(error)
         print(error_str)
-        exit(1)
-        if 'a foreign key constraint fails' in error_str:
-            error_str = "有关联数据，不能删除！"
         if self.error_handler:
             self.error_handler(error_str)
 
@@ -174,25 +157,24 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 {image.sequence});"""
         return self.execute(sql_str, execute_type=DBExecuteType.Run)
 
-    def insert_full_image(self, image: MyImage, conn):
+    def insert_full_image(self, image: MyImage):
         """
         保存全部的图片分类信息
         :param image: 图片信息
-        :param conn: 要写入的数据库
         :return:
         """
         # 替换单引号以保证插入
-        desc = image.desc.replace("'", "\\'")
-        author = image.author.replace("'", "\\'")
-        tags = image.tags.replace("'", "\\'")
-        works = image.works.replace("'", "\\'")
-        role = image.role.replace("'", "\\'")
-        path = image.relative_path.replace("'", "\\'")
-        series = image.series.replace("'", "\\'")
-        uploader = image.uploader.replace("'", "\\'")
-        sql_str = f"""INSERT INTO myacg.image(id, `desc`, author, type, level, tags, works, role, source, 
+        desc = image.desc
+        author = image.author
+        tags = image.tags
+        works = image.works
+        role = image.role
+        path = image.relative_path
+        series = image.series
+        uploader = image.uploader
+        sql_str = f"""INSERT INTO myacg.image(`desc`, author, type, level, tags, works, role, source, 
 path, width, height, `size`, file_create_time, series, uploader, md5, sequence, create_time, update_time) values 
-({image.id}, '{desc}', '{author}', {image.type}, {image.level}, '{tags}', '{works}', '{role}', '{image.source}',
+('{desc}', '{author}', {image.type}, {image.level}, '{tags}', '{works}', '{role}', '{image.source}',
  '{path}', {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}',
   '{image.md5}', {image.sequence}, '{image.create_time}', '{image.update_time}');"""
         return self.execute(sql_str, execute_type=DBExecuteType.Run)
@@ -270,6 +252,12 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence, 
         sql_str = f"delete from myacg.image where id={image_id}"
         self.execute(sql_str, execute_type=DBExecuteType.Run)
 
+    def search_one(self, sql):
+        return self.execute(sql, execute_type=DBExecuteType.FetchOne)
+
+    def search_all(self, sql):
+        return self.execute(sql, execute_type=DBExecuteType.FetchAll)
+
     def search_by_where(self, sql_where):
         image_sql_list = []
         image_file_list = []
@@ -335,4 +323,3 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence, 
                 self.update_image(image, dest_conn)
             else:
                 self.insert_full_image(image, dest_conn)
-

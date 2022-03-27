@@ -124,12 +124,12 @@ class ImageHelper:
                 info.tags = tags
                 info.sequence = int(match.group('no'))
             else:
-                match = re.search(r"pixiv.*?_\d*?_(?P<author>.+?)](?P<tags>.+?)_", filename)
+                match = re.search(r"pixiv.*?_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_0", filename)
                 if match:
                     author = match.group('author')
-                    author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
-                    info.author = author
-                    info.tags = match.group('tags')
+                    info.author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
+                    info.sequence = int(match.group('no'))
+                    info.desc = match.group('desc')
         elif konachan in filename:
             info.source = konachan
             # [konachan_241354_RyuZU]blindfold breast_grab breasts demiroid elbow_gloves
@@ -140,6 +140,15 @@ class ImageHelper:
                 info.sequence = int(match.group('no'))
 
         return info
+
+    @staticmethod
+    def get_source_tags(filename):
+        patterns = [r'(yande|konachan).*?_\d+_.+](?P<tags>.+?)_00', r'pixiv_\d+_.+].+_(?P<tags>.+?)_00']
+        for pattern in patterns:
+            match = re.search(pattern, filename)
+            if match:
+                return match.group('tags')
+        return ''
 
     @staticmethod
     def analyze_yande(filename):

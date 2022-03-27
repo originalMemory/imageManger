@@ -10,11 +10,13 @@
 @update  :
 """
 import os
+import re
 
 from PIL import Image
 
 from helper.db_helper import DBHelper, DBExecuteType
 from helper.image_helper import ImageHelper
+from helper.tag_helper import TagHelper
 from model.data import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -121,6 +123,11 @@ def check_no_record_image(file_path, prefix):
     relative_path = file_path.replace('\\', '/').replace(prefix, '')
     info = db_helper.search_by_file_path(relative_path)
     if not info:
+        md5 = FileHelper.get_md5(file_path)
+        info = db_helper.search_by_md5(md5)
+        if info:
+            db_helper.update_path(info.id, relative_path)
+    if not info:
         with open('notRecord.log', 'a+', encoding='utf-8') as f:
             f.write(f'{file_path}\n')
         print('文件不存在')
@@ -193,6 +200,97 @@ def check_exist(file_path, prefix):
         os.remove(file_path)
 
 
+def refresh_db():
+    with open(r'F:\more.sql', encoding='utf-8') as f:
+        lines = f.readlines()
+    n = len(lines)
+    for i, line in enumerate(lines):
+        # if i < 542:
+        #     continue
+        if not line.startswith('INSERT'):
+            continue
+        print(f'[{i}/{n}]{line.strip()}')
+        match = re.search(r"VALUES \((?P<values>.+?)\);$", line)
+        if not match:
+            print('搜索出错')
+            continue
+        values_source = [x.strip() for x in match.group('values').split(',')]
+        values = []
+        j = 0
+        while j < len(values_source):
+            value = values_source[j]
+            if value.startswith("'") and not value.endswith("'"):
+                tp = []
+                while not values_source[j].endswith("'"):
+                    tp.append(values_source[j])
+                    j += 1
+                tp.append(values_source[j])
+                values.append(','.join(tp))
+            else:
+                values.append(value)
+            j += 1
+
+        d = 3
+        for j in range(len(values)):
+            values[j] = values[j].strip()
+            if values[j].startswith("'"):
+                values[j] = values[j][1:]
+            if values[j].endswith("'"):
+                values[j] = values[j][:-1]
+        # INSERT INTO `image` VALUES ('249375', '', 'Shirokitsune', '', '2', '9', '', '原神', null, '0', '', '芭芭拉', '', '4000', '6000', '3.43', null, null, '和谐/收藏/Shirokitsune/芭芭拉/010.jpg', 'f2c435e981102cad2aa35924eb73b9c7', '2021-11-21 21:40:46', '2022-02-05 18:11:40', '2022-02-05 18:11:40');
+        image = MyImage(
+            desc=values[1],
+            author=values[2],
+            uploader=values[3],
+            type=values[4],
+            level=values[5],
+            tags=values[6],
+            works=values[7],
+            sequence=values[8],
+            series=values[9],
+            role=values[10],
+            source=values[11],
+            width=values[12],
+            height=values[13],
+            size=values[14],
+            relative_path=values[15],
+            md5=values[16],
+            file_create_time=values[17],
+            create_time=values[18],
+            update_time=values[19]
+        )
+        db_helper.insert_full_image(image)
+
+def temp():
+    queries = db_helper.execute("select * from myacg.image where source='yande' and tags!=''",
+                                DBExecuteType.FetchAll)
+    for i in range(len(queries)):
+        img = MyImage.from_mysql_dict(queries[i])
+        print(f'[{i}/{len(queries)}]{img.id} - {img.tags}')
+        split_chars = [';', ',', ' ']
+        tags = []
+        for char in split_chars:
+            if char not in img.tags:
+                continue
+            tags = img.tags.split(char)
+        changed = False
+        for j in range(len(tags)):
+            tag = tags[j]
+            if tag.isdigit():
+                continue
+            sql = f"select id from myacg.tran_dest where name='{tag}'"
+            print(sql)
+            query = db_helper.execute(sql, DBExecuteType.FetchOne)
+            if query:
+                changed = True
+                tags[j] = str(query['id'])
+        if not changed:
+            continue
+        db_helper.execute(f"update myacg.image set tags='{','.join(tags)}' where id={img.id}", DBExecuteType.Run)
+
+
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'Z:\写真', 'Z:/', check_no_record_image)
-    rename_png2jpg(r'E:\下载\第四资源站\楚楚子 png待功能完善')
+    # analysis_and_rename_file(r'E:\下载\第四资源站\秋和柯基', 'Z:/', check_exist)
+    # TagHelper().analysis_tags()
+    # temp()
+    print(ImageHelper.get_source_tags('[yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00'))

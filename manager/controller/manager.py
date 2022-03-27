@@ -22,11 +22,13 @@ from PyQt6.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
+from helper.extension import timeit
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
+from helper.tag_helper import TagHelper
 from manager.view.manager import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
-from model.data import ImageFile, PreloadImage, MyImage
+from model.data import ImageFile, PreloadImage, MyImage, TranDest, TagType
 from model.my_list_model import MyBaseListModel
 
 
@@ -222,6 +224,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         dir_path = QtWidgets.QFileDialog.getExistingDirectory(self, "选择保存的文件夹", "E:/图片")
         self.lineEdit_export_dir.setText(dir_path)
 
+    @timeit
     def __show_image(self, index):
         """
         显示指定索引文件名对应的图片
@@ -281,6 +284,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.lineEdit_sequence.setText('0')
             if info.sequence:
                 self.lineEdit_sequence.setText(str(info.sequence))
+            threading.Thread(target=self._refresh_tran_tags, args=(info.tags, False,), daemon=True).start()
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
@@ -299,6 +303,46 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
         self.dateTimeEdit_create.setDateTime(info.create_time)
         self.dateTimeEdit_update.setDateTime(info.update_time)
+        threading.Thread(target=self._refresh_tran_tags, args=(info.tags, True,), daemon=True).start()
+
+    def _refresh_tran_tags(self, tag_str, keep_role):
+        tags = TagHelper.split_tags(tag_str)
+        tran_tags = set()
+        if keep_role and self.lineEdit_role.text():
+            roles = set(self.lineEdit_role.text().split(','))
+        else:
+            roles = set()
+        for tag in tags:
+            if tag.isdigit():
+                query = self.__db_helper.search_one(f"select * from myacg.tran_dest where id={tag}")
+                if query:
+                    dest = TranDest.from_dict(query)
+                    tran_tags.add(dest.name)
+                    if dest.type == TagType.Role:
+                        roles.add(dest.name)
+                    elif dest.type == TagType.Works:
+                        self.lineEdit_works.setText(dest.name)
+                    elif dest.type == TagType.Author:
+                        self.lineEdit_author.setText(dest.name)
+                    continue
+            query = self.__db_helper.search_one(f"select dest_ids from myacg.tran_source where name='{tag}'")
+            if query:
+                query = self.__db_helper.search_all(
+                    f"select * from myacg.tran_dest where id in({query['dest_ids']})")
+            if query and isinstance(query, list):
+                for x in query:
+                    dest = TranDest.from_dict(x)
+                    tran_tags.add(dest.name)
+                    if dest.type == TagType.Role:
+                        roles.add(dest.name)
+                    elif dest.type == TagType.Works:
+                        self.lineEdit_works.setText(dest.name)
+                    elif dest.type == TagType.Author:
+                        self.lineEdit_author.setText(dest.name)
+            else:
+                tran_tags.add(tag)
+        self.lineEdit_tag.setText(','.join(tran_tags))
+        self.lineEdit_role.setText(','.join(roles))
 
     def __classify(self):
         """
@@ -366,31 +410,39 @@ class ImageManager(QMainWindow, Ui_Manager):
             image.width = width
             image.height = height
             source = image.source
-            tags = image.tags
-            if source in ['pixiv', 'yande'] and tags and tags in path:
-                sub_str = ''
-                if source == 'pixiv':
-                    sub_str = f'_{tags}'
-                elif source == 'yande':
-                    sub_str = f'{tags}_00000'
-                new_path = path.replace(sub_str, '')
-                if new_path != path:
-                    try:
-                        if os.path.exists(new_path):
-                            os.remove(path)
-                        else:
-                            os.rename(path, new_path)
-                        path = new_path
-                        need_refresh_item = True
-                    except Exception as e:
-                        print(f"重命名失败：{e}")
-                        continue
-                new_item = ImageFile(id=image.id, name=item.name.replace(sub_str, ''), full_path=path)
-            else:
-                new_item = item
+            new_item = item
+            if image.id == 0:
+                source_tags = ImageHelper.get_source_tags(image.path)
+                if source in ['pixiv', 'yande'] and source_tags and source_tags in path:
+                    sub_str = ''
+                    if source == 'pixiv':
+                        sub_str = f'_{source_tags}'
+                    elif source == 'yande':
+                        sub_str = f'{source_tags}_00000'
+                    new_path = path.replace(sub_str, '')
+                    if new_path != path:
+                        try:
+                            if os.path.exists(new_path):
+                                os.remove(path)
+                            else:
+                                os.rename(path, new_path)
+                            path = new_path
+                            need_refresh_item = True
+                        except Exception as e:
+                            print(f"重命名失败：{e}")
+                            continue
+                    new_item = ImageFile(id=image.id, name=item.name.replace(sub_str, ''), full_path=path)
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
                 continue
+            tags = image.tags.split(',')
+            for i in range(len(tags)):
+                tag = tags[i]
+                query = self.__db_helper.search_one(f"select id from myacg.tran_dest where name='{tag}'")
+                if not query:
+                    continue
+                tags[i] = str(query['id'])
+            image.tags = ','.join(tags)
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             image.relative_path = relative_path
             image.path = path
@@ -626,10 +678,6 @@ class ImageManager(QMainWindow, Ui_Manager):
     def __preload(self):
         while True:
             try:
-                if self.__preload_image_queue.qsize() == 5:
-                    time.sleep(1)
-                    continue
-
                 index = self.listView.currentIndex().row()
                 preload_index = index + self.__preload_image_queue.qsize() + 1
                 image_file = self.__image_model.get_item(preload_index)
@@ -647,10 +695,12 @@ class ImageManager(QMainWindow, Ui_Manager):
                 print(f"预加载失败：{full_path}")
                 time.sleep(1)
 
+    @timeit
     def __get_image(self, path):
         # 优先从队列中获取
         while self.__preload_image_queue.qsize() > 0:
-            image, width, height = self.__preload_image_queue.get()
+            print(f"准备从预载中读取，{self.__preload_image_queue.qsize()}")
+            image, width, height = self.__preload_image_queue.get(timeout=0.1)
             if isinstance(image, PreloadImage) and image.full_path == path:
                 print("从预载中读取")
                 self.lineEdit_width.setText(str(width))
