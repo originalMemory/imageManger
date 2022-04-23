@@ -290,7 +290,7 @@ def temp():
 
 
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'E:\下载\第四资源站\秋和柯基', 'Z:/', check_exist)
-    # TagHelper().analysis_tags()
+    # analysis_and_rename_file(r'G:\cos\雨波', 'Z:/', check_exist)
+    TagHelper().analysis_tags()
     # temp()
-    print(ImageHelper.get_source_tags('[yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00'))
+    # print(ImageHelper.get_source_tags('[yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00'))

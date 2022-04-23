@@ -26,19 +26,23 @@ class TagHelper:
     db_helper = DBHelper(None)
 
     def _get_html(self, url, cookies_filepath=None):
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36'}
-            proxies = {"http": "http://127.0.0.1:7890", "https": 'http://127.0.0.1:7890'}
-            cookies = {}
-            if cookies_filepath:
-                with open(cookies_filepath) as f:
-                    obj = json.loads(f.read())
-                    for item in obj:
-                        cookies[item['name']] = item['value']
-            return requests.get(url, headers=headers, proxies=proxies, timeout=12, cookies=cookies).text
-        except Exception as e:
-            print(f'获取网页失败：{e}')
+        i = 0
+        while i < 3:
+            try:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36'}
+                proxies = {"http": "http://127.0.0.1:7890", "https": 'http://127.0.0.1:7890'}
+                cookies = {}
+                if cookies_filepath:
+                    with open(cookies_filepath) as f:
+                        obj = json.loads(f.read())
+                        for item in obj:
+                            cookies[item['name']] = item['value']
+                return requests.get(url, headers=headers, proxies=proxies, timeout=12, cookies=cookies).text
+            except Exception as e:
+                print(f'第 {i} 次获取网页失败：{e}')
+                time.sleep(random.uniform(0, 2))
+                i += 1
 
     def get_not_exist_yande_tag(self):
         imgs, _ = self.db_helper.search_by_where("source='yande' and uploader=''")
@@ -123,7 +127,7 @@ class TagHelper:
         for i in range(len(queries)):
             img = MyImage.from_mysql_dict(queries[i])
             print(f'[{i}/{len(queries)}]{img.id} - {img.tags}')
-            split_chars = [';']
+            split_chars = [';', ' ', ',']
             source_tags = []
             for char in split_chars:
                 if char in img.tags:
@@ -169,7 +173,7 @@ class TagHelper:
             line = f"{count},{tag},{';'.join(trans)},{';'.join(types)},{extra}\n"
             print(f'[{i}/{n}]{line.strip()}')
             lines.append(line)
-        with open('tags.csv', 'w+') as f:
+        with open('tags.csv', 'w+', encoding='utf-8') as f:
             f.writelines(lines)
 
     def get_not_tran_pixiv_tag(self):
@@ -217,8 +221,10 @@ class TagHelper:
             dest = TranDest.from_dict(query)
             dest_name_di[dest.name] = dest
             dest_id_di[dest.id] = dest
-        queries = self.db_helper.execute("select * from myacg.image where source='pixiv' and length(tags)>5",
+        queries = self.db_helper.execute("select * from myacg.image where source='yande' and tags regexp '[a-z]'",
                                          DBExecuteType.FetchAll)
+        # queries = self.db_helper.execute("select * from myacg.image where source='pixiv' and length(tags)>5",
+        #                                  DBExecuteType.FetchAll)
         for i in range(len(queries)):
             image = MyImage.from_mysql_dict(queries[i])
             print(f'[{i}/{len(queries)}]{image.id} - {image.tags}')
@@ -344,13 +350,17 @@ class TagHelper:
                 no = match.group('no')
         if not no:
             return empty
-        html = self._get_html(f'https://www.pixiv.net/users/{no}', '../cookies.txt')
+        html = self._get_html(f'https://www.pixiv.net/users/{no}', 'cookies.txt')
         if not html:
             return empty
-        val = BeautifulSoup(html, 'lxml')
-        meta = val.find('meta', id='meta-preload-data')
-        obj = json.loads(meta.attrs['content'])
-        name = obj['user'][no]['name']
+        try:
+            val = BeautifulSoup(html, 'lxml')
+            meta = val.find('meta', id='meta-preload-data')
+            obj = json.loads(meta.attrs['content'])
+            name = obj['user'][no]['name']
+        except Exception as e:
+            print(f'解析 pixiv 用户信息失败 {e}')
+            return empty
         return no, name
 
     @staticmethod

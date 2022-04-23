@@ -9,7 +9,6 @@
 @create  : 2019/6/2 23:57:26
 @update  :
 """
-import datetime
 import os
 import queue
 import threading
@@ -19,6 +18,7 @@ from enum import unique, Enum
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
+from win32comext.shell import shell, shellcon
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
@@ -41,6 +41,7 @@ class VIEW(Enum):
 class ImageManager(QMainWindow, Ui_Manager):
     _signal_update_image_id = pyqtSignal(QModelIndex, ImageFile)
     _signal_update_status = pyqtSignal(str)
+    _signal_update_tags = pyqtSignal(str)
     _signal_handle_error = pyqtSignal(str)
 
     def __init__(self, parent=None):
@@ -94,7 +95,6 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.pushButton_export_dir.clicked.connect(self.__choose_export_dir)
         self.pushButton_export.clicked.connect(self.__choose_export)
         self.lineEdit_desc.returnPressed.connect(self.__classify)
-        self.lineEdit_tag.returnPressed.connect(self.__classify)
         self.lineEdit_role.returnPressed.connect(self.__classify)
         self.lineEdit_works.returnPressed.connect(self.__classify)
         self.lineEdit_series.returnPressed.connect(self.__classify)
@@ -104,11 +104,12 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_sequence.returnPressed.connect(self.__classify)
         self._signal_update_image_id.connect(self._update_image_id)
         self._signal_update_status.connect(self._update_status)
+        self._signal_update_tags.connect(self._update_tags)
         self._signal_handle_error.connect(self._handle_error)
 
         # 设置 tab 切换顺序
-        self.setTabOrder(self.lineEdit_desc, self.lineEdit_tag)
-        self.setTabOrder(self.lineEdit_tag, self.lineEdit_path)
+        self.setTabOrder(self.lineEdit_desc, self.textEdit_tag)
+        self.setTabOrder(self.textEdit_tag, self.lineEdit_path)
         self.setTabOrder(self.lineEdit_path, self.comboBox_type)
         self.setTabOrder(self.comboBox_type, self.comboBox_level)
         self.setTabOrder(self.comboBox_level, self.lineEdit_role)
@@ -123,13 +124,13 @@ class ImageManager(QMainWindow, Ui_Manager):
 
         # 自动补全
         self.__works_completer_filename = 'works.txt'
-        self.__works_completer_list = self._read_completer_file(self.__works_completer_filename)
-        works_completer = self._create_completer(self.__works_completer_list)
+        self.__works_completer_set = self._read_completer_file(self.__works_completer_filename)
+        works_completer = self._create_completer(self.__works_completer_set)
         self.lineEdit_works.setCompleter(works_completer)
         self.lineEdit_works.editingFinished.connect(self.__add_works_complete)
         self.__role_completer_filename = 'role.txt'
-        self.__role_completer_list = self._read_completer_file(self.__role_completer_filename)
-        role_completer = self._create_completer(self.__role_completer_list)
+        self.__role_completer_set = self._read_completer_file(self.__role_completer_filename)
+        role_completer = self._create_completer(self.__role_completer_set)
         self.lineEdit_role.setCompleter(role_completer)
         self.lineEdit_role.editingFinished.connect(self.__add_role_complete)
         self.checkBox_delete_repeat.setChecked(True)
@@ -148,7 +149,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             f = open(filename, 'w', encoding='utf-8')
             f.close()
         with open(filename, 'r+', encoding='utf-8') as f:
-            return list(map(lambda x: x.replace("\n", "").replace("\r", ""), f.readlines()))
+            return set(list(map(lambda x: x.replace("\n", "").replace("\r", ""), f.readlines())))
 
     @staticmethod
     def _create_completer(completer_list):
@@ -170,12 +171,12 @@ class ImageManager(QMainWindow, Ui_Manager):
             return
         cur_completion = self.lineEdit_works.completer().currentCompletion()
         if cur_completion == "":
-            self.__works_completer_list.append(self.lineEdit_works.text())
-            completer = QCompleter(self.__works_completer_list)
+            self.__works_completer_set.add(self.lineEdit_works.text())
+            completer = QCompleter(self.__works_completer_set)
             completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
             completer.setFilterMode(Qt.MatchFlag.MatchContains)
             self.lineEdit_works.setCompleter(completer)
-            print(self.__works_completer_list)
+            print(self.__works_completer_set)
 
     def __add_role_complete(self):
         """
@@ -186,12 +187,12 @@ class ImageManager(QMainWindow, Ui_Manager):
             return
         cur_completion = self.lineEdit_role.completer().currentCompletion()
         if cur_completion == "":
-            self.__role_completer_list.append(self.lineEdit_role.text())
-            completer = QCompleter(self.__role_completer_list)
+            self.__role_completer_set.add(self.lineEdit_role.text())
+            completer = QCompleter(self.__role_completer_set)
             completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
             completer.setFilterMode(Qt.MatchFlag.MatchContains)
             self.lineEdit_role.setCompleter(completer)
-            print(self.__role_completer_list)
+            print(self.__role_completer_set)
 
     def _load_default_images(self):
         last_dir = self.__config.get_config_key('history', 'lastDir')
@@ -265,6 +266,15 @@ class ImageManager(QMainWindow, Ui_Manager):
     def __analysis_file_info(self, path):
         info = self.__db_helper.search_by_file_path(path.replace(FileHelper.get_path_prefix(), ''))
         if not info:
+            # 清空二次元图上一次自动识别的结果
+            type = self.__type_model.get_item(self.comboBox_type.currentIndex())
+            if type.id == 1:
+                self.lineEdit_role.clear()
+                self.lineEdit_works.clear()
+                self.lineEdit_series.clear()
+                if self.lineEdit_source.text() == 'yande':
+                    self.lineEdit_author.clear()
+
             # 分析图片信息
             self.lineEdit_path.setText(path)
             info = ImageHelper.analyze_image_info(path)
@@ -273,7 +283,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             if info.desc:
                 self.lineEdit_desc.setText(info.desc)
             if info.tags:
-                self.lineEdit_tag.setText(info.tags)
+                self.textEdit_tag.setText(info.tags)
             if info.source:
                 self.lineEdit_source.setText(info.source)
             if info.uploader:
@@ -288,7 +298,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
-        self.lineEdit_tag.setText(info.tags)
+        self.textEdit_tag.setText(info.tags)
         self.lineEdit_path.setText(info.path)
         self.lineEdit_works.setText(info.works)
         self.lineEdit_source.setText(info.source)
@@ -325,13 +335,18 @@ class ImageManager(QMainWindow, Ui_Manager):
                     elif dest.type == TagType.Author:
                         self.lineEdit_author.setText(dest.name)
                     continue
-            query = self.__db_helper.search_one(f"select dest_ids from myacg.tran_source where name='{tag}'")
+            search_tag = tag.replace("'", "\\'")
+            query = self.__db_helper.search_one(f"select dest_ids from myacg.tran_source where name='{search_tag}'")
             if query:
                 query = self.__db_helper.search_all(
                     f"select * from myacg.tran_dest where id in({query['dest_ids']})")
             if query and isinstance(query, list):
                 for x in query:
                     dest = TranDest.from_dict(x)
+                    # 暂时没有翻译的保留原文
+                    if not dest.name:
+                        tran_tags.add(tag)
+                        continue
                     tran_tags.add(dest.name)
                     if dest.type == TagType.Role:
                         roles.add(dest.name)
@@ -341,8 +356,13 @@ class ImageManager(QMainWindow, Ui_Manager):
                         self.lineEdit_author.setText(dest.name)
             else:
                 tran_tags.add(tag)
-        self.lineEdit_tag.setText(','.join(tran_tags))
-        self.lineEdit_role.setText(','.join(roles))
+        if len(tran_tags):
+            text = ','.join(tran_tags)
+            self._signal_update_tags.emit(text)
+            # self.textEdit_tag.setText(text)
+            pass
+        if len(roles):
+            self.lineEdit_role.setText(','.join(roles))
 
     def __classify(self):
         """
@@ -370,7 +390,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         level = self.__level_model.get_item(index).id
         desc = self.lineEdit_desc.text()
         author = self.lineEdit_author.text()
-        tags = self.lineEdit_tag.text()
+        tags = self.textEdit_tag.toPlainText()
         works = self.lineEdit_works.text()
         role = self.lineEdit_role.text()
         source = self.lineEdit_source.text()
@@ -438,7 +458,8 @@ class ImageManager(QMainWindow, Ui_Manager):
             tags = image.tags.split(',')
             for i in range(len(tags)):
                 tag = tags[i]
-                query = self.__db_helper.search_one(f"select id from myacg.tran_dest where name='{tag}'")
+                search_tag = tag.replace("'", "\\'")
+                query = self.__db_helper.search_one(f"select id from myacg.tran_dest where name='{search_tag}'")
                 if not query:
                     continue
                 tags[i] = str(query['id'])
@@ -467,6 +488,9 @@ class ImageManager(QMainWindow, Ui_Manager):
     def _update_status(self, msg):
         self.statusbar.showMessage(msg)
 
+    def _update_tags(self, msg):
+        self.textEdit_tag.setText(msg)
+
     def __del_select_rows(self):
         """
         删除选中行
@@ -481,7 +505,10 @@ class ImageManager(QMainWindow, Ui_Manager):
             item = self.__image_model.get_item(index.row() - i)
             if item.id != 0:
                 self.__db_helper.delete(item.id)
-            os.remove(item.full_path)
+            # os.remove(item.full_path)
+            shell.SHFileOperation((0, shellcon.FO_DELETE, item.full_path, None,
+                                   shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
+                                   None))  # 删除文件到回收站
             self.__image_model.delete_item(index.row() - i)
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {item.name} 删除成功！")
 
@@ -609,6 +636,10 @@ class ImageManager(QMainWindow, Ui_Manager):
             return True
         if event.key() == Qt.Key.Key_C:
             self.lineEdit_works.setText("")
+            self.lineEdit_role.setText("")
+            self.lineEdit_series.setText("")
+            if self.lineEdit_source.text() == 'yande':
+                self.lineEdit_author.setText("")
             return True
         if event.key() == Qt.Key.Key_D:
             self.__del_select_rows()
@@ -658,8 +689,8 @@ class ImageManager(QMainWindow, Ui_Manager):
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         self.__config.add_config_key('history', 'lastExportDir', self.lineEdit_export_dir.text())
         # 关闭时保存自动填充作品列表的配置文件
-        self._save_str_list_to_file(self.__works_completer_list, self.__works_completer_filename)
-        self._save_str_list_to_file(self.__role_completer_list, self.__role_completer_filename)
+        self._save_str_list_to_file(self.__works_completer_set, self.__works_completer_filename)
+        self._save_str_list_to_file(self.__role_completer_set, self.__role_completer_filename)
         rect = self.geometry()
         rect_info = f'{rect.left()},{rect.top()},{rect.width()},{rect.height()}'
         self.__config.add_config_key('history', 'rect', rect_info)

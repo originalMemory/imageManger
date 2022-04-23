@@ -89,8 +89,9 @@ class ImageHelper:
         """
         info = MyImage()
         info.filename = os.path.basename(file_path)
-        info.size = FileHelper.get_file_size_in_mb(file_path)
-        info.create_time = FileHelper.get_create_time(file_path)
+        if os.path.exists(file_path):
+            info.size = FileHelper.get_file_size_in_mb(file_path)
+            info.create_time = FileHelper.get_create_time(file_path)
         filename = os.path.basename(file_path)
         yande = 'yande'
         pixiv = 'pixiv'
