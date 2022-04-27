@@ -152,6 +152,7 @@ class TagHelper:
             trans = []
             types = []
             for source in sources:
+                # 一些标签是混合式的，用现有的混合判断下
                 patterns = [f'_{source.name}', f'{source.name}_', f'({source.name}', f'{source.name})']
                 for pattern in patterns:
                     if pattern in tag:
@@ -335,9 +336,33 @@ class TagHelper:
             self.db_helper.execute(f"update myacg.tran_dest set extra='{no}' where id={id}", DBExecuteType.Run)
 
     def get_yande_author_info(self, source):
-        empty = None, None
         url = f'https://yande.re/artist.xml?name={source}'
         html = self._get_html(url)
+        no, name = self._search_author_info_by_match(html)
+        if no:
+            return no, name
+        # danbooru 的数据比 yande 全，再查一次
+        return self._get_danbooru_author(source)
+
+    def _get_danbooru_author(self, name):
+        empty = None, None
+        url = f"https://danbooru.donmai.us/artists?commit=Search&search[any_name_matches]={name}"
+        html = self._get_html(url)
+        if not html:
+            return empty
+        try:
+            val = BeautifulSoup(html, 'lxml')
+            a_nodes = val.findAll(name="a", attrs={"class": "tag-type-1"})
+            if not len(a_nodes):
+                return empty
+            artist_url = f"https://danbooru.donmai.us/{a_nodes[0].attrs['href']}"
+            return self._search_author_info_by_match(self._get_html(artist_url))
+        except Exception as e:
+            print(f'解析 pixiv 用户信息失败 {e}')
+            return empty
+
+    def _search_author_info_by_match(self, html):
+        empty = None, None
         if not html:
             return empty
         match = re.search(r"member.php\?id=(?P<no>\d+)", html)
@@ -371,6 +396,7 @@ class TagHelper:
                 continue
             return tags.split(char)
         return [tags]
+
 
 if __name__ == '__main__':
     TagHelper().record_trans_tags()
