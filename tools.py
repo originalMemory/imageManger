@@ -11,6 +11,7 @@
 """
 import os
 import re
+import shutil
 
 from PIL import Image
 
@@ -261,6 +262,7 @@ def refresh_db():
         )
         db_helper.insert_full_image(image)
 
+
 def temp():
     queries = db_helper.execute("select * from myacg.image where source='yande' and tags!=''",
                                 DBExecuteType.FetchAll)
@@ -289,8 +291,48 @@ def temp():
         db_helper.execute(f"update myacg.image set tags='{','.join(tags)}' where id={img.id}", DBExecuteType.Run)
 
 
+def update_path(filepath, prefix):
+    if '$RECYCLE' in filepath:
+        return
+    if not ImageHelper.is_image(filepath):
+        return
+    relative_path = filepath.replace('\\', '/').replace(prefix, '')
+    info = db_helper.search_by_file_path(relative_path)
+    if info:
+        return
+    md5 = FileHelper.get_md5(filepath)
+    info = db_helper.search_by_md5(md5)
+    if info:
+        db_helper.update_path(info.id, relative_path)
+
+
+def split_by_works(filepath, prefix):
+    if not ImageHelper.is_image(filepath):
+        return
+    # relative_path = filepath.replace('\\', '/').replace(prefix, '')
+    relative_path = filepath.replace('\\', '/')
+    info = db_helper.search_by_file_path(relative_path)
+    if not info:
+        print('无信息，跳过')
+        return
+    base = 'Z:/图片/'
+    works = re.sub(r'[<>/\\|:"?]', '_', info.works)
+    if not works:
+        return
+    dir_path = os.path.join(base, works)
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    filename = os.path.basename(filepath)
+    new_filepath = os.path.join(dir_path, filename)
+    shutil.move(filepath, new_filepath)
+    db_helper.update_path(info.id, new_filepath.replace('\\', '/').replace('Z:/', ''))
+    print(f'归档到作品 {works} 内，文件名 {filename}')
+
+
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'G:\cos\雨波', 'Z:/', check_exist)
-    TagHelper().analysis_tags()
+    # analysis_and_rename_file(r'E:\下载\灵梦御所\Sakimi Chan', 'Z:/', check_exist)
+    # analysis_and_rename_file(r'F:\图片\yande', 'F:/', split_by_works)
+    TagHelper().get_not_exist_yande_tag()
+    # db = DBHelper(None, with_server=True)
+    # db.sync_data(db.local_conn, db.server_conn)
     # temp()
-    # print(ImageHelper.get_source_tags('[yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00'))

@@ -268,7 +268,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         if not info:
             # 清空二次元图上一次自动识别的结果
             type = self.__type_model.get_item(self.comboBox_type.currentIndex())
-            if type.id == 1:
+            if type.id == 1 and self.lineEdit_source.text() in ['pixiv', 'yande']:
                 self.lineEdit_role.clear()
                 self.lineEdit_works.clear()
                 self.lineEdit_series.clear()

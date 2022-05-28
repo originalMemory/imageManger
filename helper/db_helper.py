@@ -157,10 +157,11 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence) 
 {image.sequence});"""
         return self.execute(sql_str, execute_type=DBExecuteType.Run)
 
-    def insert_full_image(self, image: MyImage):
+    def insert_full_image(self, image: MyImage, conn=None):
         """
         保存全部的图片分类信息
         :param image: 图片信息
+        :param conn: 图片信息
         :return:
         """
         # 替换单引号以保证插入
@@ -177,7 +178,10 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence, 
 ('{desc}', '{author}', {image.type}, {image.level}, '{tags}', '{works}', '{role}', '{image.source}',
  '{path}', {image.width}, {image.height}, {image.size}, '{image.file_create_time}', '{series}', '{uploader}',
   '{image.md5}', {image.sequence}, '{image.create_time}', '{image.update_time}');"""
-        return self.execute(sql_str, execute_type=DBExecuteType.Run)
+        if conn:
+            return self._execute_with_conn(sql_str, conn, DBExecuteType.Run)
+        else:
+            return self.execute(sql_str, execute_type=DBExecuteType.Run)
 
     def update_image(self, image: MyImage, conn=None):
         """
@@ -212,14 +216,18 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence, 
         path = relative_path.replace("'", "\\'")
         return self.execute(f"update myacg.image set path='{path}' where id={img_id}", execute_type=DBExecuteType.Run)
 
-    def search_by_md5(self, md5):
+    def search_by_md5(self, md5, conn=None):
         """
         根据md5搜索图片
         :param md5:
+        :param conn:
         :return:
         """
         sql_str = f"select * from myacg.image where md5='{md5}' limit 1"
-        query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
+        if conn:
+            query = self._execute_with_conn(sql_str, conn, execute_type=DBExecuteType.FetchOne)
+        else:
+            query = self.execute(sql_str, execute_type=DBExecuteType.FetchOne)
         if query:
             return MyImage.from_mysql_dict(query)
 
@@ -312,13 +320,14 @@ path, width, height, `size`, file_create_time, series, uploader, md5, sequence, 
             return MyImage.from_mysql_dict(query)
 
     def sync_data(self, source_conn, dest_conn):
-        date = datetime.datetime.now()
-        sql = f"select * from myacg.image where update_time>'{date}'"
+        # sql = f"select update_time from myacg.image order by update_time desc"
+        # last_date = self._execute_with_conn(sql, dest_conn, DBExecuteType.FetchOne)['update_time']
+        sql = f"select * from myacg.image where update_time>'2022-04-30'"
         queries = self._execute_with_conn(sql, source_conn, DBExecuteType.FetchAll)
         for i, query in enumerate(queries):
             image = MyImage.from_mysql_dict(query)
             print(f'[{i}/{len(queries)}] {image.id}')
-            local_image = self.search_by_file_path(image.relative_path, dest_conn)
+            local_image = self.search_by_md5(image.md5, dest_conn)
             if local_image:
                 self.update_image(image, dest_conn)
             else:

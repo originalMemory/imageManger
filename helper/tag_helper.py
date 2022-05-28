@@ -45,7 +45,7 @@ class TagHelper:
                 i += 1
 
     def get_not_exist_yande_tag(self):
-        imgs, _ = self.db_helper.search_by_where("source='yande' and uploader=''")
+        imgs, _ = self.db_helper.search_by_where("source='yande' and length(tags)<20")
         n = len(imgs)
         i = 0
         while i < n:
@@ -57,21 +57,37 @@ class TagHelper:
                 continue
             url = f'https://yande.re/post/show/{no}'
             html = self._get_html(url)
+            duration = random.uniform(0, 1)
             if not html:
-                time.sleep(2)
+                print(f'请求失败，休眠 {duration}s 重试')
+                time.sleep(duration)
                 continue
             val = BeautifulSoup(html, 'lxml')
-            ul = val.find('div', id='stats').find('ul')
-            li = ul.li.next_sibling.next_sibling
-            uploader = li.a.next_sibling.next_sibling
-            if not uploader:
-                uploader = 'Anonymous'
-            else:
-                uploader = uploader.get_text()
-            print(f'[{i}/{n}]{img.id} - {uploader} - {img.relative_path}')
-            self.db_helper.execute(f"update myacg.image set uploader='{uploader}' where id={img.id}", DBExecuteType.Run)
-            duration = random.uniform(0, 2)
-            print(f'休眠 {duration}s')
+            # ul = val.find('div', id='stats').find('ul')
+            # li = ul.li.next_sibling.next_sibling
+            # uploader = li.a.next_sibling.next_sibling
+            # if not uploader:
+            #     uploader = 'Anonymous'
+            # else:
+            #     uploader = uploader.get_text()
+            lis = val.find('ul', id='tag-sidebar').find_all('li')
+            tags = img.tags.split(',')
+            for li in lis:
+                tag = li.contents[2].get_text().replace(' ', '_')
+                query = self.db_helper.execute(f"select dest_ids from myacg.tran_source where name='{tag}'",
+                                               DBExecuteType.FetchOne)
+                if query:
+                    tags += query['dest_ids'].split(',')
+                else:
+                    tags.append(tag)
+            # tags = list(map(lambda x: x.replace("'", "\\'"), tags))
+            tag_str = ','.join(set(tags)).replace("'", "\\'")
+            print(f'[{i}/{n}]{img.id} - from {img.tags} to {tag_str} - {img.relative_path}')
+            if img.tags == tag_str:
+                i += 1
+                continue
+            self.db_helper.execute(f"update myacg.image set tags='{tag_str}' where id={img.id}", DBExecuteType.Run)
+            print(f'休眠 {duration:.2f}s')
             time.sleep(duration)
             i += 1
 

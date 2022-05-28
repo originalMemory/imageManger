@@ -116,6 +116,9 @@ class ImageFileListModel(MyBaseListModel):
                         print(f'删除重复图片: {full_path}, 原图地址：{image.path}')
                         os.remove(full_path)
                         return
+                    if os.path.exists(image.path):
+                        os.remove(image.path)
+                        print(f'删除已存在图片：{image.path}')
                     image.path = full_path
                     new_path = full_path.replace(FileHelper.get_path_prefix(), '')
                     image.relative_path = new_path
