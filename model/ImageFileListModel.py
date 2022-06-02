@@ -40,7 +40,7 @@ class ImageFileListModel(MyBaseListModel):
             elif role == Qt.ItemDataRole.StatusTipRole:
                 return QVariant(self._data_list[index.row()].full_path)
             elif role == Qt.ItemDataRole.BackgroundRole:
-                if self._data_list[index.row()].id != 0:
+                if self._data_list[index.row()].id:
                     return QBrush(QColor(84, 255, 159))
                 else:
                     return QBrush(QColor(255, 255, 255))
@@ -97,7 +97,7 @@ class ImageFileListModel(MyBaseListModel):
                     image.author = info.author
                     image.uploader = ''
                     image.sequence = info.sequence
-                    image.file_create_time = FileHelper.get_create_time_str(full_path)
+                    image.file_create_time = FileHelper.get_create_time(full_path)
                     yande_path = image.path
                     sub_str = f'_{info.tags}'
                     source_pixiv_path = full_path
@@ -128,7 +128,7 @@ class ImageFileListModel(MyBaseListModel):
             image_id = image.id
             self._data_list_in_database.append(image)
         else:
-            image_id = 0
+            image_id = None
         item_data = ImageFile(image_id, show_path, full_path)
         self.add_item(item_data)
 

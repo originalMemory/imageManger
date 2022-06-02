@@ -31,6 +31,8 @@ def analysis_and_rename_file(dir_path, prefix, handler):
             file = files[i]
             file_path = os.path.join(root, file)
             print(f'[{i}/{length}] {file_path}')
+            if '$RECYCLE' in file_path:
+                continue
             handler(file_path, prefix)
 
 
@@ -68,7 +70,7 @@ def update_image(file_path, prefix):
         return
     new_path = new_path.replace('\\', '/')
     image = MyImage(id=old.id, desc=info.desc, author=info.author, type=old.type, level=old.type,
-                    tags=info.tags, works=old.works, role=old.role, source=info.source, width=old.width,
+                    tags=info.tags, works=old.works, role=old.roles, source=info.source, width=old.width,
                     height=old.height, size=old.size, relative_path=new_path.replace(prefix, ''), md5=md5,
                     file_create_time=FileHelper.get_create_time_str(new_path), series=old.series,
                     uploader=info.uploader, sequence=old.sequence)
@@ -87,7 +89,7 @@ def recheck_size(start_page):
         if not queries:
             print('没有数据，结束检查')
             break
-        infos = [MyImage.from_mysql_dict(x) for x in queries]
+        infos = [MyImage.from_dict(x) for x in queries]
         n = len(infos)
         for i in range(n):
             info = infos[i]
@@ -264,31 +266,54 @@ def refresh_db():
 
 
 def temp():
-    queries = db_helper.execute("select * from myacg.image where source='yande' and tags!=''",
+    queries = db_helper.execute("select * from myacg.image where source='yande' and path like '%;%'",
                                 DBExecuteType.FetchAll)
     for i in range(len(queries)):
-        img = MyImage.from_mysql_dict(queries[i])
-        print(f'[{i}/{len(queries)}]{img.id} - {img.tags}')
+        img = MyImage.from_dict(queries[i])
+        print(f'[{i}/{len(queries)}]{img.id} - {img.tags} - {img.relative_path}')
+        split_by_works(img.path, 'Z:/')
+        continue
         split_chars = [';', ',', ' ']
-        tags = []
-        for char in split_chars:
-            if char not in img.tags:
-                continue
-            tags = img.tags.split(char)
-        changed = False
-        for j in range(len(tags)):
-            tag = tags[j]
-            if tag.isdigit():
-                continue
-            sql = f"select id from myacg.tran_dest where name='{tag}'"
-            print(sql)
-            query = db_helper.execute(sql, DBExecuteType.FetchOne)
-            if query:
-                changed = True
-                tags[j] = str(query['id'])
-        if not changed:
+        li = img.works.split(';')
+        if len(li) != 2:
             continue
-        db_helper.execute(f"update myacg.image set tags='{','.join(tags)}' where id={img.id}", DBExecuteType.Run)
+        # tags = []
+        # for char in split_chars:
+        #     if char not in img.tags:
+        #         continue
+        #     tags = img.tags.split(char)
+        if img.roles:
+            roles = set(img.roles.split(','))
+        else:
+            roles = set()
+        roles.add(li[0])
+        works = [li[1]]
+        # for j in range(len(tags)):
+        #     tag = tags[j]
+        #     if not tag.isdigit():
+        #         continue
+        #     sql = f"select * from myacg.tran_dest where id='{tag}'"
+        #     try:
+        #         query = db_helper.execute(sql, DBExecuteType.FetchOne)
+        #         dest = TranDest.from_dict(query)
+        #     except Exception as e:
+        #         print(f'请示错误：{sql}, {e}')
+        #     if dest.type == TagType.Role:
+        #         roles.add(dest.name)
+        #     if dest.type == TagType.Works:
+        #         works.add(dest.name)
+        #     # print(sql)
+        #     # if query:
+        #     #     changed = True
+        #     #     tags[j] = str(query['id'])
+        # if not len(roles) and not len(works):
+        #     continue
+        role_str = ','.join(roles).replace("'", "\\'")
+        work_str = ','.join(works).replace("'", "\\'")
+        if role_str == img.roles and work_str == img.works:
+            continue
+        db_helper.execute(f"update myacg.image set role='{role_str}', works='{work_str}' where id={img.id}",
+                          DBExecuteType.Run)
 
 
 def update_path(filepath, prefix):
@@ -309,15 +334,15 @@ def update_path(filepath, prefix):
 def split_by_works(filepath, prefix):
     if not ImageHelper.is_image(filepath):
         return
-    # relative_path = filepath.replace('\\', '/').replace(prefix, '')
-    relative_path = filepath.replace('\\', '/')
+    relative_path = filepath.replace('\\', '/').replace(prefix, '')
+    # relative_path = filepath.replace('\\', '/')
     info = db_helper.search_by_file_path(relative_path)
     if not info:
         print('无信息，跳过')
         return
     base = 'Z:/图片/'
-    works = re.sub(r'[<>/\\|:"?]', '_', info.works)
-    if not works:
+    works = re.sub(r'[<>/\\|:"?]', '_', info.works).split(',')[0] # 默认取第1个产品
+    if not works or works in filepath:
         return
     dir_path = os.path.join(base, works)
     if not os.path.exists(dir_path):
@@ -329,10 +354,35 @@ def split_by_works(filepath, prefix):
     print(f'归档到作品 {works} 内，文件名 {filename}')
 
 
+def check_no_split_works(filepath, prefix):
+    if not ImageHelper.is_image(filepath):
+        return
+    relative_path = filepath.replace('\\', '/').replace(prefix, '')
+    info = db_helper.search_by_file_path(relative_path)
+    if not info:
+        with open('notRecord.log', 'a+', encoding='utf-8') as f:
+            f.write(f'{filepath}\n')
+        print('无信息，跳过')
+        return
+    if not info.works:
+        dir_name = filepath.split('\\')[-2].replace('_', '/')
+        query = db_helper.execute(f"select id from myacg.tran_dest where name='{dir_name}'", DBExecuteType.FetchOne)
+        if query:
+            print("拆分但丢失作品信息")
+            with open('notWorks.log', 'a+', encoding='utf-8') as f:
+                f.write(f'{info.id}, {filepath}\n')
+        return
+    if info.works in filepath:
+        return
+    with open('notSplitWorks.log', 'a+', encoding='utf-8') as f:
+        print("未按作品拆分")
+        f.write(f'{info.id}, {info.works}, {filepath}\n')
+
+
 if __name__ == '__main__':
     # analysis_and_rename_file(r'E:\下载\灵梦御所\Sakimi Chan', 'Z:/', check_exist)
-    # analysis_and_rename_file(r'F:\图片\yande', 'F:/', split_by_works)
-    TagHelper().get_not_exist_yande_tag()
+    analysis_and_rename_file(r'Z:\图片\影之音酱的动漫壁纸', 'Z:/', split_by_works)
+    # TagHelper().analysis_tags()
     # db = DBHelper(None, with_server=True)
     # db.sync_data(db.local_conn, db.server_conn)
     # temp()

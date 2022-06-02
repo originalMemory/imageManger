@@ -14,6 +14,7 @@ from datetime import datetime
 from enum import unique, Enum
 
 from PyQt6.QtGui import QPixmap, QAction
+from bson import ObjectId
 from screeninfo import Monitor
 
 from helper.file_helper import FileHelper
@@ -27,11 +28,12 @@ class TagType(Enum):
     Works = 'works'
     Company = 'company'
     Author = 'author'
+    Unknown = 'unknown'
 
 
 @dataclass
 class TranSource:
-    id: int = field(default=0)
+    id: ObjectId = field(default=None)
     name: str = field(default="")
     dest_ids: str = field(default="")
     create_time: datetime = field(default=datetime.now())
@@ -40,7 +42,7 @@ class TranSource:
     @staticmethod
     def from_dict(query):
         item = TranSource(
-            id=query['id'],
+            id=query['_id'],
             name=query['name'],
             dest_ids=query['dest_ids'],
             create_time=query['create_time'],
@@ -51,7 +53,7 @@ class TranSource:
 
 @dataclass
 class TranDest:
-    id: int = field(default=0)
+    id: ObjectId = field(default=None)
     name: str = field(default="")
     type: TagType = field(default=TagType.Label)
     extra: str = field(default=None)
@@ -61,7 +63,7 @@ class TranDest:
     @staticmethod
     def from_dict(query):
         item = TranDest(
-            id=query['id'],
+            id=query['_id'],
             name=query['name'],
             type=TagType(query['type']),
             extra=query['name'],
@@ -80,7 +82,7 @@ class MyImage:
     """
     Mysql 中 image 表的数据类型映射
     """
-    id: int = field(default=0)
+    id: ObjectId = field(default=None)
     desc: str = field(default="")
     author: str = field(default="")
     """
@@ -94,15 +96,15 @@ class MyImage:
     """
     标签
     """
-    tags: str = field(default="")
+    tags: list = field(default=list)
     """
     作品
     """
-    works: str = field(default="")
+    works: list = field(default=list)
     """
     角色
     """
-    role: str = field(default="")
+    roles: list = field(default=list)
     """
     来源站点
     """
@@ -142,16 +144,16 @@ class MyImage:
     path: str = field(default="")
 
     @staticmethod
-    def from_mysql_dict(query):
+    def from_dict(query):
         image = MyImage(
-            id=query['id'],
+            id=query['_id'],
             desc=query['desc'],
             author=query['author'],
             type=query['type'],
             level=query['level'],
             tags=query['tags'],
             works=query['works'],
-            role=query['role'],
+            roles=query['roles'],
             source=query['source'],
             width=query['width'],
             height=query['height'],
@@ -168,10 +170,17 @@ class MyImage:
         image.path = FileHelper.get_full_path(image.relative_path)
         return image
 
+    def di(self, with_id=False):
+        di = self.__dict__.copy()
+        del di['id']
+        if not with_id:
+            di['_id'] = self.id
+        return di
+
 
 @dataclass
 class BaseData:
-    id: int = 0
+    id: ObjectId = None
     name: str = ""
 
 

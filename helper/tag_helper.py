@@ -45,7 +45,7 @@ class TagHelper:
                 i += 1
 
     def get_not_exist_yande_tag(self):
-        imgs, _ = self.db_helper.search_by_where("source='yande' and length(tags)<20")
+        imgs, _ = self.db_helper.search_by_filter("path like '%图片/新妹魔王的契约者%'")
         n = len(imgs)
         i = 0
         while i < n:
@@ -71,7 +71,8 @@ class TagHelper:
             # else:
             #     uploader = uploader.get_text()
             lis = val.find('ul', id='tag-sidebar').find_all('li')
-            tags = img.tags.split(',')
+            # tags = img.tags.split(',')
+            tags = []
             for li in lis:
                 tag = li.contents[2].get_text().replace(' ', '_')
                 query = self.db_helper.execute(f"select dest_ids from myacg.tran_source where name='{tag}'",
@@ -87,12 +88,12 @@ class TagHelper:
                 i += 1
                 continue
             self.db_helper.execute(f"update myacg.image set tags='{tag_str}' where id={img.id}", DBExecuteType.Run)
-            print(f'休眠 {duration:.2f}s')
-            time.sleep(duration)
+            # print(f'休眠 {duration:.2f}s')
+            # time.sleep(duration)
             i += 1
 
     def get_not_exist_pixiv_tag(self):
-        imgs, _ = self.db_helper.search_by_where("source='pixiv' and length(tags)<20")
+        imgs, _ = self.db_helper.search_by_filter("source='pixiv' and length(tags)<20")
         n = len(imgs)
         i = 0
         while i < n:
@@ -141,7 +142,7 @@ class TagHelper:
         tags = []
         queries = self.db_helper.execute(sql, DBExecuteType.FetchAll)
         for i in range(len(queries)):
-            img = MyImage.from_mysql_dict(queries[i])
+            img = MyImage.from_dict(queries[i])
             print(f'[{i}/{len(queries)}]{img.id} - {img.tags}')
             split_chars = [';', ' ', ',']
             source_tags = []
@@ -238,12 +239,12 @@ class TagHelper:
             dest = TranDest.from_dict(query)
             dest_name_di[dest.name] = dest
             dest_id_di[dest.id] = dest
-        queries = self.db_helper.execute("select * from myacg.image where source='yande' and tags regexp '[a-z]'",
+        queries = self.db_helper.execute("select * from myacg.image where source='konachan' and tags regexp '[a-z]' limit 1000 offset 1325",
                                          DBExecuteType.FetchAll)
         # queries = self.db_helper.execute("select * from myacg.image where source='pixiv' and length(tags)>5",
         #                                  DBExecuteType.FetchAll)
         for i in range(len(queries)):
-            image = MyImage.from_mysql_dict(queries[i])
+            image = MyImage.from_dict(queries[i])
             print(f'[{i}/{len(queries)}]{image.id} - {image.tags}')
             split_chars = [';', ',', ' ']
             for char in split_chars:
@@ -251,9 +252,9 @@ class TagHelper:
                     tags = image.tags.split(char)
                     break
             roles = set()
-            if image.role:
-                roles.add(image.role)
-            works = image.works
+            if image.roles:
+                roles.add(image.roles)
+            works = image.works.split(',')
             author = image.author
             new_tags = set()
             for tag in tags:
@@ -261,12 +262,21 @@ class TagHelper:
                     new_tags.add(str(dest_name_di[tag].id))
                     continue
                 if tag in source_name_di:
+                    if tag not in source_name_di:
+                        continue
                     for dest_id in source_name_di[tag].dest_ids.split(','):
                         dest = dest_id_di[int(dest_id)]
                         if dest.type == TagType.Role:
                             roles.add(dest.name)
                         elif dest.type == TagType.Works:
-                            works = dest.name
+                            works.append(dest.name)
+                            # exist = False
+                            # for work in works:
+                            #     if work in image.relative_path:
+                            #         exist = True
+                            #         break
+                            # if not exist or not len(works):
+                            #     works.append(dest.name)
                         elif dest.type == TagType.Author:
                             author = dest.name
                         elif dest.type == TagType.Empty:
@@ -277,8 +287,10 @@ class TagHelper:
                 new_tags.add(tag)
             tag_str = ','.join(new_tags).replace("\'", "\\'")
             role = ','.join(roles).replace("\'", "\\'")
-            works = works.replace("\'", "\\'")
+            works = ','.join(set(works)).replace("\'", "\\'")
             author = author.replace("\'", "\\'")
+            if tag_str == image.tags:
+                continue
             self.db_helper.execute(
                 f"update myacg.image set tags='{tag_str}',role='{role}',works='{works}',author='{author}' where id={image.id}",
                 DBExecuteType.Run)

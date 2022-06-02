@@ -9,6 +9,7 @@
 @create  : 2019/6/2 23:57:26
 @update  :
 """
+import json
 import os
 import queue
 import threading
@@ -18,6 +19,7 @@ from enum import unique, Enum
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
+from bson import ObjectId
 from win32comext.shell import shell, shellcon
 
 from helper.config_helper import ConfigHelper
@@ -283,7 +285,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             if info.desc:
                 self.lineEdit_desc.setText(info.desc)
             if info.tags:
-                self.textEdit_tag.setText(info.tags)
+                self.textEdit_tag.setText(','.join(info.tags))
             if info.source:
                 self.lineEdit_source.setText(info.source)
             if info.uploader:
@@ -298,11 +300,8 @@ class ImageManager(QMainWindow, Ui_Manager):
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
-        self.textEdit_tag.setText(info.tags)
         self.lineEdit_path.setText(info.path)
-        self.lineEdit_works.setText(info.works)
         self.lineEdit_source.setText(info.source)
-        self.lineEdit_role.setText(info.role)
         self.lineEdit_author.setText(info.author)
         self.lineEdit_series.setText(info.series)
         self.lineEdit_sequence.setText(str(info.sequence))
@@ -313,34 +312,37 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
         self.dateTimeEdit_create.setDateTime(info.create_time)
         self.dateTimeEdit_update.setDateTime(info.update_time)
-        threading.Thread(target=self._refresh_tran_tags, args=(info.tags, True,), daemon=True).start()
+        tags = info.tags
+        if not tags:
+            tags = ImageHelper.analyze_image_info(info.path).tags
+        threading.Thread(target=self._refresh_tran_tags, args=(tags, False,), daemon=True).start()
 
-    def _refresh_tran_tags(self, tag_str, keep_role):
-        tags = TagHelper.split_tags(tag_str)
+    def _refresh_tran_tags(self, tags, keep_role):
+        if not tags:
+            return
         tran_tags = set()
         if keep_role and self.lineEdit_role.text():
             roles = set(self.lineEdit_role.text().split(','))
         else:
             roles = set()
+        works = set()
         for tag in tags:
-            if tag.isdigit():
-                query = self.__db_helper.search_one(f"select * from myacg.tran_dest where id={tag}")
+            if isinstance(tag, ObjectId):
+                query = self.__db_helper.search_one('tran_dest', {'_id': tag})
                 if query:
                     dest = TranDest.from_dict(query)
                     tran_tags.add(dest.name)
                     if dest.type == TagType.Role:
                         roles.add(dest.name)
                     elif dest.type == TagType.Works:
-                        self.lineEdit_works.setText(dest.name)
-                    elif dest.type == TagType.Author:
+                        works.add(dest.name)
+                    elif dest.type == TagType.Author and not self.lineEdit_author.text():
                         self.lineEdit_author.setText(dest.name)
                     continue
-            search_tag = tag.replace("'", "\\'")
-            query = self.__db_helper.search_one(f"select dest_ids from myacg.tran_source where name='{search_tag}'")
+            query = self.__db_helper.search_one('tran_source', {'name': tag})
             if query:
-                query = self.__db_helper.search_all(
-                    f"select * from myacg.tran_dest where id in({query['dest_ids']})")
-            if query and isinstance(query, list):
+                query = self.__db_helper.search_all('tran_dest', {'_id': {'$in': query['dest_ids']}})
+            if query:
                 for x in query:
                     dest = TranDest.from_dict(x)
                     # 暂时没有翻译的保留原文
@@ -351,18 +353,21 @@ class ImageManager(QMainWindow, Ui_Manager):
                     if dest.type == TagType.Role:
                         roles.add(dest.name)
                     elif dest.type == TagType.Works:
-                        self.lineEdit_works.setText(dest.name)
-                    elif dest.type == TagType.Author:
+                        works.add(dest.name)
+                    elif dest.type == TagType.Author and not self.lineEdit_author.text():
                         self.lineEdit_author.setText(dest.name)
             else:
                 tran_tags.add(tag)
-        if len(tran_tags):
+        if tran_tags:
             text = ','.join(tran_tags)
+            # self.textEdit_tag.setText(text)
             self._signal_update_tags.emit(text)
             # self.textEdit_tag.setText(text)
             pass
-        if len(roles):
+        if roles and not self.lineEdit_role.text():
             self.lineEdit_role.setText(','.join(roles))
+        if works and not self.lineEdit_works.text():
+            self.lineEdit_works.setText(','.join(works))
 
     def __classify(self):
         """
@@ -402,12 +407,12 @@ class ImageManager(QMainWindow, Ui_Manager):
             path = item.full_path
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             # width 和 height 放到编程里更新
-            image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags, works=works,
-                            role=role, source=source, width=0, height=0, size=FileHelper.get_file_size_in_mb(path),
+            image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags.split(','), works=works.split(','),
+                            roles=role.split(','), source=source, width=0, height=0, size=FileHelper.get_file_size_in_mb(path),
                             path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
-                            file_create_time=FileHelper.get_create_time_str(path), series=series, uploader=uploader,
+                            file_create_time=FileHelper.get_create_time(path), series=series, uploader=uploader,
                             sequence=sequence)
-            if image.id != 0:
+            if image.id:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
                 old_image = self.__image_model.get_database_item(image.id)
                 if old_image and len(select_rows) > 1:
@@ -431,43 +436,44 @@ class ImageManager(QMainWindow, Ui_Manager):
             image.height = height
             source = image.source
             new_item = item
-            if image.id == 0:
-                source_tags = ImageHelper.get_source_tags(image.path)
-                if source in ['pixiv', 'yande'] and source_tags and source_tags in path:
-                    sub_str = ''
-                    if source == 'pixiv':
-                        sub_str = f'_{source_tags}'
-                    elif source == 'yande':
-                        sub_str = f'{source_tags}_00000'
-                    new_path = path.replace(sub_str, '')
-                    if new_path != path:
-                        try:
-                            if os.path.exists(new_path):
-                                os.remove(path)
-                            else:
-                                os.rename(path, new_path)
-                            path = new_path
-                            need_refresh_item = True
-                        except Exception as e:
-                            print(f"重命名失败：{e}")
-                            continue
-                    new_item = ImageFile(id=image.id, name=item.name.replace(sub_str, ''), full_path=path)
+            source_tags = ImageHelper.get_source_tags(image.path)
+            if source in ['pixiv', 'yande', 'kona'] and source_tags and source_tags in path:
+                if source == 'pixiv':
+                    sub_str = f'_{source_tags}'
+                else:
+                    sub_str = f'{source_tags}_00000'
+                new_path = path.replace(sub_str, '')
+                if new_path != path:
+                    try:
+                        if os.path.exists(new_path):
+                            os.remove(path)
+                        else:
+                            os.rename(path, new_path)
+                        path = new_path
+                        need_refresh_item = True
+                    except Exception as e:
+                        print(f"重命名失败：{e}")
+                        continue
+                new_item = ImageFile(id=image.id, name=item.name.replace(sub_str, ''), full_path=path)
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
                 continue
-            tags = image.tags.split(',')
-            for i in range(len(tags)):
-                tag = tags[i]
-                search_tag = tag.replace("'", "\\'")
-                query = self.__db_helper.search_one(f"select id from myacg.tran_dest where name='{search_tag}'")
+            for i in range(len(image.tags)):
+                tag = image.tags[i]
+                query = self.__db_helper.search_one('tran_dest', {'name': tag})
                 if not query:
                     continue
-                tags[i] = str(query['id'])
-            image.tags = ','.join(tags)
+                image.tags[i] = query['_id']
+            if '' in image.tags:
+                image.tags.remove('')
+            if '' in image.roles:
+                image.roles.remove('')
+            if '' in image.works:
+                image.works.remove('')
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             image.relative_path = relative_path
             image.path = path
-            if image.id == 0:
+            if not image.id:
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(relative_path)
                 need_refresh_item = True
@@ -503,7 +509,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         for i in range(len(select_rows)):
             index = select_rows[i]
             item = self.__image_model.get_item(index.row() - i)
-            if item.id != 0:
+            if item.id:
                 self.__db_helper.delete(item.id)
             # os.remove(item.full_path)
             shell.SHFileOperation((0, shellcon.FO_DELETE, item.full_path, None,
@@ -528,23 +534,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def __search(self):
         sql_where = self.lineEdit_sql_where.text()
-        if not sql_where:
-            sql_where = ""
-            if len(self.lineEdit_desc.text()):
-                sql_where += f" `desc` like '%{self.lineEdit_desc.text()}%'"
-            if len(self.lineEdit_role.text()):
-                sql_where += f" `role` like '%{self.lineEdit_role.text()}%'"
-            if len(self.lineEdit_works.text()):
-                sql_where += f" `works` like '%{self.lineEdit_works.text()}%'"
-            if len(self.lineEdit_series.text()):
-                sql_where += f" `series` like '%{self.lineEdit_series.text()}%'"
-            if len(self.lineEdit_source.text()):
-                sql_where += f" `source` like '%{self.lineEdit_source.text()}%'"
-            if len(self.lineEdit_uploader.text()):
-                sql_where += f" `uploader` like '%{self.lineEdit_uploader.text()}%'"
-            if len(self.lineEdit_author.text()):
-                sql_where += f" `author` like '%{self.lineEdit_author.text()}%'"
-        image_sql_list, image_file_list = self.__db_helper.search_by_where(sql_where)
+        image_sql_list, image_file_list = self.__db_helper.search_by_filter(json.loads(sql_where))
         if len(image_sql_list) > 0:
             self.__image_model.set_images(image_sql_list, image_file_list)
             self.listView.setFocus()
@@ -572,7 +562,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 try:
                     new_filename = None
                     if image_sql.type == 2:
-                        new_filename = f"{image_sql.works}_{image_sql.role}_{image_sql.series}_{image_sql.author}"
+                        new_filename = f"{image_sql.works}_{image_sql.roles}_{image_sql.series}_{image_sql.author}"
                     if image_sql.type == 3:
                         new_filename = f"{image_sql.works}_{image_sql.series}_{image_sql.author}"
                     FileHelper.copyfile_without_override(image_sql.path, dir_path, new_filename)

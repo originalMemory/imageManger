@@ -121,7 +121,7 @@ class ImageHelper:
                 author = match.group('author')
                 info.author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
                 info.desc = match.group('desc')
-                tags = match.group('tags')
+                tags = match.group('tags').split('_')
                 info.tags = tags
                 info.sequence = int(match.group('no'))
             else:
@@ -137,7 +137,7 @@ class ImageHelper:
             match = re.search(r"konachan_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
             if match:
                 info.uploader = match.group('uploader')
-                info.tags = match.group('tags').replace("_00000", "")
+                info.tags = match.group('tags').replace("_00000", "").split(' ')
                 info.sequence = int(match.group('no'))
 
         return info
@@ -158,7 +158,7 @@ class ImageHelper:
         if match:
             uploader = match.group('uploader')
             tags = match.group('tags')
-            tags = tags.replace("_00", "")
+            tags = tags.replace("_00", "").split(' ')
             return tags, uploader, int(match.group('no'))
         else:
             # [yande_492889_Mr_GT].jpg
@@ -170,7 +170,7 @@ class ImageHelper:
                 # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
                 match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.(?:jpg|png|gif|jpeg|bmp)", filename)
                 if match:
-                    tags = match.group('tags')
+                    tags = match.group('tags').split(' ')
                     return tags, None, None
         return None, None, None
 
@@ -203,7 +203,7 @@ class ImageHelper:
         page = 0
         pagesize = 500
         db_helper = DBHelper(error_handler)
-        count = db_helper.get_table_count(f"select count(*) from myacg.image;")
+        count = db_helper.get_count()
         while True:
             image_list = db_helper.get_images(page, pagesize)
 
@@ -284,6 +284,6 @@ class ImageHelper:
     @staticmethod
     def is_image(filename):
         image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif',
-                                '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico']
+                                '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico', '.gif']
         extension = FileHelper.get_file_extension(filename).lower()
         return extension in image_extension_list
