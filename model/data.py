@@ -96,15 +96,15 @@ class MyImage:
     """
     标签
     """
-    tags: list = field(default=list)
+    tags: list = field(default_factory=list)
     """
     作品
     """
-    works: list = field(default=list)
+    works: list = field(default_factory=list)
     """
     角色
     """
-    roles: list = field(default=list)
+    roles: list = field(default_factory=list)
     """
     来源站点
     """

@@ -110,7 +110,7 @@ class ImageHelper:
         if not is_in:
             return info
 
-        if yande in filename:
+        if f'/{yande}/' in filename:
             info.source = 'yande'
             info.tags, info.uploader, info.sequence = ImageHelper.analyze_yande(filename)
         elif pixiv in filename:

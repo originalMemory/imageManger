@@ -24,16 +24,26 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
 
 
-def analysis_and_rename_file(dir_path, prefix, handler):
-    for root, dirs, files in os.walk(dir_path):
-        length = len(files)
-        for i in range(length):
-            file = files[i]
-            file_path = os.path.join(root, file)
-            print(f'[{i}/{length}] {file_path}')
-            if '$RECYCLE' in file_path:
-                continue
-            handler(file_path, prefix)
+def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
+    filenames = os.listdir(dir_path)
+    length = len(filenames)
+    if not filenames and num_prefix:
+        print(f'[{num_prefix}]无文件')
+    for i, filename in enumerate(filenames):
+        if '$RECYCLE' in filename:
+            continue
+        filepath = os.path.join(dir_path, filename)
+        if os.path.isdir(filepath):
+            prefix = f'{i}/{length}'
+            if num_prefix:
+                prefix = f'{num_prefix}-{prefix}'
+            analysis_and_rename_file(filepath, path_prefix, handler, prefix)
+            continue
+        index_str = f'{i}/{length}'
+        if num_prefix:
+            index_str = f'{num_prefix}-{index_str}'
+        print(f'[{index_str}] {filepath}')
+        handler(filepath, path_prefix)
 
 
 db_helper = DBHelper(None)
@@ -161,38 +171,6 @@ def get_file_paths(dir_path):
     return paths
 
 
-def compress(source_dir, target_dir):
-    paths = get_file_paths(source_dir)
-    n = len(paths)
-    total_percent = 0
-    for i in range(n):
-        path = os.path.join(paths[i][1])
-        img = Image.open(path)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        filename = path.split('/')[-1].split('.')[0]
-        target_sub_dir = os.path.join(target_dir, paths[i][0].replace(source_dir, ''))
-        new_path = os.path.join(target_sub_dir, filename + '.jpg')
-        # if os.path.exists(new_path):
-        #     continue
-        no = 1
-        while os.path.exists(new_path):
-            new_path = os.path.join(target_sub_dir, f'{filename}_{no:0>2d}.jpg')
-            print(f'有重复，重命名为：{new_path}')
-            no += 1
-        if not os.path.exists(target_sub_dir):
-            print(f'创建文件夹{target_sub_dir}')
-            os.makedirs(target_sub_dir)
-        img.save(new_path, quality=90)
-        old_size = FileHelper.get_file_size_in_mb(path)
-        new_size = FileHelper.get_file_size_in_mb(new_path)
-        sub = old_size - new_size
-        percent = round(new_size * 100 / old_size, 2)
-        total_percent += percent
-        print(f'[{i}/{n}]压缩比例 {percent:.2f}%, 减小大小 {round(sub / old_size, 2):.2f} MB, {path.replace(source_dir, "")}')
-    print(f'总压缩比：{round(total_percent / n, 2):.2f}%')
-
-
 def check_exist(file_path, prefix):
     if not ImageHelper.is_image(file_path):
         return
@@ -201,119 +179,6 @@ def check_exist(file_path, prefix):
     if info:
         print('已存在，删除该文件')
         os.remove(file_path)
-
-
-def refresh_db():
-    with open(r'F:\more.sql', encoding='utf-8') as f:
-        lines = f.readlines()
-    n = len(lines)
-    for i, line in enumerate(lines):
-        # if i < 542:
-        #     continue
-        if not line.startswith('INSERT'):
-            continue
-        print(f'[{i}/{n}]{line.strip()}')
-        match = re.search(r"VALUES \((?P<values>.+?)\);$", line)
-        if not match:
-            print('搜索出错')
-            continue
-        values_source = [x.strip() for x in match.group('values').split(',')]
-        values = []
-        j = 0
-        while j < len(values_source):
-            value = values_source[j]
-            if value.startswith("'") and not value.endswith("'"):
-                tp = []
-                while not values_source[j].endswith("'"):
-                    tp.append(values_source[j])
-                    j += 1
-                tp.append(values_source[j])
-                values.append(','.join(tp))
-            else:
-                values.append(value)
-            j += 1
-
-        d = 3
-        for j in range(len(values)):
-            values[j] = values[j].strip()
-            if values[j].startswith("'"):
-                values[j] = values[j][1:]
-            if values[j].endswith("'"):
-                values[j] = values[j][:-1]
-        # INSERT INTO `image` VALUES ('249375', '', 'Shirokitsune', '', '2', '9', '', '原神', null, '0', '', '芭芭拉', '', '4000', '6000', '3.43', null, null, '和谐/收藏/Shirokitsune/芭芭拉/010.jpg', 'f2c435e981102cad2aa35924eb73b9c7', '2021-11-21 21:40:46', '2022-02-05 18:11:40', '2022-02-05 18:11:40');
-        image = MyImage(
-            desc=values[1],
-            author=values[2],
-            uploader=values[3],
-            type=values[4],
-            level=values[5],
-            tags=values[6],
-            works=values[7],
-            sequence=values[8],
-            series=values[9],
-            role=values[10],
-            source=values[11],
-            width=values[12],
-            height=values[13],
-            size=values[14],
-            relative_path=values[15],
-            md5=values[16],
-            file_create_time=values[17],
-            create_time=values[18],
-            update_time=values[19]
-        )
-        db_helper.insert_full_image(image)
-
-
-def temp():
-    queries = db_helper.execute("select * from myacg.image where source='yande' and path like '%;%'",
-                                DBExecuteType.FetchAll)
-    for i in range(len(queries)):
-        img = MyImage.from_dict(queries[i])
-        print(f'[{i}/{len(queries)}]{img.id} - {img.tags} - {img.relative_path}')
-        split_by_works(img.path, 'Z:/')
-        continue
-        split_chars = [';', ',', ' ']
-        li = img.works.split(';')
-        if len(li) != 2:
-            continue
-        # tags = []
-        # for char in split_chars:
-        #     if char not in img.tags:
-        #         continue
-        #     tags = img.tags.split(char)
-        if img.roles:
-            roles = set(img.roles.split(','))
-        else:
-            roles = set()
-        roles.add(li[0])
-        works = [li[1]]
-        # for j in range(len(tags)):
-        #     tag = tags[j]
-        #     if not tag.isdigit():
-        #         continue
-        #     sql = f"select * from myacg.tran_dest where id='{tag}'"
-        #     try:
-        #         query = db_helper.execute(sql, DBExecuteType.FetchOne)
-        #         dest = TranDest.from_dict(query)
-        #     except Exception as e:
-        #         print(f'请示错误：{sql}, {e}')
-        #     if dest.type == TagType.Role:
-        #         roles.add(dest.name)
-        #     if dest.type == TagType.Works:
-        #         works.add(dest.name)
-        #     # print(sql)
-        #     # if query:
-        #     #     changed = True
-        #     #     tags[j] = str(query['id'])
-        # if not len(roles) and not len(works):
-        #     continue
-        role_str = ','.join(roles).replace("'", "\\'")
-        work_str = ','.join(works).replace("'", "\\'")
-        if role_str == img.roles and work_str == img.works:
-            continue
-        db_helper.execute(f"update myacg.image set role='{role_str}', works='{work_str}' where id={img.id}",
-                          DBExecuteType.Run)
 
 
 def update_path(filepath, prefix):
@@ -340,18 +205,23 @@ def split_by_works(filepath, prefix):
     if not info:
         print('无信息，跳过')
         return
-    base = 'Z:/图片/'
-    works = re.sub(r'[<>/\\|:"?]', '_', info.works).split(',')[0] # 默认取第1个产品
-    if not works or works in filepath:
+    if not info.works:
+        print('无作品，跳过')
         return
-    dir_path = os.path.join(base, works)
+    base = 'Z:/图片/'
+    max_work = ''
+    for work in info.works:
+        if len(max_work) < len(work):
+            max_work = work
+    work_dir = re.sub(r'[<>/\\|:"?]', '_', max_work)
+    dir_path = os.path.join(base, work_dir)
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     filename = os.path.basename(filepath)
     new_filepath = os.path.join(dir_path, filename)
     shutil.move(filepath, new_filepath)
     db_helper.update_path(info.id, new_filepath.replace('\\', '/').replace('Z:/', ''))
-    print(f'归档到作品 {works} 内，文件名 {filename}')
+    print(f'归档到作品 {max_work} 内，文件名 {filename}')
 
 
 def check_no_split_works(filepath, prefix):
@@ -380,9 +250,5 @@ def check_no_split_works(filepath, prefix):
 
 
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'E:\下载\灵梦御所\Sakimi Chan', 'Z:/', check_exist)
-    analysis_and_rename_file(r'Z:\图片\影之音酱的动漫壁纸', 'Z:/', split_by_works)
+    analysis_and_rename_file(r'Z:\图片\pixiv', 'Z:/', update_path)
     # TagHelper().analysis_tags()
-    # db = DBHelper(None, with_server=True)
-    # db.sync_data(db.local_conn, db.server_conn)
-    # temp()

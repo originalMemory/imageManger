@@ -307,6 +307,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_sequence.setText(str(info.sequence))
         self.lineEdit_uploader.setText(info.uploader)
         self.lineEdit_size.setText(f"{info.size} MB")
+        self.lineEdit_role.setText(','.join(info.roles))
+        self.lineEdit_works.setText(','.join(info.works))
         self.comboBox_type.setCurrentIndex(self.__type_model.get_index(info.type))
         self.comboBox_level.setCurrentIndex(self.__level_model.get_index(info.level))
         self.dateTimeEdit_file_create.setDateTime(info.file_create_time)
