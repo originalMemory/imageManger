@@ -9,6 +9,7 @@
 @create  : 2019/12/15 14:24:52
 @update  :
 """
+import json
 import os
 import random
 import threading
@@ -27,7 +28,7 @@ from screeninfo import get_monitors
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
 from helper.image_helper import ImageHelper
-from model.data import MonitorSetting
+from model.data import MonitorSetting, MyImage
 from tray.view.tray_setting import Ui_TraySetting
 
 
@@ -51,8 +52,13 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         # 初始化数据
         self.__db_helper = DBHelper(self)
         self.__config_helper = ConfigHelper(self)
-        self.__sql_where = self.__config_helper.get_config_key(self.__config_section_background, "sqlWhere")
-        self.textEdit_sqlWhere.setText(self.__sql_where)
+        fl = self.__config_helper.get_config_key(self.__config_section_background, "filter")
+        if fl:
+            fl = fl.replace('\\"', '"')[1:-1]
+            self._fl = json.loads(fl)
+            self.textEdit_sqlWhere.setText(fl)
+        else:
+            self._fl = {}
         self.__time_interval = int(
             self.__config_helper.get_config_key(self.__config_section_background, "timeIntervalInMin"))
         self.lineEdit_min.setText(str(self.__time_interval))
@@ -95,6 +101,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             0
         )
         self.__last_order_image_offset = int(offset)
+        self.lineEdit_order_offset.setText(str(offset))
 
         menu.addSeparator()
         setting = QtGui.QAction("设置", self)
@@ -174,10 +181,11 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         )
 
     def __save(self):
-        self.__sql_where = self.textEdit_sqlWhere.toPlainText()
+        fl = self.textEdit_sqlWhere.toPlainText()
+        self._fl = json.loads(fl)
         time_interval = self.lineEdit_min.text()
         self.__time_interval = int(time_interval)
-        self.__config_helper.add_config_key("background", "sqlWhere", self.__sql_where)
+        self.__config_helper.add_config_key("background", "filter", json.dumps(fl))
         self.__config_helper.add_config_key("background", "timeIntervalInMin", time_interval)
         self.__last_order_image_offset = int(self.lineEdit_order_offset.text())
         self.__config_helper.add_config_key(
@@ -206,6 +214,8 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             image, index, count = self._get_image(setting.monitor.width >= setting.monitor.height)
             if image and os.path.exists(image.path):
                 setting.image = image
+            else:
+                continue
             filename = image.relative_path.split('/')[-1]
             desc = f"[{index}/{count}] {image.author} - {filename}"
             if len(desc) > 50:
@@ -245,20 +255,21 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         :param is_horizontal: 是否是横图
         :return: (图片信息，索引，总数)
         """
-        sql_where = self.__sql_where
+        fl = self._fl
         if is_horizontal:
-            operator = '>='
+            fl['$expr'] = {'$gte': ['$width', '$height']}
         else:
-            operator = '<='
-        sql_where += f' and width{operator}height'
-        image_count = self.__db_helper.get_image_count(sql_where)
+            fl['$expr'] = {'$lte': ['$width', '$height']}
+        image_count = self.__db_helper.get_count(fl)
+        if not image_count:
+            return
         if self.__change_type == ChangeType.Order:
             offset = self.__get_order_offset(image_count)
         else:
             offset = random.randint(0, image_count)
-        image = self.__db_helper.get_one_image_with_where(sql_where, offset)
-        print(f'where: {sql_where}, id: {image.id}, width: {image.width}, height: {image.height}, path: {image.path}')
-        return image, offset, image_count
+        img = MyImage.from_dict(self.__db_helper.img_col.find(fl).skip(offset).limit(1)[0])
+        print(f'where: {json.dumps(fl)}, id: {img.id}, width: {img.width}, height: {img.height}, path: {img.path}')
+        return img, offset, image_count
 
     def __get_order_offset(self, image_count):
         """
