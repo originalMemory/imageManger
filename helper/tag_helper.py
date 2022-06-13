@@ -255,7 +255,7 @@ class TagHelper:
             if image.roles:
                 roles.add(image.roles)
             works = image.works.split(',')
-            author = image.author
+            authors = image.authors
             new_tags = set()
             for tag in tags:
                 if tag in dest_name_di:
@@ -278,7 +278,7 @@ class TagHelper:
                             # if not exist or not len(works):
                             #     works.append(dest.name)
                         elif dest.type == TagType.Author:
-                            author = dest.name
+                            authors.append(dest.name)
                         elif dest.type == TagType.Empty:
                             new_tags.add(tag)
                             break

@@ -74,8 +74,8 @@ class DBHelper:
         :return:
         """
         image.file_create_time = tzinfo.localize(image.file_create_time)
-        image.create_time = tzinfo.localize(image.create_time)
-        image.update_time = tzinfo.localize(image.update_time)
+        image.create_time = tzinfo.localize(datetime.now())
+        image.update_time = tzinfo.localize(datetime.now())
         di = image.di(True)
         # di['file_create_time'] = tzinfo.localize(image.file_create_time)
         return self.img_col.insert_one(di)

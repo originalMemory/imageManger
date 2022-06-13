@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 
+import pymongo
 from PIL import Image
 
 from helper.db_helper import DBHelper, DBExecuteType
@@ -250,5 +251,12 @@ def check_no_split_works(filepath, prefix):
 
 
 if __name__ == '__main__':
-    analysis_and_rename_file(r'Z:\图片\pixiv', 'Z:/', update_path)
+    # analysis_and_rename_file(r'F:/图片/yandegg', 'Z:/', split_by_works)
     # TagHelper().analysis_tags()
+    path = 'F:/下载/Femjoy 2012/Femjoy 2012-01/Femjoy 2012-01-15 Bally D - Coming Home/femjoy_115238_001.jpg'
+
+    match = re.search(r'(?P<source>.+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<name>.+?)$', path.split('/')[-2])
+    if match:
+        print(match.group('source'))
+        print(match.group('authors'))
+        print(match.group('name'))

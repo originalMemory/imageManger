@@ -227,7 +227,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         dir_path = QtWidgets.QFileDialog.getExistingDirectory(self, "选择保存的文件夹", "E:/图片")
         self.lineEdit_export_dir.setText(dir_path)
 
-    @timeit
+    # @timeit
     def __show_image(self, index):
         """
         显示指定索引文件名对应的图片
@@ -239,9 +239,9 @@ class ImageManager(QMainWindow, Ui_Manager):
         status = f"[{index + 1}/{self.__image_model.rowCount()}] {path}"
         try:
             # 填充缩放
-            pixmap, is_preload = self.__get_image(path)
+            pixmap, is_preload = self.__get_image(index, path)
             cur_time = time.time()
-            status += f"\t是否预加载：{is_preload}\t图片读取：${round((cur_time - start_time) * 1000, 2)}ms"
+            status += f"\t是否预加载：{is_preload}\t图片读取：{round((cur_time - start_time) * 1000, 2)}ms"
             start_time = time.time()
             # 加载图片
             item = QtWidgets.QGraphicsPixmapItem(pixmap)
@@ -249,7 +249,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             scene.addItem(item)
             self.graphicsView.setScene(scene)
             cur_time = time.time()
-            status += f"\t图片加载：${round((cur_time - start_time) * 1000, 2)}ms"
+            status += f"\t图片加载：{round((cur_time - start_time) * 1000, 2)}ms"
         except Exception as e:
             print(e)
             QMessageBox.information(self, "提示", str(e), QMessageBox.StandardButton.Ok)
@@ -290,8 +290,10 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.lineEdit_source.setText(info.source)
             if info.uploader:
                 self.lineEdit_uploader.setText(info.uploader)
-            if info.author:
-                self.lineEdit_author.setText(info.author)
+            if info.authors:
+                self.lineEdit_author.setText(info.author_str())
+            if info.works:
+                self.lineEdit_works.setText(','.join(info.works))
             if not self.lineEdit_sequence.text():
                 self.lineEdit_sequence.setText('0')
             if info.sequence:
@@ -302,7 +304,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.lineEdit_desc.setText(info.desc)
         self.lineEdit_path.setText(info.path)
         self.lineEdit_source.setText(info.source)
-        self.lineEdit_author.setText(info.author)
+        self.lineEdit_author.setText(info.author_str())
         self.lineEdit_series.setText(info.series)
         self.lineEdit_sequence.setText(str(info.sequence))
         self.lineEdit_uploader.setText(info.uploader)
@@ -328,6 +330,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         else:
             roles = set()
         works = set()
+        authors = set()
         for tag in tags:
             if isinstance(tag, ObjectId):
                 query = self.__db_helper.search_one('tran_dest', {'_id': tag})
@@ -338,8 +341,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                         roles.add(dest.name)
                     elif dest.type == TagType.Works:
                         works.add(dest.name)
-                    elif dest.type == TagType.Author and not self.lineEdit_author.text():
-                        self.lineEdit_author.setText(dest.name)
+                    elif dest.type == TagType.Author:
+                        authors.add(dest.name)
                     continue
             query = self.__db_helper.search_one('tran_source', {'name': tag})
             if query:
@@ -356,8 +359,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                         roles.add(dest.name)
                     elif dest.type == TagType.Works:
                         works.add(dest.name)
-                    elif dest.type == TagType.Author and not self.lineEdit_author.text():
-                        self.lineEdit_author.setText(dest.name)
+                    elif dest.type == TagType.Author:
+                        authors.add(dest.name)
             else:
                 tran_tags.add(tag)
         if tran_tags:
@@ -370,6 +373,8 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.lineEdit_role.setText(','.join(roles))
         if works and not self.lineEdit_works.text():
             self.lineEdit_works.setText(','.join(works))
+        if authors and not self.lineEdit_author.text():
+            self.lineEdit_author.setText(','.join(authors))
 
     def __classify(self):
         """
@@ -396,10 +401,18 @@ class ImageManager(QMainWindow, Ui_Manager):
         index = self.comboBox_level.currentIndex()
         level = self.__level_model.get_item(index).id
         desc = self.lineEdit_desc.text()
-        author = self.lineEdit_author.text()
-        tags = self.textEdit_tag.toPlainText()
-        works = self.lineEdit_works.text()
-        role = self.lineEdit_role.text()
+        authors = self.lineEdit_author.text().split(',')
+        if '' in authors:
+            authors.remove('')
+        tags = self.textEdit_tag.toPlainText().split(',')
+        if '' in tags:
+            tags.remove('')
+        works = self.lineEdit_works.text().split(',')
+        if '' in works:
+            works.remove('')
+        roles = self.lineEdit_role.text().split(',')
+        if '' in roles:
+            roles.remove('')
         source = self.lineEdit_source.text()
         sequence = int(self.lineEdit_sequence.text())
         series = self.lineEdit_series.text()
@@ -409,8 +422,8 @@ class ImageManager(QMainWindow, Ui_Manager):
             path = item.full_path
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             # width 和 height 放到编程里更新
-            image = MyImage(id=item.id, desc=desc, author=author, type=type, level=level, tags=tags.split(','), works=works.split(','),
-                            roles=role.split(','), source=source, width=0, height=0, size=FileHelper.get_file_size_in_mb(path),
+            image = MyImage(id=item.id, desc=desc, authors=authors, type=type, level=level, tags=tags, works=works,
+                            roles=roles, source=source, width=0, height=0, size=FileHelper.get_file_size_in_mb(path),
                             path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
                             file_create_time=FileHelper.get_create_time(path), series=series, uploader=uploader,
                             sequence=sequence)
@@ -419,7 +432,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 old_image = self.__image_model.get_database_item(image.id)
                 if old_image and len(select_rows) > 1:
                     image.desc = old_image.desc
-                    image.author = old_image.author
+                    image.authors = old_image.authors
                     image.level = old_image.level
                     image.tags = old_image.tags
                     image.works = old_image.works
@@ -466,12 +479,6 @@ class ImageManager(QMainWindow, Ui_Manager):
                 if not query:
                     continue
                 image.tags[i] = query['_id']
-            if '' in image.tags:
-                image.tags.remove('')
-            if '' in image.roles:
-                image.roles.remove('')
-            if '' in image.works:
-                image.works.remove('')
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             image.relative_path = relative_path
             image.path = path
@@ -522,6 +529,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
         if len(select_rows) > 1:
             self.listView.clearSelection()
+        self._cache.clear()
         # 如果删除到了最后一行，则刷新上一个
         if first_index.row() >= self.__image_model.rowCount():
             if first_index.row() == 0:
@@ -538,6 +546,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         sql_where = self.lineEdit_sql_where.text()
         image_sql_list, image_file_list = self.__db_helper.search_by_filter(json.loads(sql_where))
         if len(image_sql_list) > 0:
+            self._cache.clear()
             self.__image_model.set_images(image_sql_list, image_file_list)
             self.listView.setFocus()
             self.listView.scrollToTop()
@@ -664,6 +673,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def dropEvent(self, e: QtGui.QDropEvent) -> None:
         # 接收文件夹和文件以刷新图片列表
+        self._cache.clear()
         urls = e.mimeData().urls()
         th = threading.Thread(target=self.__load_list_data, args=(urls,), daemon=True)
         th.start()
@@ -695,42 +705,56 @@ class ImageManager(QMainWindow, Ui_Manager):
     # endregion
 
     # region 预加载图片
-    __preload_count = 5
-    __preload_image_queue = queue.Queue(__preload_count)
+    _cache_count = 10
+    _cache = {}
 
     def __preload(self):
+        count = 10
         while True:
             try:
                 index = self.listView.currentIndex().row()
-                preload_index = index + self.__preload_image_queue.qsize() + 1
-                image_file = self.__image_model.get_item(preload_index)
-                if not image_file:
+                remove_key = []
+                for key in self._cache:
+                    if key < index or key > index + count * 2:
+                        remove_key.append(key)
+                for key in remove_key:
+                    print(f'删除过期预缓存：{key}')
+                    del self._cache[key]
+                if len(self._cache) > count / 2 or self.__image_model.rowCount() == 0:
                     time.sleep(1)
                     continue
-
-                full_path = image_file.full_path
-                pixmap, width, height = ImageHelper.get_image_from_file(full_path, self.graphicsView.width(),
-                                                                        self.graphicsView.height())
-                self.__preload_image_queue.put((PreloadImage(full_path, pixmap), width, height))
-                print(f"预加载成功：{full_path}")
+                print('开始预加载')
+                for offset in range(1, count + 1):
+                    pre_index = index + offset
+                    if pre_index in self._cache:
+                        continue
+                    info = self.__image_model.get_item(pre_index)
+                    if not info:
+                        continue
+                    full_path = info.full_path
+                    pixmap, width, height = ImageHelper.get_image_from_file(full_path, self.graphicsView.width(),
+                                                                            self.graphicsView.height())
+                    img = PreloadImage(full_path, pixmap, width, height)
+                    self._cache[pre_index] = img
+                    print(f"预加载成功：{pre_index}, {full_path}")
+                time.sleep(1)
             except Exception as e:
-                print(e)
-                print(f"预加载失败：{full_path}")
+                print(f"预加载失败：{e}")
                 time.sleep(1)
 
-    @timeit
-    def __get_image(self, path):
+    # @timeit
+    def __get_image(self, index, path):
         # 优先从队列中获取
-        while self.__preload_image_queue.qsize() > 0:
-            print(f"准备从预载中读取，{self.__preload_image_queue.qsize()}")
-            image, width, height = self.__preload_image_queue.get(timeout=0.1)
-            if isinstance(image, PreloadImage) and image.full_path == path:
-                print("从预载中读取")
-                self.lineEdit_width.setText(str(width))
-                self.lineEdit_height.setText(str(height))
-                return image.pixmap, True
-        print("从文件中读取")
-        self.__preload_image_queue.queue.clear()
+        if index in self._cache:
+            pre = self._cache[index]
+            if pre.full_path == path:
+                print(f"从预载中读取 {index}")
+                self.lineEdit_width.setText(str(pre.width))
+                self.lineEdit_height.setText(str(pre.height))
+                return pre.pixmap, True
+            else:
+                del self._cache[index]
+        print(f"从文件中读取 {index}")
         image, width, height = ImageHelper.get_image_from_file(path, self.graphicsView.width(),
                                                                self.graphicsView.height())
         self.lineEdit_width.setText(str(width))

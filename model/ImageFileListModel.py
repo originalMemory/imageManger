@@ -94,7 +94,7 @@ class ImageFileListModel(MyBaseListModel):
                     image.source = 'pixiv'
                     image.desc = info.desc
                     image.tags = info.tags
-                    image.author = info.author
+                    image.authors = info.authors
                     image.uploader = ''
                     image.sequence = info.sequence
                     image.file_create_time = FileHelper.get_create_time(full_path)
@@ -122,6 +122,7 @@ class ImageFileListModel(MyBaseListModel):
                     image.path = full_path
                     new_path = full_path.replace(FileHelper.get_path_prefix(), '')
                     image.relative_path = new_path
+                    print(f'新路径：{new_path}，原地址：{image.path}')
                     self.__db_helper.update_path(image.id, new_path)
 
         if image:

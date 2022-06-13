@@ -92,6 +92,17 @@ class ImageHelper:
         if os.path.exists(file_path):
             info.size = FileHelper.get_file_size_in_mb(file_path)
             info.create_time = FileHelper.get_create_time(file_path)
+
+        re_strs = [r'(?P<source>.+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<name>.+?)$']
+        for s in re_strs:
+            dir_name = file_path.split('/')[-2]
+            match = re.search(s, dir_name)
+            if match:
+                info.source = match.group('source')
+                info.authors = [x.strip() for x in match.group('authors').split('&')]
+                info.works = [match.group('name')]
+                return info
+
         filename = os.path.basename(file_path)
         yande = 'yande'
         pixiv = 'pixiv'
@@ -110,7 +121,7 @@ class ImageHelper:
         if not is_in:
             return info
 
-        if f'/{yande}/' in filename:
+        if yande in filename:
             info.source = 'yande'
             info.tags, info.uploader, info.sequence = ImageHelper.analyze_yande(filename)
         elif pixiv in filename:
@@ -118,8 +129,8 @@ class ImageHelper:
             # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
             match = re.search(r"pixiv.*?_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_00", filename)
             if match:
-                author = match.group('author')
-                info.author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
+                author = match.group('author').replace("「", '').replace('」的插画', '').replace('」的漫画', '')
+                info.authors = [author]
                 info.desc = match.group('desc')
                 tags = match.group('tags').split('_')
                 info.tags = tags
@@ -128,7 +139,7 @@ class ImageHelper:
                 match = re.search(r"pixiv.*?_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_0", filename)
                 if match:
                     author = match.group('author')
-                    info.author = author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')
+                    info.authors = [author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')]
                     info.sequence = int(match.group('no'))
                     info.desc = match.group('desc')
         elif konachan in filename:

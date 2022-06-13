@@ -84,7 +84,7 @@ class MyImage:
     """
     id: ObjectId = field(default=None)
     desc: str = field(default="")
-    author: str = field(default="")
+    authors: list = field(default_factory=list)
     """
     类型
     """
@@ -148,7 +148,7 @@ class MyImage:
         image = MyImage(
             id=query['_id'],
             desc=query['desc'],
-            author=query['author'],
+            authors=query['authors'],
             type=query['type'],
             level=query['level'],
             tags=query['tags'],
@@ -173,9 +173,14 @@ class MyImage:
     def di(self, with_id=False):
         di = self.__dict__.copy()
         del di['id']
+        del di['relative_path']
+        di['path'] = self.relative_path
         if not with_id:
             di['_id'] = self.id
         return di
+
+    def author_str(self):
+        return ','.join(self.authors)
 
 
 @dataclass
@@ -193,6 +198,8 @@ class ImageFile(BaseData):
 class PreloadImage:
     full_path: str
     pixmap: QPixmap
+    width: int
+    height: int
 
 
 @dataclass

@@ -209,7 +209,8 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         """
         images = []
         start_y_list = []
-        for i in range(len(self._monitor_settings)):
+        i = 0
+        while i < len(self._monitor_settings):
             setting = self._monitor_settings[i]
             image, index, count = self._get_image(setting.monitor.width >= setting.monitor.height)
             if image and os.path.exists(image.path):
@@ -217,7 +218,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             else:
                 continue
             filename = image.relative_path.split('/')[-1]
-            desc = f"[{index}/{count}] {image.author} - {filename}"
+            desc = f"[{index}/{count}] {','.join(image.authors)} - {filename}"
             if len(desc) > 50:
                 desc = f"{desc[0:46]}..."
             setting.image_desc_action.setText(desc)
@@ -235,11 +236,12 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             if image_data:
                 images.append(image_data)
                 start_y_list.append(setting.monitor.y - self._monitor_start_y)
+            i += 1
         final_image_name = "final.jpg"
         ImageHelper.merge_horizontal_img(images, start_y_list, final_image_name)
 
         if len(images) != len(self._monitor_settings):
-            QMessageBox.information(self, "提示", "sql 语句限制过多，获取不到图片", QMessageBox.Ok)
+            QMessageBox.information(self, "提示", "sql 语句限制过多，获取不到图片",  QMessageBox.StandardButton.Ok)
             return False
 
         path = os.path.join(os.getcwd(), final_image_name)
