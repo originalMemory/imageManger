@@ -16,8 +16,9 @@ from collections import Counter
 
 import requests
 from bs4 import BeautifulSoup
+from bson import ObjectId
 
-from helper.db_helper import DBHelper, DBExecuteType
+from helper.db_helper import DBHelper, DBExecuteType, Col
 from helper.image_helper import ImageHelper
 from model.data import *
 
@@ -75,19 +76,16 @@ class TagHelper:
             tags = []
             for li in lis:
                 tag = li.contents[2].get_text().replace(' ', '_')
-                query = self.db_helper.execute(f"select dest_ids from myacg.tran_source where name='{tag}'",
-                                               DBExecuteType.FetchOne)
+                query = self.db_helper.search_one(Col.TranDest, {'name': tag}, {'dest_ids': 1})
                 if query:
                     tags += query['dest_ids'].split(',')
                 else:
                     tags.append(tag)
-            # tags = list(map(lambda x: x.replace("'", "\\'"), tags))
-            tag_str = ','.join(set(tags)).replace("'", "\\'")
-            print(f'[{i}/{n}]{img.id} - from {img.tags} to {tag_str} - {img.relative_path}')
-            if img.tags == tag_str:
+            print(f'[{i}/{n}]{img.id} - from {img.tags} to {tags} - {img.relative_path}')
+            if img.tags == tags:
                 i += 1
                 continue
-            self.db_helper.execute(f"update myacg.image set tags='{tag_str}' where id={img.id}", DBExecuteType.Run)
+            self.db_helper.update_one(Col.Image, {'_id': img.id}, {'tags': tags})
             # print(f'休眠 {duration:.2f}s')
             # time.sleep(duration)
             i += 1
@@ -131,26 +129,24 @@ class TagHelper:
             time.sleep(duration)
             i += 1
 
-    def get_tag_source_data(self, sql):
-        queries = self.db_helper.execute("select * from myacg.tran_source", DBExecuteType.FetchAll)
+    def get_tag_source_data(self, fl):
+        queries = self.db_helper.search_all(Col.TranSource)
         sources = [TranSource.from_dict(x) for x in queries]
-        queries = self.db_helper.execute("select * from myacg.tran_dest", DBExecuteType.FetchAll)
+        queries = self.db_helper.search_all(Col.TranDest)
         dest_id_di = {}
         for query in queries:
             dest = TranDest.from_dict(query)
-            dest_id_di[str(dest.id)] = dest
+            dest_id_di[dest.id] = dest
         tags = []
-        queries = self.db_helper.execute(sql, DBExecuteType.FetchAll)
-        for i in range(len(queries)):
-            img = MyImage.from_dict(queries[i])
-            print(f'[{i}/{len(queries)}]{img.id} - {img.tags}')
-            split_chars = [';', ' ', ',']
-            source_tags = []
-            for char in split_chars:
-                if char in img.tags:
-                    source_tags = img.tags.split(char)
-            for tag in source_tags:
-                if tag.isdigit():
+        length = self.db_helper.get_count(fl)
+        queries = self.db_helper.search_all(Col.Image, fl)
+        i = 0
+        for query in queries:
+            i += 1
+            img = MyImage.from_dict(query)
+            print(f'[{i}/{length}]{img.id} - {img.tags}')
+            for tag in img.tags:
+                if isinstance(tag, ObjectId):
                     continue
                 tags.append(tag)
         counter = Counter(tags)
@@ -158,8 +154,7 @@ class TagHelper:
         return sources, dest_id_di, counter
 
     def get_not_tran_yande_tag(self):
-        sources, dest_id_di, counter = self.get_tag_source_data(
-            "select * from myacg.image where source='yande' and tags regexp '[a-z]'")
+        sources, dest_id_di, counter = self.get_tag_source_data({'source': 'yande', 'tags': {'$regex': '[a-z]'}})
         lines = ['数量,原名,翻译名,类型,备注\n']
         n = len(counter)
         for i in range(n):
@@ -173,7 +168,7 @@ class TagHelper:
                 patterns = [f'_{source.name}', f'{source.name}_', f'({source.name}', f'{source.name})']
                 for pattern in patterns:
                     if pattern in tag:
-                        for dest_id in source.dest_ids.split(','):
+                        for dest_id in source.dest_ids:
                             dest = dest_id_di[dest_id]
                             if dest.name == 'censored' and 'uncensored' in tag:
                                 continue
@@ -195,8 +190,7 @@ class TagHelper:
             f.writelines(lines)
 
     def get_not_tran_pixiv_tag(self):
-        sources, dest_id_di, counter = self.get_tag_source_data(
-            "select * from myacg.image where source='pixiv'")
+        sources, dest_id_di, counter = self.get_tag_source_data({'source': 'pixiv'})
         lines = ['数量,原名,翻译名,类型,备注\n']
         n = len(counter)
         for i in range(n):
@@ -227,37 +221,29 @@ class TagHelper:
             f.writelines(lines)
 
     def analysis_tags(self):
-        queries = self.db_helper.execute("select * from myacg.tran_source", DBExecuteType.FetchAll)
+        queries = self.db_helper.search_all(Col.TranSource)
         source_name_di = {}
         for query in queries:
             source = TranSource.from_dict(query)
             source_name_di[source.name] = source
-        queries = self.db_helper.execute("select * from myacg.tran_dest", DBExecuteType.FetchAll)
+        source_name_di = {}
+        queries = self.db_helper.search_all(Col.TranDest)
         dest_name_di = {}
         dest_id_di = {}
         for query in queries:
             dest = TranDest.from_dict(query)
             dest_name_di[dest.name] = dest
             dest_id_di[dest.id] = dest
-        queries = self.db_helper.execute("select * from myacg.image where source='konachan' and tags regexp '[a-z]' limit 1000 offset 1325",
-                                         DBExecuteType.FetchAll)
-        # queries = self.db_helper.execute("select * from myacg.image where source='pixiv' and length(tags)>5",
-        #                                  DBExecuteType.FetchAll)
+        sources, dest_id_di, counter = self.get_tag_source_data()
+        queries = self.db_helper.search_all(Col.Image, {'source': 'yande', 'tags': {'$regex': '[a-z]'}})
         for i in range(len(queries)):
             image = MyImage.from_dict(queries[i])
             print(f'[{i}/{len(queries)}]{image.id} - {image.tags}')
-            split_chars = [';', ',', ' ']
-            for char in split_chars:
-                if char in image.tags:
-                    tags = image.tags.split(char)
-                    break
-            roles = set()
-            if image.roles:
-                roles.add(image.roles)
-            works = image.works.split(',')
+            roles = set(image.roles)
+            works = image.works
             authors = image.authors
             new_tags = set()
-            for tag in tags:
+            for tag in image.tags:
                 if tag in dest_name_di:
                     new_tags.add(str(dest_name_di[tag].id))
                     continue
@@ -270,13 +256,6 @@ class TagHelper:
                             roles.add(dest.name)
                         elif dest.type == TagType.Works:
                             works.append(dest.name)
-                            # exist = False
-                            # for work in works:
-                            #     if work in image.relative_path:
-                            #         exist = True
-                            #         break
-                            # if not exist or not len(works):
-                            #     works.append(dest.name)
                         elif dest.type == TagType.Author:
                             authors.append(dest.name)
                         elif dest.type == TagType.Empty:
@@ -285,15 +264,12 @@ class TagHelper:
                         new_tags.add(str(dest_id))
                     continue
                 new_tags.add(tag)
-            tag_str = ','.join(new_tags).replace("\'", "\\'")
-            role = ','.join(roles).replace("\'", "\\'")
-            works = ','.join(set(works)).replace("\'", "\\'")
-            author = author.replace("\'", "\\'")
-            if tag_str == image.tags:
+            if new_tags == image.tags:
                 continue
-            self.db_helper.execute(
-                f"update myacg.image set tags='{tag_str}',role='{role}',works='{works}',author='{author}' where id={image.id}",
-                DBExecuteType.Run)
+            self.db_helper.get_col(Col.Image).update_one(
+                {'_id': image.id},
+                {'tags': new_tags, 'roles': roles, 'works': works, 'authors': authors}
+            )
 
     def record_trans_tags(self):
         with open('tags.csv', encoding='utf-8') as f:
@@ -317,51 +293,25 @@ class TagHelper:
                 self.insert_or_update_tag(type, source, dest, extra)
 
     def insert_or_update_tag(self, type, source, dest, extra):
-        source = source.replace("'", "\\'")
-        dest = dest.replace("'", "\\'")
-        if extra:
-            extra = f"'{extra}'"
-        else:
-            extra = 'null'
-
-        exist_dest = self.db_helper.execute(f"select id from myacg.tran_dest where name='{dest}'",
-                                            DBExecuteType.FetchOne)
+        dest_fl = {'name': dest}
+        exist_dest = self.db_helper.search_one(Col.TranDest, dest_fl)
         if not exist_dest:
-            self.db_helper.execute(f"insert into myacg.tran_dest(name, type, extra) VALUES ('{dest}','{type}',{extra})",
-                                   DBExecuteType.Run)
-            dest_id = self.db_helper.execute(f"select id from myacg.tran_dest where name='{dest}'",
-                                             DBExecuteType.FetchOne)['id']
+            self.db_helper.insert(Col.TranDest, TranDest(name=dest, type=TagType(type), extra=extra))
+            dest_id = self.db_helper.search_one(Col.TranDest, dest_fl, {'_id': 1})['_id']
         else:
-            dest_id = exist_dest['id']
-        dest_id = str(dest_id)
+            dest_id = exist_dest['_id']
 
-        exist_source = self.db_helper.execute(f"select * from myacg.tran_source where name='{source}'",
-                                              DBExecuteType.FetchOne)
+        exist_source = self.db_helper.search_one(Col.TranSource, {'name': source})
         if exist_source:
             source = TranSource.from_dict(exist_source)
             if dest_id in source.dest_ids:
                 print('已存在，跳过')
                 return
-            dest_ids = f'{source.dest_ids},{dest_id}'
-            self.db_helper.execute(f"update myacg.tran_source set dest_ids='{dest_ids}' where id={source.id}",
-                                   DBExecuteType.Run)
+            dest_ids = source.dest_ids
+            dest_ids.append(dest_id)
+            self.db_helper.update_one(Col.TranSource, {'_id': source.id}, {'dest_ids': dest_ids})
         else:
-            self.db_helper.execute(f"insert into myacg.tran_source(name, dest_ids) VALUES ('{source}','{dest_id}')",
-                                   DBExecuteType.Run)
-
-    def update_author(self):
-        queries = self.db_helper.execute(
-            f"select d.id,s.name as source,d.name as dest,d.extra as dest from myacg.tran_source s inner join myacg.tran_dest d on d.id in(s.dest_ids) where d.extra is null and d.type='author';",
-            DBExecuteType.FetchAll)
-        for i in range(len(queries)):
-            query = queries[i]
-            source = query['source']
-            id = query['id']
-            print(f"[{i}/{len(queries)}]{id}, {query['dest']} - {source}")
-            no, name = self.get_yande_author_info(source)
-            if not no:
-                continue
-            self.db_helper.execute(f"update myacg.tran_dest set extra='{no}' where id={id}", DBExecuteType.Run)
+            self.db_helper.insert(Col.TranSource, TranSource(name=source, dest_ids=[dest_id]))
 
     def get_yande_author_info(self, source):
         url = f'https://yande.re/artist.xml?name={source}'

@@ -35,7 +35,7 @@ class TagType(Enum):
 class TranSource:
     id: ObjectId = field(default=None)
     name: str = field(default="")
-    dest_ids: str = field(default="")
+    dest_ids: list = field(default_factory=list)
     create_time: datetime = field(default=datetime.now())
     update_time: datetime = field(default=datetime.now())
 

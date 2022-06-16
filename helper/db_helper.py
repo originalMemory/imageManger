@@ -39,11 +39,20 @@ class DBExecuteType(Enum):
     FetchOne = 2
 
 
+@unique
+class Col(Enum):
+    Image = 'image'
+    Level = 'level'
+    Type = 'type'
+    TranSource = 'tran_source'
+    TranDest = 'tran_dest'
+
+
 tzinfo = pytz.timezone('Asia/Shanghai')
 
 
 class DBHelper:
-    db = pymongo.MongoClient('mongodb://127.0.0.1:27017', tz_aware=True, tzinfo=tzinfo)['acg']
+    db = pymongo.MongoClient(ConfigHelper().get_config_key('database', 'mongo'), tz_aware=True, tzinfo=tzinfo)['acg']
     img_col = db['image']
 
     def __init__(self, error_handler, with_server=False):
@@ -54,6 +63,9 @@ class DBHelper:
     #     print(error_str)
     #     if self.error_handler:
     #         self.error_handler(error_str)
+
+    def get_col(self, col: Col):
+        return self.db[col.value]
 
     def get_model_data_list(self, table):
         """
@@ -74,11 +86,27 @@ class DBHelper:
         :return:
         """
         image.file_create_time = tzinfo.localize(image.file_create_time)
-        image.create_time = tzinfo.localize(datetime.now())
-        image.update_time = tzinfo.localize(datetime.now())
         di = image.di(True)
-        # di['file_create_time'] = tzinfo.localize(image.file_create_time)
-        return self.img_col.insert_one(di)
+        return self.insert(Col.Image, di)
+
+    def _check_item(self, item):
+        if not isinstance(item, dict):
+            item = item.__dict__.copy()
+        if '_id' in item:
+            del item['_id']
+        if 'id' in item:
+            del item['id']
+        item['update_time'] = tzinfo.localize(datetime.now())
+        return item
+
+    def insert(self, col, item):
+        item = self._check_item(item)
+        item['create_time'] = tzinfo.localize(datetime.now())
+        self.get_col(col).insert_one(item)
+
+    def update_one(self, col, fl, item):
+        item = self._check_item(item)
+        self.get_col(col).update_one(fl, {'$set': item})
 
     def update_image(self, image: MyImage):
         """
@@ -125,11 +153,20 @@ class DBHelper:
     def delete(self, image_id):
         return self.img_col.delete_one({'_id': image_id})
 
-    def search_one(self, col, fl):
-        return self.db[col].find_one(fl)
+    def search_one(self, col, fl, filed=None):
+        if filed is None:
+            filed = {}
+        return self.db[col.value].find_one(fl, filed)
 
-    def search_all(self, col, fl):
-        return self.db[col].find(fl)
+    def search_all(self, col, fl=None, filed=None):
+        if fl is None:
+            fl = {}
+        if filed is None:
+            filed = {}
+        return self.db[col.value].find(fl, filed)
+
+    def exist(self, col, fl):
+        return self.search_one(col, fl, {'_id': 1}) is not None
 
     def search_by_filter(self, fl):
         image_sql_list = []

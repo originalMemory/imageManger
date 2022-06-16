@@ -11,6 +11,8 @@ screeninfo = "*"
 pyperclip = "*"
 beautifulsoup4 = "*"
 requests = "*"
+pymongo = "*"
+pytz = "*"
 
 [dev-packages]
 

@@ -50,44 +50,6 @@ def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
 db_helper = DBHelper(None)
 
 
-def update_image(file_path, prefix):
-    info = ImageHelper.analyze_image_info(file_path)
-    source = info.source
-    if source == 'pixiv':
-        sub_str = f'_{info.tags}'
-    elif source in ['yande', 'konachan']:
-        if '00000' in info.relative_path:
-            sub_str = f'{info.tags}_00000'
-        elif '_00' in info.relative_path:
-            sub_str = f'{info.tags}_00'
-        else:
-            sub_str = f'{info.tags}'
-    else:
-        sub_str = ''
-    new_path = file_path.replace(sub_str, '')
-    if file_path == new_path:
-        print('未匹配或已经优化过文件名，直接跳过')
-        return
-    try:
-        if not os.path.exists(new_path):
-            os.rename(file_path, new_path)
-    except Exception as e:
-        print(f"重命名失败：{e}")
-        return
-    md5 = FileHelper.get_md5(new_path)
-    old = db_helper.search_by_md5(md5)
-    if not old:
-        print('没有历史数据，跳过')
-        return
-    new_path = new_path.replace('\\', '/')
-    image = MyImage(id=old.id, desc=info.desc, author=info.author, type=old.type, level=old.type,
-                    tags=info.tags, works=old.works, role=old.roles, source=info.source, width=old.width,
-                    height=old.height, size=old.size, relative_path=new_path.replace(prefix, ''), md5=md5,
-                    file_create_time=FileHelper.get_create_time_str(new_path), series=old.series,
-                    uploader=info.uploader, sequence=old.sequence)
-    db_helper.update_image(image)
-
-
 def recheck_size(start_page):
     page_size = 500
     error_f = open('error.log', 'a+', encoding='utf-8')
@@ -145,31 +107,6 @@ def check_no_record_image(file_path, prefix):
         with open('notRecord.log', 'a+', encoding='utf-8') as f:
             f.write(f'{file_path}\n')
         print('文件不存在')
-
-
-def rename_png2jpg(dir_path):
-    for root, dirs, files in os.walk(dir_path):
-        length = len(files)
-        for i in range(length):
-            file = files[i]
-            file_path = os.path.join(root, file)
-            print(f'[{i}/{length}] {file_path}')
-            extension = FileHelper.get_file_extension(file_path)
-            if extension != '.png':
-                continue
-            new_path = file_path.replace('.png', '.jpg')
-            os.rename(file_path, new_path)
-
-
-def get_file_paths(dir_path):
-    paths = []
-    img_extension = ['jpg', 'jpeg', 'bmp', 'png']
-    # img_extension = ['png']
-    for root, dirs, files in os.walk(dir_path):
-        for file in files:
-            if file.lower().split('.')[-1] in img_extension:
-                paths.append([root, os.path.join(root, file)])
-    return paths
 
 
 def check_exist(file_path, prefix):
@@ -252,11 +189,4 @@ def check_no_split_works(filepath, prefix):
 
 if __name__ == '__main__':
     # analysis_and_rename_file(r'F:/图片/yandegg', 'Z:/', split_by_works)
-    # TagHelper().analysis_tags()
-    path = 'F:/下载/Femjoy 2012/Femjoy 2012-01/Femjoy 2012-01-15 Bally D - Coming Home/femjoy_115238_001.jpg'
-
-    match = re.search(r'(?P<source>.+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<name>.+?)$', path.split('/')[-2])
-    if match:
-        print(match.group('source'))
-        print(match.group('authors'))
-        print(match.group('name'))
+    TagHelper().get_not_tran_yande_tag()

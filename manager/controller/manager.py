@@ -23,7 +23,7 @@ from bson import ObjectId
 from win32comext.shell import shell, shellcon
 
 from helper.config_helper import ConfigHelper
-from helper.db_helper import DBHelper
+from helper.db_helper import DBHelper, Col
 from helper.extension import timeit
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
@@ -344,9 +344,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                     elif dest.type == TagType.Author:
                         authors.add(dest.name)
                     continue
-            query = self.__db_helper.search_one('tran_source', {'name': tag})
+            query = self.__db_helper.search_one(Col.TranSource, {'name': tag})
             if query:
-                query = self.__db_helper.search_all('tran_dest', {'_id': {'$in': query['dest_ids']}})
+                query = self.__db_helper.search_all(Col.TranDest, {'_id': {'$in': query['dest_ids']}})
             if query:
                 for x in query:
                     dest = TranDest.from_dict(x)
