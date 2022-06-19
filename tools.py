@@ -188,5 +188,5 @@ def check_no_split_works(filepath, prefix):
 
 
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'F:/图片/yandegg', 'Z:/', split_by_works)
+    # analysis_and_rename_file(r'F:/图片/pixiv', 'Z:/', split_by_works)
     TagHelper().get_not_tran_yande_tag()

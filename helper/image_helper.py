@@ -132,7 +132,7 @@ class ImageHelper:
                 author = match.group('author').replace("「", '').replace('」的插画', '').replace('」的漫画', '')
                 info.authors = [author]
                 info.desc = match.group('desc')
-                tags = match.group('tags').split('_')
+                tags = match.group('tags').split(';')
                 info.tags = tags
                 info.sequence = int(match.group('no'))
             else:

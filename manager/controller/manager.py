@@ -333,7 +333,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         authors = set()
         for tag in tags:
             if isinstance(tag, ObjectId):
-                query = self.__db_helper.search_one('tran_dest', {'_id': tag})
+                query = self.__db_helper.search_one(Col.TranDest, {'_id': tag})
                 if query:
                     dest = TranDest.from_dict(query)
                     tran_tags.add(dest.name)
@@ -361,7 +361,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                         works.add(dest.name)
                     elif dest.type == TagType.Author:
                         authors.add(dest.name)
-            else:
+            elif not isinstance(tag, ObjectId):
                 tran_tags.add(tag)
         if tran_tags:
             text = ','.join(tran_tags)
@@ -475,7 +475,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 continue
             for i in range(len(image.tags)):
                 tag = image.tags[i]
-                query = self.__db_helper.search_one('tran_dest', {'name': tag})
+                query = self.__db_helper.search_one(Col.TranDest, {'name': tag})
                 if not query:
                     continue
                 image.tags[i] = query['_id']
@@ -720,7 +720,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                 for key in remove_key:
                     print(f'删除过期预缓存：{key}')
                     del self._cache[key]
-                if len(self._cache) > count / 2 or self.__image_model.rowCount() == 0:
+                cache_count = len(self._cache)
+                row_count = self.__image_model.rowCount()
+                if cache_count >= count or row_count == 0 or cache_count + index >= row_count - 1:
                     time.sleep(1)
                     continue
                 print('开始预加载')

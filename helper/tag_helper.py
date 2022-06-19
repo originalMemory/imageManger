@@ -159,8 +159,8 @@ class TagHelper:
         n = len(counter)
         for i in range(n):
             tag, count = counter[i]
-            if count < 5:
-                continue
+            if count < 4:
+                break
             trans = []
             types = []
             for source in sources:
