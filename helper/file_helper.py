@@ -104,6 +104,8 @@ class FileHelper:
 
     @staticmethod
     def copyfile_without_override(origin_file_path, dir_path, new_filename, compress_image=True):
+        if not os.path.exists(origin_file_path):
+            return
         filename = os.path.basename(origin_file_path)
         (shot_name, extension) = os.path.splitext(filename)
         # 替换 ',' ，因为 jetbrains 的背景加载时文件名不能有这个
@@ -111,7 +113,7 @@ class FileHelper:
         if new_filename:
             new_filename = new_filename.replace(',', '_')
             filename = f"{new_filename}{extension}"
-        target_file_path = os.path.join(dir_path, filename)
+        target_file_path = os.path.join(dir_path, filename).replace('\\', '/')
         no = 1
         while True:
             if not os.path.exists(target_file_path):
@@ -140,11 +142,11 @@ class FileHelper:
         img = Image.open(source_path)
         if img.mode != 'RGB':
             img = img.convert('RGB')
-        filename, ext = target_path.split('/')[-1].split('.')
-        new_path = target_path.replace(f'.{ext}', '.jpg')
+        filename, ext = os.path.splitext(os.path.basename(target_path))
+        new_path = target_path.replace(f'{ext}', '.jpg')
         no = 1
         while os.path.exists(new_path):
-            new_path = target_path.replace(f'.{ext}', f'_{no:0>2d}.jpg')
+            new_path = target_path.replace(f'{ext}', f'_{no:0>2d}.jpg')
             print(f'有重复，重命名为：{new_path}')
             no += 1
         img.save(new_path, quality=90)

@@ -16,7 +16,7 @@ import shutil
 import pymongo
 from PIL import Image
 
-from helper.db_helper import DBHelper, DBExecuteType
+from helper.db_helper import DBHelper, DBExecuteType, tzinfo, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
@@ -185,6 +185,44 @@ def check_no_split_works(filepath, prefix):
     with open('notSplitWorks.log', 'a+', encoding='utf-8') as f:
         print("未按作品拆分")
         f.write(f'{info.id}, {info.works}, {filepath}\n')
+
+
+def copy_image():
+    dt = tzinfo.localize(datetime(2022, 1, 2))
+    # dt = tzinfo.localize(datetime(2022, 1, 15))
+    base = 'F:/壁纸/竖/'
+    fl = {
+        # 'type': 2,
+        'level': {'$in': [1, 2, 3]},
+        'create_time': {'$gte': dt},
+        '$expr': {'$lt': ['$width', '$height']}
+    }
+
+    count = db_helper.get_count(fl)
+    # query = db_helper.search_all(Col.Image, fl).skip(29246)
+    query = db_helper.search_all(Col.Image, fl)
+    i = 0
+    for item in query:
+        img = MyImage.from_dict(item)
+        target_dir = f'{base}{img.type}-{img.level}'
+        # if img.width > img.height:
+        #     target_dir += '-1'
+        # else:
+        #     target_dir += '-2'
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+        new_filename = os.path.basename(img.relative_path).split('.')[0]
+        if img.type == 2:
+            new_filename = f"{';'.join(img.works)}_{';'.join(img.roles)}_{img.series}_{';'.join(img.authors)}"
+        if img.type == 3:
+            new_filename = f"{';'.join(img.works)}_{img.series}_{';'.join(img.authors)}"
+        new_filename = new_filename.replace('/', '-')
+        print(f'[{i}/{count}]{img.relative_path} to {target_dir}/{new_filename}')
+        try:
+            FileHelper.copyfile_without_override(img.path, target_dir, new_filename, False)
+        except Exception as e:
+            print(e)
+        i += 1
 
 
 if __name__ == '__main__':
