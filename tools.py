@@ -10,10 +10,7 @@
 @update  :
 """
 import os
-import re
-import shutil
 
-import pymongo
 from PIL import Image
 
 from helper.db_helper import DBHelper, DBExecuteType, tzinfo, Col
@@ -48,6 +45,7 @@ def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
 
 
 db_helper = DBHelper(None)
+tag_helper = TagHelper()
 
 
 def recheck_size(start_page):
@@ -138,28 +136,11 @@ def split_by_works(filepath, prefix):
     if not ImageHelper.is_image(filepath):
         return
     relative_path = filepath.replace('\\', '/').replace(prefix, '')
-    # relative_path = filepath.replace('\\', '/')
     info = db_helper.search_by_file_path(relative_path)
     if not info:
         print('无信息，跳过')
         return
-    if not info.works:
-        print('无作品，跳过')
-        return
-    base = 'Z:/图片/'
-    max_work = ''
-    for work in info.works:
-        if len(max_work) < len(work):
-            max_work = work
-    work_dir = re.sub(r'[<>/\\|:"?]', '_', max_work)
-    dir_path = os.path.join(base, work_dir)
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-    filename = os.path.basename(filepath)
-    new_filepath = os.path.join(dir_path, filename)
-    shutil.move(filepath, new_filepath)
-    db_helper.update_path(info.id, new_filepath.replace('\\', '/').replace('Z:/', ''))
-    print(f'归档到作品 {max_work} 内，文件名 {filename}')
+    tag_helper.split_by_works(info)
 
 
 def check_no_split_works(filepath, prefix):
@@ -226,5 +207,5 @@ def copy_image():
 
 
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'F:/图片/pixiv', 'Z:/', split_by_works)
-    TagHelper().get_not_tran_yande_tag()
+    analysis_and_rename_file(r'Z:/图片/yande', 'Z:/', split_by_works)
+    # TagHelper().analysis_tags()

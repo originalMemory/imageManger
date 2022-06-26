@@ -60,6 +60,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.__config.add_config_key('history', 'rect', '')
 
         self.__db_helper = DBHelper(self.db_error_handler)  # 数据库操作
+        self._tag_helper = TagHelper()
 
         # 下拉列表设置
         self.__type_model = MyBaseListModel()
@@ -324,51 +325,24 @@ class ImageManager(QMainWindow, Ui_Manager):
     def _refresh_tran_tags(self, tags, keep_role):
         if not tags:
             return
-        tran_tags = set()
-        if keep_role and self.lineEdit_role.text():
-            roles = set(self.lineEdit_role.text().split(','))
-        else:
-            roles = set()
+        tran_tags, source_tags = self._tag_helper.get_tran_tags(tags)
+        roles = set()
         works = set()
         authors = set()
-        for tag in tags:
-            if isinstance(tag, ObjectId):
-                query = self.__db_helper.search_one(Col.TranDest, {'_id': tag})
-                if query:
-                    dest = TranDest.from_dict(query)
-                    tran_tags.add(dest.name)
-                    if dest.type == TagType.Role:
-                        roles.add(dest.name)
-                    elif dest.type == TagType.Works:
-                        works.add(dest.name)
-                    elif dest.type == TagType.Author:
-                        authors.add(dest.name)
-                    continue
-            query = self.__db_helper.search_one(Col.TranSource, {'name': tag})
-            if query:
-                query = self.__db_helper.search_all(Col.TranDest, {'_id': {'$in': query['dest_ids']}})
-            if query:
-                for x in query:
-                    dest = TranDest.from_dict(x)
-                    # 暂时没有翻译的保留原文
-                    if not dest.name:
-                        tran_tags.add(tag)
-                        continue
-                    tran_tags.add(dest.name)
-                    if dest.type == TagType.Role:
-                        roles.add(dest.name)
-                    elif dest.type == TagType.Works:
-                        works.add(dest.name)
-                    elif dest.type == TagType.Author:
-                        authors.add(dest.name)
-            elif not isinstance(tag, ObjectId):
-                tran_tags.add(tag)
+        for dest in tran_tags:
+            tran_tags.add(dest.name)
+            if dest.type == TagType.Role:
+                roles.add(dest.name)
+            elif dest.type == TagType.Works:
+                works.add(dest.name)
+            elif dest.type == TagType.Author:
+                authors.add(dest.name)
+        if keep_role and self.lineEdit_role.text():
+            roles += set(self.lineEdit_role.text().split(','))
         if tran_tags:
             text = ','.join(tran_tags)
             # self.textEdit_tag.setText(text)
             self._signal_update_tags.emit(text)
-            # self.textEdit_tag.setText(text)
-            pass
         if roles and not self.lineEdit_role.text():
             self.lineEdit_role.setText(','.join(roles))
         if works and not self.lineEdit_works.text():

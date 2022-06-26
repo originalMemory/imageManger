@@ -9,10 +9,11 @@
 @create  : 2019/8/25 17:57:16
 @update  :
 """
-import os
 
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import Qt
+
+from helper.file_helper import FileHelper
 
 
 class MyListView(QtWidgets.QListView):

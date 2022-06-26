@@ -9,14 +9,15 @@
 @create  : 2022/3/18 11:43 AM
 """
 import json
+import os
 import random
 import re
+import shutil
 import time
 from collections import Counter
 
 import requests
 from bs4 import BeautifulSoup
-from bson import ObjectId
 
 from helper.db_helper import DBHelper, DBExecuteType, Col
 from helper.image_helper import ImageHelper
@@ -139,13 +140,13 @@ class TagHelper:
             dest_id_di[dest.id] = dest
         tags = []
         length = self.db_helper.get_count(fl)
-        queries = self.db_helper.search_all(Col.Image, fl)
+        queries = self.db_helper.search_all(Col.Image, fl, {'tags': 1, '_id': 1})
         i = 0
         for query in queries:
             i += 1
-            img = MyImage.from_dict(query)
-            print(f'[{i}/{length}]{img.id} - {img.tags}')
-            for tag in img.tags:
+            cur_tags = query['tags']
+            print(f'[{i}/{length}]{query["_id"]} - {cur_tags}')
+            for tag in cur_tags:
                 if isinstance(tag, ObjectId):
                     continue
                 tags.append(tag)
@@ -153,13 +154,13 @@ class TagHelper:
         counter = counter.most_common()
         return sources, dest_id_di, counter
 
-    def get_not_tran_yande_tag(self):
-        sources, dest_id_di, counter = self.get_tag_source_data({'source': 'yande', 'tags': {'$regex': '[a-z]'}})
-        lines = ['数量,原名,翻译名,类型,备注\n']
+    def get_not_tran_tags(self, fl, min_count):
+        sources, dest_id_di, counter = self.get_tag_source_data(fl)
+        lines = []
         n = len(counter)
         for i in range(n):
             tag, count = counter[i]
-            if count < 4:
+            if count < min_count:
                 break
             trans = []
             types = []
@@ -170,24 +171,18 @@ class TagHelper:
                     if pattern in tag:
                         for dest_id in source.dest_ids:
                             dest = dest_id_di[dest_id]
+                            if dest.type == TagType.Unknown:
+                                continue
                             if dest.name == 'censored' and 'uncensored' in tag:
                                 continue
                             if dest.name:
                                 trans.append(dest.name)
                                 types.append(dest.type.value)
                         break
-            extra = ''
-            if not trans:
-                no, name = self.get_yande_author_info(tag)
-                if no:
-                    trans.append(name)
-                    types.append('author')
-                    extra = no
-            line = f"{count},{tag},{';'.join(trans)},{';'.join(types)},{extra}\n"
-            print(f'[{i}/{n}]{line.strip()}')
+            line = [count, tag, ';'.join(trans), ';'.join(types), '']
+            print(f'[{i}/{n}]{line}')
             lines.append(line)
-        with open('tags.csv', 'w+', encoding='utf-8') as f:
-            f.writelines(lines)
+        return lines
 
     def get_not_tran_pixiv_tag(self):
         sources, dest_id_di, counter = self.get_tag_source_data({'source': 'pixiv'})
@@ -220,83 +215,111 @@ class TagHelper:
         with open('pixiv.csv', 'w+', encoding='utf-8') as f:
             f.writelines(lines)
 
-    def analysis_tags(self):
-        queries = self.db_helper.search_all(Col.TranSource)
-        source_name_di = {}
+    def analysis_tags(self, fl=None):
+        if not fl:
+            fl = {'source': 'yande', 'tags': {'$regex': '[a-z]'}}
+        count = self.db_helper.get_count(fl)
+        queries = self.db_helper.search_all(Col.Image, fl)
+        i = 0
         for query in queries:
-            source = TranSource.from_dict(query)
-            source_name_di[source.name] = source
-        source_name_di = {}
-        queries = self.db_helper.search_all(Col.TranDest)
-        dest_name_di = {}
-        dest_id_di = {}
-        for query in queries:
-            dest = TranDest.from_dict(query)
-            dest_name_di[dest.name] = dest
-            dest_id_di[dest.id] = dest
-        sources, dest_id_di, counter = self.get_tag_source_data()
-        queries = self.db_helper.search_all(Col.Image, {'source': 'yande', 'tags': {'$regex': '[a-z]'}})
-        for i in range(len(queries)):
-            image = MyImage.from_dict(queries[i])
-            print(f'[{i}/{len(queries)}]{image.id} - {image.tags}')
+            image = MyImage.from_dict(query)
+            i += 1
             roles = set(image.roles)
-            works = image.works
-            authors = image.authors
+            works = set(image.works)
+            authors = set(image.authors)
             new_tags = set()
+            source_tags = []
             for tag in image.tags:
-                if tag in dest_name_di:
-                    new_tags.add(str(dest_name_di[tag].id))
+                if isinstance(tag, ObjectId):
+                    new_tags.add(tag)
                     continue
-                if tag in source_name_di:
-                    if tag not in source_name_di:
+                source = self.db_helper.search_one(Col.TranSource, {'name': tag})
+                if not source:
+                    source_tags.append(tag)
+                    new_tags.add(tag)
+                    continue
+                source = TranSource.from_dict(source)
+                for dest_id in source.dest_ids:
+                    dest = self.db_helper.search_one(Col.TranDest, {'_id': dest_id})
+                    if not dest:
                         continue
-                    for dest_id in source_name_di[tag].dest_ids.split(','):
-                        dest = dest_id_di[int(dest_id)]
-                        if dest.type == TagType.Role:
-                            roles.add(dest.name)
-                        elif dest.type == TagType.Works:
-                            works.append(dest.name)
-                        elif dest.type == TagType.Author:
-                            authors.append(dest.name)
-                        elif dest.type == TagType.Empty:
-                            new_tags.add(tag)
-                            break
-                        new_tags.add(str(dest_id))
-                    continue
-                new_tags.add(tag)
+                    dest = TranDest.from_dict(dest)
+                    new_tags.add(dest.id)
+                    if dest.type == TagType.Role:
+                        roles.add(dest.name)
+                    elif dest.type == TagType.Works:
+                        works.add(dest.name)
+                    elif dest.type == TagType.Author:
+                        authors.add(dest.name)
+            print(f'[{i}/{count}]{image.id} - {image.relative_path}, 剩余tags：{source_tags}')
+            new_tags = list(new_tags)
             if new_tags == image.tags:
                 continue
             self.db_helper.get_col(Col.Image).update_one(
                 {'_id': image.id},
-                {'tags': new_tags, 'roles': roles, 'works': works, 'authors': authors}
+                {'$set': {'tags': new_tags, 'roles': list(roles), 'works': list(works), 'authors': list(authors)}}
             )
+            image.tags = new_tags
+            image.works = list(works)
+            self.split_by_works(image)
 
-    def record_trans_tags(self):
+    def split_by_works(self, info: MyImage):
+        if not info.works or not info.path:
+            return
+        base = 'Z:/图片/'
+        max_work = ''
+        for work in info.works:
+            tp = re.sub(r'[<>/\\|:"?]', '_', work)
+            if tp in info.path:
+                return
+            if len(max_work) < len(work):
+                max_work = work
+        work_dir = re.sub(r'[<>/\\|:"?]', '_', max_work)
+        dir_path = os.path.join(base, work_dir)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        filepath = info.path
+        filename = os.path.basename(filepath)
+        new_filepath = os.path.join(dir_path, filename).replace('\\', '/')
+        shutil.move(filepath, new_filepath)
+        self.db_helper.update_path(info.id, new_filepath.replace('Z:/', ''))
+        print(f'归档到作品 {max_work} 内，文件名 {filename}')
+
+    def record_trans_tags_files(self):
         with open('tags.csv', encoding='utf-8') as f:
             lines = f.readlines()
         for i in range(len(lines)):
+            if i == 0:
+                continue
             line = lines[i].strip()
+            if not line:
+                continue
             print(f'[{i}/{len(lines)}]{line}')
             line = line.split(',')
             source = line[1]
             dests = line[2].split(';')
             types = line[3].strip().split(';')
             extra = line[4].strip()
-            for j in range(len(dests)):
-                if len(types) > 1 and len(types) != len(dests):
-                    print('数据不匹配')
-                    continue
-                dest = dests[j]
-                type = ''
-                if j < len(types):
-                    type = types[j]
-                self.insert_or_update_tag(type, source, dest, extra)
+            self.record_tran_tag(source, dests, types, extra)
+
+    def record_tran_tag(self, source, dests, types, extra):
+        for j in range(len(dests)):
+            if len(types) < len(dests):
+                print('数据不匹配')
+                continue
+            dest = dests[j]
+            type = ''
+            if j < len(types):
+                type = types[j]
+            self.insert_or_update_tag(type, source, dest, extra)
 
     def insert_or_update_tag(self, type, source, dest, extra):
         dest_fl = {'name': dest}
         exist_dest = self.db_helper.search_one(Col.TranDest, dest_fl)
+        if not type:
+            type = TagType.Unknown.value
         if not exist_dest:
-            self.db_helper.insert(Col.TranDest, TranDest(name=dest, type=TagType(type), extra=extra))
+            self.db_helper.insert(Col.TranDest, TranDest(name=dest, type=TagType(value=type), extra=extra).di())
             dest_id = self.db_helper.search_one(Col.TranDest, dest_fl, {'_id': 1})['_id']
         else:
             dest_id = exist_dest['_id']
@@ -374,6 +397,23 @@ class TagHelper:
                 continue
             return tags.split(char)
         return [tags]
+
+    def get_tran_tags(self, tags):
+        source_tags = []
+        dest_ids = []
+        for tag in tags:
+            if isinstance(tag, ObjectId):
+                dest_ids.append(tag)
+                continue
+            query = self.db_helper.search_one(Col.TranSource, {'name': tag})
+            if not query:
+                source_tags.append(tag)
+                continue
+            source = TranSource.from_dict(query)
+            dest_ids += source.dest_ids
+        query = self.db_helper.search_all(Col.TranDest, {'_id': {'$in': dest_ids}})
+        tran_tags = list(map(lambda x: TranDest.from_dict(x), query))
+        return tran_tags, source_tags
 
 
 if __name__ == '__main__':

@@ -72,6 +72,11 @@ class TranDest:
         )
         return item
 
+    def di(self):
+        d = self.__dict__.copy()
+        d['type'] = self.type.value
+        return d
+
     def get_pixiv_url(self):
         if self.type == TagType.Author and self.extra:
             return f'https://www.pixiv.net/users/{self.extra}'
