@@ -9,6 +9,7 @@
 @create  : 2022/3/18 11:43 AM
 """
 import json
+import math
 import os
 import random
 import re
@@ -130,7 +131,7 @@ class TagHelper:
             time.sleep(duration)
             i += 1
 
-    def get_tag_source_data(self, fl):
+    def get_tag_source_data(self, fl, on_progress=None):
         queries = self.db_helper.search_all(Col.TranSource)
         sources = [TranSource.from_dict(x) for x in queries]
         queries = self.db_helper.search_all(Col.TranDest)
@@ -145,23 +146,26 @@ class TagHelper:
         for query in queries:
             i += 1
             cur_tags = query['tags']
-            print(f'[{i}/{length}]{query["_id"]} - {cur_tags}')
-            for tag in cur_tags:
-                if isinstance(tag, ObjectId):
-                    continue
-                tags.append(tag)
+            source_tags = [x for x in cur_tags if not isinstance(x, ObjectId)]
+            print(f'[{i}/{length}]{query["_id"]} - {source_tags}')
+            on_progress.emit('获取标签', round((i / length) * 49))
+            tags += source_tags
         counter = Counter(tags)
         counter = counter.most_common()
+        on_progress.emit('统计数量', 50)
         return sources, dest_id_di, counter
 
-    def get_not_tran_tags(self, fl, min_count):
-        sources, dest_id_di, counter = self.get_tag_source_data(fl)
+    def get_not_tran_tags(self, fl, min_count, on_progress=None):
+        sources, dest_id_di, counter = self.get_tag_source_data(fl, on_progress)
         lines = []
-        n = len(counter)
-        for i in range(n):
-            tag, count = counter[i]
+        data = []
+        for tag, count in counter:
+            data.append([tag, count])
             if count < min_count:
                 break
+        n = len(data)
+        for i in range(n):
+            tag, count = data[i]
             trans = []
             types = []
             for source in sources:
@@ -181,6 +185,7 @@ class TagHelper:
                         break
             line = [count, tag, ';'.join(trans), ';'.join(types), '']
             print(f'[{i}/{n}]{line}')
+            on_progress.emit('解析标签', 50 + round((i + 1) / n * 50))
             lines.append(line)
         return lines
 
@@ -264,7 +269,7 @@ class TagHelper:
             self.split_by_works(image)
 
     def split_by_works(self, info: MyImage):
-        if not info.works or not info.path:
+        if not info.works or not os.path.exists(info.path):
             return
         base = 'Z:/图片/'
         max_work = ''

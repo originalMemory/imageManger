@@ -14,7 +14,7 @@ import time
 import webbrowser
 
 from PyQt6 import QtWidgets, QtGui
-from PyQt6.QtCore import QModelIndex, Qt
+from PyQt6.QtCore import QModelIndex, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QMainWindow, QMessageBox, QHeaderView
 from win32comext.shell import shell, shellcon
@@ -24,12 +24,15 @@ from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
+from manager.view.loading_widget import LoadingMask
 from manager.view.tag_analyse import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
 from model.data import PreloadImage
 
 
 class TagAnalyse(QMainWindow, Ui_Manager):
+    _pb_signal = pyqtSignal(str, int)
+
     def __init__(self, parent=None):
         super(TagAnalyse, self).__init__(parent)
         self.setupUi(self)
@@ -65,7 +68,9 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         else:
             self._config.add_config_key('history', 'tagRect', '')
 
-        threading.Thread(target=self.__preload, daemon=True).start()
+        self._loading_mask = LoadingMask(self)
+        self._pb_signal.connect(self._on_progress)
+        self._load_author_stop = False
 
     def _search_tags(self):
         text = self.textEdit_search.toPlainText()
@@ -93,52 +98,78 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         self.tableView.setColumnWidth(4, 120)
         self.tableView.setColumnWidth(5, 70)
         self.tableView.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._loading_mask.show_with_param(progress=0)
+        threading.Thread(target=self._search_tags_thread, args=(fl, min_count), daemon=True).start()
 
-        lines = self._tag_helper.get_not_tran_tags(fl, min_count)
+    def _search_tags_thread(self, fl, min_count):
+        lines = self._tag_helper.get_not_tran_tags(fl, min_count, self._pb_signal)
         for line in lines:
             check = QStandardItem()
             check.setCheckable(True)
             row = [check] + list(map(lambda x: QStandardItem(str(x)), line))
             self._tag_model.appendRow(row)
-        threading.Thread(target=self._load_authors, daemon=True).start()
+        if lines:
+            self.tableView.setCurrentIndex(self._tag_model.index(0, 2))
+            threading.Thread(target=self._load_authors, daemon=True).start()
 
     def _load_authors(self):
         count = 0
+        self.statusbar.showMessage(f'开始获取画师信息')
         for i in range(self._tag_model.rowCount()):
+            if self._load_author_stop:
+                self.statusbar.showMessage('意外中断，停止获取画师信息')
+                return
             trans = self._tag_model.item(i, 3).text()
             if trans:
                 continue
             count += 1
             if count >= 50:
                 break
-            print(f'[{i}/{self._tag_model.rowCount()}] - 开始获取用户信息')
-            no, name = self._tag_helper.get_yande_author_info(self._tag_model.item(i, 2).text())
+            source = self._tag_model.item(i, 2).text()
+            no, name = self._tag_helper.get_yande_author_info(source)
             if not no:
                 continue
-            print(f'[{i}/{self._tag_model.rowCount()}] - 获取用户名成功：{name}, {no}')
+            self.statusbar.showMessage(f'[{i + 1}/{self._tag_model.rowCount()}] - 获取 {source} 对应画师名成功：{name}, {no}')
             self._tag_model.setItem(i, 3, QStandardItem(name))
             self._tag_model.setItem(i, 4, QStandardItem('author'))
             self._tag_model.setItem(i, 5, QStandardItem(no))
-        print('获取用户结束')
+        self.statusbar.showMessage('全部画师获取成功')
 
     def _save(self):
+        self._load_author_stop = True
+        self._loading_mask.show_with_param('开始保存解析结果', 0)
+        threading.Thread(target=self._save_thread, daemon=True).start()
+
+    def _save_thread(self):
         rows = []
-        for i in range(self._tag_model.rowCount()):
+        length = self._tag_model.rowCount()
+        for i in range(length):
             if self._tag_model.item(i, 0).checkState() != Qt.CheckState.Checked:
                 continue
-            source = self._tag_model.item(i, 2).text()
-            dests = self._tag_model.item(i, 3).text().split(';')
-            types = self._tag_model.item(i, 4).text().split(';')
-            extra = self._tag_model.item(i, 5).text()
-            self._tag_helper.record_tran_tag(source, dests, types, extra)
-            self._tag_helper.analysis_tags({'tags': source})
             rows.append(i)
-        rows.sort(reverse=True)
-        for row in rows:
+        length = len(rows)
+        del_rows = []
+        for i in range(length):
+            row = rows[i]
+            source = self._tag_model.item(row, 2).text()
+            try:
+                dest_str = self._tag_model.item(row, 3).text()
+                dests = dest_str.split(';')
+                types = self._tag_model.item(row, 4).text().split(';')
+                extra = self._tag_model.item(row, 5).text()
+                self._tag_helper.record_tran_tag(source, dests, types, extra)
+                self._tag_helper.analysis_tags({'tags': source})
+                self._pb_signal.emit(f'[{i + 1}/{length}]{source} - {dest_str}', round((i + 1) / length * 100))
+                del_rows.append(row)
+            except Exception as e:
+                print(f'{source} 解析失败：{e}')
+        del_rows.sort(reverse=True)
+        for row in del_rows:
             self._tag_model.removeRow(row)
         self._cache.clear()
         if self._tag_model.rowCount():
             self.tableView.setCurrentIndex(self._tag_model.index(0, 2))
+            self._load_author_stop = False
             threading.Thread(target=self._load_authors, daemon=True).start()
 
     def _jum_pixiv(self):
@@ -157,7 +188,8 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         if previous.row() >= 0:
             checked = self._tag_model.item(previous.row(), 0)
             checked.setCheckState(Qt.CheckState.Checked)
-        threading.Thread(target=self._load_img, daemon=True).start()
+        if current.row() >= 0:
+            threading.Thread(target=self._load_img, daemon=True).start()
 
     def _load_img(self):
         tag = self._tag_model.item(self.tableView.selectionModel().currentIndex().row(), 2).text()
@@ -202,18 +234,18 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         select_rows = self.listView.selectionModel().selectedRows()
         if len(select_rows) == 0:
             return
-        first_index = select_rows[0]
-        item = self._image_model.get_item(first_index)
+        first_index = select_rows[0].row()
+        row = first_index.row()
+        item = self._image_model.get_item(row)
         if item.id:
             self._db_helper.delete(item.id)
         shell.SHFileOperation((0, shellcon.FO_DELETE, item.full_path, None,
                                shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
                                None))  # 删除文件到回收站
-        self._image_model.delete_item(first_index)
+        self._image_model.delete_item(row)
         self.statusbar.showMessage(f"{item.name} 删除成功！")
 
         self._cache.clear()
-        row = first_index.row()
         # 如果删除到了最后一行，则刷新上一个
         if first_index.row() >= self._image_model.rowCount():
             row = self._image_model.rowCount() - 1
@@ -330,3 +362,8 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         rect = self.geometry()
         rect_info = f'{rect.left()},{rect.top()},{rect.width()},{rect.height()}'
         self._config.add_config_key('history', 'tagRect', rect_info)
+
+    def _on_progress(self, tip, progress):
+        self._loading_mask.update(tip, progress)
+        if progress == 100:
+            QTimer().singleShot(300, lambda: self._loading_mask.hide())

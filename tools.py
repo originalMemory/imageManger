@@ -207,5 +207,5 @@ def copy_image():
 
 
 if __name__ == '__main__':
-    analysis_and_rename_file(r'Z:/图片/yande', 'Z:/', split_by_works)
+    analysis_and_rename_file(r'F:/图片/yande', 'Z:/', split_by_works)
     # TagHelper().analysis_tags()

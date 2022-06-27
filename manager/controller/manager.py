@@ -329,8 +329,9 @@ class ImageManager(QMainWindow, Ui_Manager):
         roles = set()
         works = set()
         authors = set()
+        tags = []
         for dest in tran_tags:
-            tran_tags.add(dest.name)
+            tags.append(dest.name)
             if dest.type == TagType.Role:
                 roles.add(dest.name)
             elif dest.type == TagType.Works:
@@ -339,10 +340,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                 authors.add(dest.name)
         if keep_role and self.lineEdit_role.text():
             roles += set(self.lineEdit_role.text().split(','))
-        if tran_tags:
-            text = ','.join(tran_tags)
-            # self.textEdit_tag.setText(text)
-            self._signal_update_tags.emit(text)
+        text = ','.join(tags + source_tags)
+        # self.textEdit_tag.setText(text)
+        self._signal_update_tags.emit(text)
         if roles and not self.lineEdit_role.text():
             self.lineEdit_role.setText(','.join(roles))
         if works and not self.lineEdit_works.text():
