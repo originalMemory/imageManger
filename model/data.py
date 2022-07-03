@@ -13,12 +13,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import unique, Enum
 
+import pytz
 from PyQt6.QtGui import QPixmap, QAction
 from bson import ObjectId
 from screeninfo import Monitor
 
 from helper.file_helper import FileHelper
 
+tzinfo = pytz.timezone('Asia/Shanghai')
 
 @unique
 class TagType(Enum):
@@ -121,7 +123,6 @@ class MyImage:
     作品序号，用于快速对比合集资源
     """
     sequence: int = field(default=0)
-    relative_path: str = field(default="")
     md5: str = field(default="")
     """
     文件创建时间
@@ -144,7 +145,7 @@ class MyImage:
     """
     uploader: str = field(default="")
     """
-    本地字段，本地地址
+    地址
     """
     path: str = field(default="")
 
@@ -164,7 +165,7 @@ class MyImage:
             height=query['height'],
             size=query['size'],
             sequence=query['sequence'],
-            relative_path=query['path'],
+            path=query['path'],
             md5=query['md5'],
             file_create_time=query['file_create_time'],
             create_time=query['create_time'],
@@ -172,17 +173,18 @@ class MyImage:
             series=query['series'],
             uploader=query['uploader']
         )
-        image.path = FileHelper.get_full_path(image.relative_path)
         return image
 
     def di(self, with_id=False):
         di = self.__dict__.copy()
         del di['id']
         del di['relative_path']
-        di['path'] = self.relative_path
         if not with_id:
             di['_id'] = self.id
         return di
+
+    def full_path(self):
+        return FileHelper.get_full_path(self.path)
 
     def author_str(self):
         return ','.join(self.authors)
@@ -205,6 +207,8 @@ class PreloadImage:
     pixmap: QPixmap
     width: int
     height: int
+    size: int
+    create_time: datetime
 
 
 @dataclass
@@ -213,3 +217,17 @@ class MonitorSetting:
     image_desc_action: QAction
     image_level_actions: list
     image: MyImage = None
+
+
+@dataclass
+class SimilarImage:
+    _id: ObjectId = field(default=None)
+    author: str = field(default='')
+    name: str = field(default='')
+    md5s: list = field(default_factory=list)
+    create_time: datetime = field(default=tzinfo.localize(datetime.now()))
+    update_time: datetime = field(default=tzinfo.localize(datetime.now()))
+
+    def id(self):
+        return self._id
+

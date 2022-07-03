@@ -53,9 +53,9 @@ class TagHelper:
         i = 0
         while i < n:
             img = imgs[i]
-            no = ImageHelper.get_yande_no(img.relative_path)
+            no = ImageHelper.get_yande_no(img.path)
             if not no:
-                print(f'[{i}/{n}]{img.id} - {img.relative_path}')
+                print(f'[{i}/{n}]{img.id} - {img.path}')
                 i += 1
                 continue
             url = f'https://yande.re/post/show/{no}'
@@ -83,7 +83,7 @@ class TagHelper:
                     tags += query['dest_ids'].split(',')
                 else:
                     tags.append(tag)
-            print(f'[{i}/{n}]{img.id} - from {img.tags} to {tags} - {img.relative_path}')
+            print(f'[{i}/{n}]{img.id} - from {img.tags} to {tags} - {img.path}')
             if img.tags == tags:
                 i += 1
                 continue
@@ -98,9 +98,9 @@ class TagHelper:
         i = 0
         while i < n:
             img = imgs[i]
-            no = ImageHelper.get_pixiv_no(img.relative_path)
+            no = ImageHelper.get_pixiv_no(img.path)
             if not no:
-                print(f'[{i}/{n}]找不到 no {img.id} - {img.relative_path}')
+                print(f'[{i}/{n}]找不到 no {img.id} - {img.path}')
                 i += 1
                 continue
             html = self._get_html(f'https://www.pixiv.net/artworks/{no}', 'cookies.txt')
@@ -108,7 +108,7 @@ class TagHelper:
                 time.sleep(3)
                 continue
             if '该作品已被删除，或作品ID不存在。' in html:
-                print(f'[{i}/{n}]作品不存在 {img.id} - {img.relative_path}')
+                print(f'[{i}/{n}]作品不存在 {img.id} - {img.path}')
                 i += 1
                 continue
             val = BeautifulSoup(html, 'lxml')
@@ -256,11 +256,12 @@ class TagHelper:
                         works.add(dest.name)
                     elif dest.type == TagType.Author:
                         authors.add(dest.name)
-            print(f'[{i}/{count}]{image.id} - {image.relative_path}, 剩余tags：{source_tags}')
+            print(f'[{i}/{count}]{image.id} - {image.path}, 剩余tags：{source_tags}')
             new_tags = list(new_tags)
             if new_tags == image.tags:
                 continue
-            self.db_helper.get_col(Col.Image).update_one(
+            self.db_helper.update_one(
+                Col.Image,
                 {'_id': image.id},
                 {'$set': {'tags': new_tags, 'roles': list(roles), 'works': list(works), 'authors': list(authors)}}
             )
@@ -283,7 +284,7 @@ class TagHelper:
         dir_path = os.path.join(base, work_dir)
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
-        filepath = info.path
+        filepath = info.full_path()
         filename = os.path.basename(filepath)
         new_filepath = os.path.join(dir_path, filename).replace('\\', '/')
         shutil.move(filepath, new_filepath)

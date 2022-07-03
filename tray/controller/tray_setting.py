@@ -213,11 +213,11 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         while i < len(self._monitor_settings):
             setting = self._monitor_settings[i]
             image, index, count = self._get_image(setting.monitor.width >= setting.monitor.height)
-            if image and os.path.exists(image.path):
+            if image and os.path.exists(image.full_path()):
                 setting.image = image
             else:
                 continue
-            filename = image.relative_path.split('/')[-1]
+            filename = image.full_path().split('/')[-1]
             desc = f"[{index}/{count}] {','.join(image.authors)} - {filename}"
             if len(desc) > 50:
                 desc = f"{desc[0:46]}..."
@@ -226,7 +226,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
 
             try:
                 image_data = ImageHelper.get_sized_image(
-                    image.path,
+                    image.full_path(),
                     width=setting.monitor.width,
                     height=setting.monitor.height
                 )
@@ -312,7 +312,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
 
     def __open_file_in_directory_and_copy_file_name(self, index):
         image = self._monitor_settings[index].image
-        file_path = image.path.replace('/', '\\')
+        file_path = image.full_path().replace('/', '\\')
         ex = f"explorer /select,{file_path}"
         os.system(ex)
         pyperclip.copy(image.filename)

@@ -64,20 +64,20 @@ def recheck_size(start_page):
         n = len(infos)
         for i in range(n):
             info = infos[i]
-            print(f'[{offset + i}/{count}] {info.id}, {info.relative_path}')
-            if not os.path.exists(info.path):
-                not_exist_f.write(f'{info.id},{info.path}\n')
+            print(f'[{offset + i}/{count}] {info.id}, {info.path}')
+            if not os.path.exists(info.full_path()):
+                not_exist_f.write(f'{info.id},{info.full_path()}\n')
                 print('图片不存在')
-                db_helper.delete(info.id)
+                # db_helper.delete(info.id)
                 continue
             try:
-                width, height = Image.open(info.path).size
+                width, height = Image.open(info.full_path()).size
             except Exception as e:
-                error_f.write(f'{info.id},{info.relative_path},{info.width},{info.height},{e}\n')
+                error_f.write(f'{info.id},{info.full_path()},{info.width},{info.height},{e}\n')
                 print('尺寸读取失败')
                 continue
             if not width or not height:
-                error_f.write(f'{info.id},{info.relative_path},{info.width},{info.height}\n')
+                error_f.write(f'{info.id},{info.full_path()},{info.width},{info.height}\n')
                 print('尺寸读取失败')
                 continue
             if width == info.width and height == info.height:
@@ -111,8 +111,7 @@ def check_exist(file_path, prefix):
     if not ImageHelper.is_image(file_path):
         return
     md5 = FileHelper.get_md5(file_path)
-    info = db_helper.search_by_md5(md5)
-    if info:
+    if db_helper.search_by_md5(md5) or db_helper.exist(Col.SimilarImage, {'md5s': md5}):
         print('已存在，删除该文件')
         os.remove(file_path)
 
@@ -192,20 +191,53 @@ def copy_image():
         #     target_dir += '-2'
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
-        new_filename = os.path.basename(img.relative_path).split('.')[0]
+        new_filename = os.path.basename(img.path).split('.')[0]
         if img.type == 2:
             new_filename = f"{';'.join(img.works)}_{';'.join(img.roles)}_{img.series}_{';'.join(img.authors)}"
         if img.type == 3:
             new_filename = f"{';'.join(img.works)}_{img.series}_{';'.join(img.authors)}"
         new_filename = new_filename.replace('/', '-')
-        print(f'[{i}/{count}]{img.relative_path} to {target_dir}/{new_filename}')
+        print(f'[{i}/{count}]{img.full_path()} to {target_dir}/{new_filename}')
         try:
-            FileHelper.copyfile_without_override(img.path, target_dir, new_filename, False)
+            FileHelper.copyfile_without_override(img.full_path(), target_dir, new_filename, False)
         except Exception as e:
             print(e)
         i += 1
 
 
+def record_similar_image(author, dir_path):
+    filenames = os.listdir(dir_path)
+    length = len(filenames)
+    for i, filename in enumerate(filenames):
+        filepath = os.path.join(dir_path, filename)
+        if not os.path.isdir(filepath):
+            continue
+        paths = []
+        for root, ds, fs in os.walk(filepath):
+            for f in fs:
+                if '$RECYCLE' in f or not ImageHelper.is_image(f):
+                    continue
+                paths.append(os.path.join(root, f))
+        sub_length = len(paths)
+        for j in range(sub_length):
+            path = paths[j]
+            info = f'[{i}/{length}-{j}/{sub_length}]{path}'
+            md5 = FileHelper.get_md5(path)
+            if db_helper.search_by_md5(md5) or db_helper.exist(Col.SimilarImage, {'md5s': md5}):
+                print(info)
+                continue
+            di = db_helper.search_one(Col.SimilarImage, {'name': filename})
+            if di:
+                sim = SimilarImage(**di)
+                sim.md5s.append(md5)
+                db_helper.update_one(Col.SimilarImage, {'_id': sim.id()}, sim)
+            else:
+                sim = SimilarImage(author=author, name=filename, md5s=[md5])
+                db_helper.insert(Col.SimilarImage, sim)
+            print(f'{info}，保存相似md5 {md5}')
+
+
 if __name__ == '__main__':
-    analysis_and_rename_file(r'F:/图片/yande', 'Z:/', split_by_works)
+    # analysis_and_rename_file(r'G:\cos\[雨波]', 'Z:/', check_exist)
+    record_similar_image('雨波_HaneAme', r'G:\cos\[雨波]')
     # TagHelper().analysis_tags()

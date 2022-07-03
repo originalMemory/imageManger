@@ -280,9 +280,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
             # 分析图片信息
             self.lineEdit_path.setText(path)
-            info = ImageHelper.analyze_image_info(path)
-            self.lineEdit_size.setText(f"{info.size} MB")
-            self.dateTimeEdit_file_create.setDateTime(info.create_time)
+            info = ImageHelper.analyze_image_info(path, check_size=False)
             if info.desc:
                 self.lineEdit_desc.setText(info.desc)
             if info.tags:
@@ -303,7 +301,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             return
         # 显示已有记录
         self.lineEdit_desc.setText(info.desc)
-        self.lineEdit_path.setText(info.path)
+        self.lineEdit_path.setText(info.full_path())
         self.lineEdit_source.setText(info.source)
         self.lineEdit_author.setText(info.author_str())
         self.lineEdit_series.setText(info.series)
@@ -397,9 +395,9 @@ class ImageManager(QMainWindow, Ui_Manager):
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
             # width 和 height 放到编程里更新
             image = MyImage(id=item.id, desc=desc, authors=authors, type=type, level=level, tags=tags, works=works,
-                            roles=roles, source=source, width=0, height=0, size=FileHelper.get_file_size_in_mb(path),
-                            path=path, relative_path=relative_path, md5=FileHelper.get_md5(path),
-                            file_create_time=FileHelper.get_create_time(path), series=series, uploader=uploader,
+                            roles=roles, source=source, width=0, height=0, size=0,
+                            path=path, relative_path=relative_path, md5='',
+                            file_create_time=None, series=series, uploader=uploader,
                             sequence=sequence)
             if image.id:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
@@ -418,11 +416,14 @@ class ImageManager(QMainWindow, Ui_Manager):
         while True:
             row, image = self._change_tasks.get()
             item = self.__image_model.get_item(row.row())
-            path = image.path
+            path = image.full_path()
             need_refresh_item = False
             width, height = ImageHelper.get_image_width_and_height(path)
             image.width = width
             image.height = height
+            image.size = FileHelper.get_file_size_in_mb(path)
+            image.md5 = FileHelper.get_md5(path)
+            image.file_create_time = FileHelper.get_create_time(path)
             source = image.source
             new_item = item
             source_tags = ImageHelper.get_source_tags(image.path)
@@ -454,8 +455,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                     continue
                 image.tags[i] = query['_id']
             relative_path = path.replace(FileHelper.get_path_prefix(), '')
-            image.relative_path = relative_path
-            image.path = path
+            image.path = relative_path
             if not image.id:
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(relative_path)
@@ -541,16 +541,16 @@ class ImageManager(QMainWindow, Ui_Manager):
             image = self.__image_model.get_item(i)
             if image.id:
                 image_sql = self.__image_model.get_database_item(image.id)
-                if not os.path.exists(image_sql.path):
+                if not os.path.exists(image_sql.full_path()):
                     continue
 
                 try:
                     new_filename = None
                     if image_sql.type == 2:
-                        new_filename = f"{image_sql.works}_{image_sql.roles}_{image_sql.series}_{image_sql.author}"
+                        new_filename = f"{image_sql.works}_{image_sql.roles}_{image_sql.series}_{image_sql.author_str()}"
                     if image_sql.type == 3:
-                        new_filename = f"{image_sql.works}_{image_sql.series}_{image_sql.author}"
-                    FileHelper.copyfile_without_override(image_sql.path, dir_path, new_filename)
+                        new_filename = f"{image_sql.works}_{image_sql.series}_{image_sql.author_str()}"
+                    FileHelper.copyfile_without_override(image_sql.full_path(), dir_path, new_filename)
                 except Exception as e:
                     print(e)
             else:
@@ -710,7 +710,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                     full_path = info.full_path
                     pixmap, width, height = ImageHelper.get_image_from_file(full_path, self.graphicsView.width(),
                                                                             self.graphicsView.height())
-                    img = PreloadImage(full_path, pixmap, width, height)
+                    size = FileHelper.get_file_size_in_mb(full_path)
+                    create_time = FileHelper.get_create_time(full_path)
+                    img = PreloadImage(full_path, pixmap, width, height, size, create_time)
                     self._cache[pre_index] = img
                     print(f"预加载成功：{pre_index}, {full_path}")
                 time.sleep(1)
@@ -727,6 +729,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                 print(f"从预载中读取 {index}")
                 self.lineEdit_width.setText(str(pre.width))
                 self.lineEdit_height.setText(str(pre.height))
+                self.lineEdit_size.setText(f"{pre.size} MB")
+                self.dateTimeEdit_file_create.setDateTime(pre.create_time)
                 return pre.pixmap, True
             else:
                 del self._cache[index]
@@ -735,6 +739,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                                                                self.graphicsView.height())
         self.lineEdit_width.setText(str(width))
         self.lineEdit_height.setText(str(height))
+        self.lineEdit_size.setText(f"{FileHelper.get_file_size_in_mb(path)} MB")
+        self.dateTimeEdit_file_create.setDateTime(FileHelper.get_create_time(path))
         return image, False
 
     # endregion

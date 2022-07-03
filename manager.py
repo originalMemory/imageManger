@@ -17,9 +17,6 @@ from manager.controller.manager import ImageManager
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    try:
-        myWin = ImageManager()
-        myWin.show()
-        sys.exit(app.exec())
-    except Exception as e:
-        print(e)
+    myWin = ImageManager()
+    myWin.show()
+    sys.exit(app.exec())

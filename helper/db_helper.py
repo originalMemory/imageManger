@@ -15,7 +15,6 @@ from enum import unique, Enum
 
 import pymongo
 import pytz
-from dateutil.parser import parser
 
 from helper.config_helper import ConfigHelper
 from model.data import MyImage, BaseData, ImageFile
@@ -46,17 +45,35 @@ class Col(Enum):
     Type = 'type'
     TranSource = 'tran_source'
     TranDest = 'tran_dest'
+    SimilarImage = 'similar_image'
+
+
+@unique
+class DBType(Enum):
+    Local = 0
+    Server = 1
 
 
 tzinfo = pytz.timezone('Asia/Shanghai')
 
 
 class DBHelper:
-    db = pymongo.MongoClient(ConfigHelper().get_config_key('database', 'mongo'), tz_aware=True, tzinfo=tzinfo)['acg']
-    img_col = db['image']
-
     def __init__(self, error_handler, with_server=False):
         self.error_handler = error_handler
+
+    _cache = {}
+
+    def _get_db(self, db_type):
+        if db_type == DBType.Server:
+            url = ConfigHelper().get_config_key('database', 'mongoServer')
+        else:
+            url = ConfigHelper().get_config_key('database', 'mongoLocal')
+        if url in self._cache:
+            return self._cache[url]
+        else:
+            db = pymongo.MongoClient(url, tz_aware=True, tzinfo=tzinfo)['acg']
+            self._cache[url] = db
+            return db
 
     # def __show_error(self, error):
     #     error_str = str(error)
@@ -64,8 +81,8 @@ class DBHelper:
     #     if self.error_handler:
     #         self.error_handler(error_str)
 
-    def get_col(self, col: Col):
-        return self.db[col.value]
+    def get_col(self, db_type: DBType, col: Col):
+        return self._get_db(db_type)[col.value]
 
     def get_model_data_list(self, table):
         """
@@ -73,7 +90,7 @@ class DBHelper:
         :param table: 数据表名
         :return:
         """
-        col = self.db[table]
+        col = self._get_search_db()[table]
         query = col.find()
         if query:
             lists = [BaseData(x['value'], x['name']) for x in query]
@@ -89,7 +106,8 @@ class DBHelper:
         di = image.di(True)
         return self.insert(Col.Image, di)
 
-    def _check_item(self, item):
+    @staticmethod
+    def _check_item(item):
         if not isinstance(item, dict):
             item = item.__dict__.copy()
         if '_id' in item:
@@ -102,28 +120,34 @@ class DBHelper:
     def insert(self, col, item):
         item = self._check_item(item)
         item['create_time'] = tzinfo.localize(datetime.now())
-        self.get_col(col).insert_one(item)
+        server = self._get_db(DBType.Server)
+        if server:
+            server[col.value].insert_one(item)
+        local = self._get_db(DBType.Local)
+        if local:
+            local[col.value].insert_one(item)
 
     def update_one(self, col, fl, item):
         item = self._check_item(item)
-        self.get_col(col).update_one(fl, {'$set': item})
+        set_di = {'$set': item}
+        server = self._get_db(DBType.Server)
+        if server:
+            server[col.value].update_one(fl, set_di)
+        local = self._get_db(DBType.Local)
+        if local:
+            local[col.value].update_one(fl, set_di)
 
     def update_image(self, image: MyImage):
         """
         更新图片分类信息
         :param image: 图片信息
-        :param conn: 图片信息
         :return: ObjectId
         """
         image.file_create_time = tzinfo.localize(image.file_create_time)
-        image.update_time = tzinfo.localize(datetime.now())
-        di = image.di()
-        del di['create_time']
-        fl = {'_id': image.id}
-        return self.img_col.update_one(fl, {'$set': di})
+        return self.update_one(Col.Image, {'_id': image.id}, image)
 
     def update_path(self, img_id, relative_path):
-        return self.img_col.update_one({'_id': img_id}, {'$set': {'path': relative_path}})
+        return self.update_one(Col.Image, {'_id': img_id}, {'path': relative_path})
 
     def search_by_md5(self, md5):
         """
@@ -131,7 +155,7 @@ class DBHelper:
         :param md5:
         :return:
         """
-        query = self.img_col.find_one({'md5': md5})
+        query = self.search_one(Col.Image, {'md5': md5})
         if query:
             return MyImage.from_dict(query)
 
@@ -141,29 +165,40 @@ class DBHelper:
         :param filepath:
         :return:
         """
-        query = self.img_col.find_one({'path': filepath})
+        query = self.search_one(Col.Image, {'path': filepath})
         if query:
             return MyImage.from_dict(query)
 
     def get_id_by_path(self, filepath):
-        query = self.img_col.find_one({'path': filepath}, {'_id': 1})
+        query = self.search_one(Col.Image, {'path': filepath}, {'_id': 1})
         if query:
             return query['_id']
 
     def delete(self, image_id):
-        return self.img_col.delete_one({'_id': image_id})
+        fl = {'_id': image_id}
+        server = self._get_db(DBType.Server)
+        if server:
+            server[Col.Image.value].delete_one(fl)
+        local = self._get_db(DBType.Local)
+        if local:
+            local[Col.Image.value].delete_one(fl)
+
+    def _get_search_db(self):
+        local = self._get_db(DBType.Local)
+        if local:
+            return local
+        else:
+            return self._get_db(DBType.Server)
 
     def search_one(self, col, fl, filed=None):
-        if filed is None:
-            filed = {}
-        return self.db[col.value].find_one(fl, filed)
+        if not fl:
+            fl = {}
+        return self._get_search_db()[col.value].find_one(fl, filed)
 
     def search_all(self, col, fl=None, filed=None):
-        if fl is None:
+        if not fl:
             fl = {}
-        if filed is None:
-            filed = {}
-        return self.db[col.value].find(fl, filed)
+        return self._get_search_db()[col.value].find(fl, filed)
 
     def exist(self, col, fl):
         return self.search_one(col, fl, {'_id': 1}) is not None
@@ -171,19 +206,19 @@ class DBHelper:
     def search_by_filter(self, fl):
         image_sql_list = []
         image_file_list = []
-        queries = self.img_col.find(fl)
+        queries = self.search_all(Col.Image, fl)
         for query in queries:
             image_sql = MyImage.from_dict(query)
             image_sql_list.append(image_sql)
 
-            path = image_sql.path
+            path = image_sql.full_path()
             tp_lists = path.split('/')
             image_file = ImageFile(image_sql.id, "%s/%s" % (tp_lists[-2], tp_lists[-1]), path)
             image_file_list.append(image_file)
         return image_sql_list, image_file_list
 
     def get_images(self, page, pagesize):
-        queries = self.img_col.find().limit(pagesize).skip(page * pagesize)
+        queries = self._get_search_db()[Col.Image.value].find().limit(pagesize).skip(page * pagesize)
         return [MyImage.from_dict(x) for x in queries]
 
     def get_count(self, fl=None):
@@ -191,33 +226,9 @@ class DBHelper:
         获取图片总数
         :return:
         """
+
+        col = self._get_search_db()[Col.Image.value]
         if fl:
-            return self.img_col.count_documents(fl)
+            return col.count_documents(fl)
         else:
-            return self.img_col.estimated_document_count()
-
-    def get_one_image_with_where(self, fl, offset):
-        query = self.img_col.find_one(fl)
-        if query:
-            return MyImage.from_dict(query)
-
-    def sync_server_data(self):
-        config = ConfigHelper()
-        dt = config.get_config_key('history', 'last_sync_time', None)
-        if dt:
-            dt = parser.parse(dt)
-        else:
-            dt = datetime.now(tzinfo)
-        fl = {'update_time': {'$get': dt}}
-        count = self.img_col.count_documents(fl)
-        queries = self.img_col.find(fl)
-        i = 0
-        sever_img_col = pymongo.MongoClient(config.get_config_key('database', 'mongo'))['acg']['image']
-        for query in queries:
-            image = MyImage.from_dict(query)
-            print(f'[{i}/{count}] {image.id}')
-            local_image = self.search_by_md5(image.md5)
-            if local_image:
-                sever_img_col.update_one({'_id': image.id}, image.di())
-            else:
-                sever_img_col.insert_one(image.di(True))
+            return col.estimated_document_count()

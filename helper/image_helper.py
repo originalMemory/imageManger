@@ -81,7 +81,7 @@ class ImageHelper:
             return 0, 0
 
     @staticmethod
-    def analyze_image_info(file_path):
+    def analyze_image_info(file_path, check_size=True):
         """
         根据文件路径分析图片信息
         :param file_path: 图片路径
@@ -89,7 +89,7 @@ class ImageHelper:
         """
         info = MyImage()
         info.filename = os.path.basename(file_path)
-        if os.path.exists(file_path):
+        if os.path.exists(file_path) and check_size:
             info.size = FileHelper.get_file_size_in_mb(file_path)
             info.create_time = FileHelper.get_create_time(file_path)
 
@@ -224,7 +224,7 @@ class ImageHelper:
                 print(f"[{page * pagesize + index}/{count}] 更新数据中")
                 if "?" in image.path:
                     continue
-                if not os.path.exists(image.path):
+                if not os.path.exists(image.full_path()):
                     db_helper.delete(image.id)
                     continue
                 # if not image.series:

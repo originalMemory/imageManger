@@ -87,7 +87,8 @@ class ImageFileListModel(MyBaseListModel):
             # 根据md5再做1次判断
             md5 = FileHelper.get_md5(full_path)
             image = self.__db_helper.search_by_md5(md5)
-            if image and image.path != full_path:
+            if image and image.full_path() != full_path:
+                old_path = image.full_path()
                 # 当前是 pixiv ，数据库是 yande 时更新为 pixiv 的信息
                 if image.source == 'yande' and ImageHelper.get_pixiv_no(full_path):
                     info = ImageHelper.analyze_image_info(full_path)
@@ -98,31 +99,29 @@ class ImageFileListModel(MyBaseListModel):
                     image.uploader = ''
                     image.sequence = info.sequence
                     image.file_create_time = FileHelper.get_create_time(full_path)
-                    yande_path = image.path
+                    yande_path = image.full_path()
                     sub_str = f'_{info.tags}'
                     source_pixiv_path = full_path
                     full_path = full_path.replace(sub_str, '')
                     show_path = show_path.replace(sub_str, '')
                     new_path = full_path.replace(FileHelper.get_path_prefix(), '')
-                    image.relative_path = new_path
-                    image.path = full_path
+                    image.path = new_path
                     self.__db_helper.update_image(image)
                     os.rename(source_pixiv_path, full_path)
                     os.remove(yande_path)
                     print(f'pixiv 替换 yande\nyande: {yande_path}, pixiv: {full_path}')
                 else:
                     # 已有图片存在且删除重复时删除当前图片
-                    if os.path.exists(image.path) and self.delete_repeat:
-                        print(f'删除重复图片: {full_path}, 原图地址：{image.path}')
+                    if os.path.exists(image.full_path()) and self.delete_repeat:
+                        print(f'删除重复图片: {full_path}, 原图地址：{old_path}')
                         os.remove(full_path)
                         return
-                    if os.path.exists(image.path):
-                        os.remove(image.path)
-                        print(f'删除已存在图片：{image.path}')
-                    image.path = full_path
+                    if os.path.exists(image.full_path()):
+                        os.remove(image.full_path())
+                        print(f'删除已存在图片：{image.full_path()}')
                     new_path = full_path.replace(FileHelper.get_path_prefix(), '')
                     image.relative_path = new_path
-                    print(f'新路径：{new_path}，原地址：{image.path}')
+                    print(f'新路径：{new_path}，原地址：{old_path}')
                     self.__db_helper.update_path(image.id, new_path)
 
         if image:
