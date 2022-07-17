@@ -17,9 +17,16 @@ from helper.db_helper import DBHelper, DBExecuteType, tzinfo, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
+from win32comext.shell import shell, shellcon
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
+
+
+def del_file(path):
+    shell.SHFileOperation((0, shellcon.FO_DELETE, path, None,
+                           shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
+                           None))  # 删除文件到回收站
 
 
 def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
@@ -36,6 +43,8 @@ def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
             if num_prefix:
                 prefix = f'{num_prefix}-{prefix}'
             analysis_and_rename_file(filepath, path_prefix, handler, prefix)
+            if not os.listdir(filepath):
+                del_file(filepath)
             continue
         index_str = f'{i}/{length}'
         if num_prefix:
@@ -113,7 +122,7 @@ def check_exist(file_path, prefix):
     md5 = FileHelper.get_md5(file_path)
     if db_helper.search_by_md5(md5) or db_helper.exist(Col.SimilarImage, {'md5s': md5}):
         print('已存在，删除该文件')
-        os.remove(file_path)
+        del_file(file_path)
 
 
 def update_path(filepath, prefix):
@@ -238,6 +247,6 @@ def record_similar_image(author, dir_path):
 
 
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'G:\cos\[雨波]', 'Z:/', check_exist)
-    record_similar_image('雨波_HaneAme', r'G:\cos\[雨波]')
+    analysis_and_rename_file(r'F:\图片\pixiv', 'Z:/', split_by_works)
+    # record_similar_image('雨波_HaneAme', r'E:\下载\[HaneAme Collection]')
     # TagHelper().analysis_tags()

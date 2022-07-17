@@ -178,7 +178,6 @@ class MyImage:
     def di(self, with_id=False):
         di = self.__dict__.copy()
         del di['id']
-        del di['relative_path']
         if not with_id:
             di['_id'] = self.id
         return di

@@ -19,18 +19,16 @@ from enum import unique, Enum
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
-from bson import ObjectId
 from win32comext.shell import shell, shellcon
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, Col
-from helper.extension import timeit
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from manager.view.manager import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
-from model.data import ImageFile, PreloadImage, MyImage, TranDest, TagType
+from model.data import ImageFile, PreloadImage, MyImage, TagType
 from model.my_list_model import MyBaseListModel
 
 
@@ -322,6 +320,8 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def _refresh_tran_tags(self, tags, keep_role):
         if not tags:
+            self._signal_update_tags.emit('')
+            # self.textEdit_tag.setText('')
             return
         tran_tags, source_tags = self._tag_helper.get_tran_tags(tags)
         roles = set()
@@ -396,8 +396,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             # width 和 height 放到编程里更新
             image = MyImage(id=item.id, desc=desc, authors=authors, type=type, level=level, tags=tags, works=works,
                             roles=roles, source=source, width=0, height=0, size=0,
-                            path=path, relative_path=relative_path, md5='',
-                            file_create_time=None, series=series, uploader=uploader,
+                            path=relative_path, md5='', file_create_time=None, series=series, uploader=uploader,
                             sequence=sequence)
             if image.id:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
