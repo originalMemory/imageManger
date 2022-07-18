@@ -95,7 +95,10 @@ class ImageHelper:
 
         re_strs = [r'(?P<source>.+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<name>.+?)$']
         for s in re_strs:
-            dir_name = file_path.split('/')[-2]
+            if os.path.isdir(file_path):
+                dir_name = os.path.basename(file_path)
+            else:
+                dir_name = file_path.split('/')[-2]
             match = re.search(s, dir_name)
             if match:
                 info.source = match.group('source')

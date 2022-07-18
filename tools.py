@@ -10,14 +10,15 @@
 @update  :
 """
 import os
+import shutil
 
 from PIL import Image
+from win32comext.shell import shell, shellcon
 
 from helper.db_helper import DBHelper, DBExecuteType, tzinfo, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
-from win32comext.shell import shell, shellcon
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -246,7 +247,51 @@ def record_similar_image(author, dir_path):
             print(f'{info}，保存相似md5 {md5}')
 
 
+def split_third_works():
+    source = r'F:\下载\Femjoy 2012'
+    dir_paths = []
+    for first in os.listdir(source):
+        path = os.path.join(source, first)
+        if os.path.isfile(path):
+            continue
+        for second in os.listdir(path):
+            second_path = os.path.join(path, second)
+            if os.path.isfile(second_path):
+                continue
+            dir_paths.append(second_path)
+    author2paths = {}
+    for path in dir_paths:
+        info = ImageHelper.analyze_image_info(path, check_size=False)
+        if not info.authors:
+            continue
+        author = info.authors[0]
+        if author not in author2paths:
+            author2paths[author] = []
+        author2paths[author].append(path)
+    dest = r'Z:\和谐\写真'
+    dest_femjoy = r'Z:\和谐\写真\FemJoy[网站]'
+    for author, paths in author2paths.items():
+        print(f'{author} - {paths}')
+        author_path = os.path.join(dest, author)
+        dest_paths = []
+        if len(paths) == 1 and not os.path.exists(author_path):
+            path = paths[0]
+            name = os.path.basename(path)
+            dest_path = os.path.join(dest_femjoy, name)
+            shutil.move(path, dest_path)
+            dest_paths.append(dest_path)
+        else:
+            for path in paths:
+                name = os.path.basename(path)
+                dest_path = os.path.join(author_path, name)
+                shutil.move(path, dest_path)
+                dest_paths.append(dest_path)
+        for path in dest_paths:
+            analysis_and_rename_file(path, 'Z:/', update_path)
+
+
 if __name__ == '__main__':
-    analysis_and_rename_file(r'F:\图片\pixiv', 'Z:/', split_by_works)
+    analysis_and_rename_file(r'E:\下载\Alisa (Alisa I, Jessica Albanka)', 'Z:/', check_exist)
+    # split_third_works()
     # record_similar_image('雨波_HaneAme', r'E:\下载\[HaneAme Collection]')
     # TagHelper().analysis_tags()
