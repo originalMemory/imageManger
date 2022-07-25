@@ -12,6 +12,7 @@ import json
 import threading
 import time
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import QModelIndex, Qt, QTimer, pyqtSignal
@@ -97,9 +98,9 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         self.tableView.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
         self.tableView.setColumnWidth(4, 120)
         self.tableView.setColumnWidth(5, 70)
-        self.tableView.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._loading_mask.show_with_param(progress=0)
         threading.Thread(target=self._search_tags_thread, args=(fl, min_count), daemon=True).start()
+        threading.Thread(target=self.__preload, daemon=True).start()
 
     def _search_tags_thread(self, fl, min_count):
         lines = self._tag_helper.get_not_tran_tags(fl, min_count, self._pb_signal)
@@ -157,6 +158,10 @@ class TagAnalyse(QMainWindow, Ui_Manager):
                 dests = dest_str.split(';')
                 types = self._tag_model.item(row, 4).text().split(';')
                 extra = self._tag_model.item(row, 5).text()
+                if not dests:
+                    dests = [source]
+                if not types:
+                    types = ['unknown']
                 self._tag_helper.record_tran_tag(source, dests, types, extra)
                 self._tag_helper.analysis_tags({'tags': source})
                 self._pb_signal.emit(f'[{i + 1}/{length}]{source} - {dest_str}', round((i + 1) / length * 100))
@@ -245,7 +250,6 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         self._image_model.delete_item(row)
         self.statusbar.showMessage(f"{item.name} 删除成功！")
 
-        self._cache.clear()
         # 如果删除到了最后一行，则刷新上一个
         if first_index.row() >= self._image_model.rowCount():
             row = self._image_model.rowCount() - 1
@@ -289,19 +293,28 @@ class TagAnalyse(QMainWindow, Ui_Manager):
 
     def __get_image(self, index, path):
         # 优先从队列中获取
-        if index in self._cache:
-            pre = self._cache[index]
-            if pre.full_path == path:
-                print(f"从预载中读取 {index}")
-                return pre.pixmap, True
-            else:
-                del self._cache[index]
+        if path in self._cache:
+            pre = self._cache[path]
+            print(f"从预载中读取 {index}")
+            return pre.pixmap, True
         print(f"从文件中读取 {index}")
         image, width, height = ImageHelper.get_image_from_file(path, self.graphicsView.width(),
                                                                self.graphicsView.height())
         return image, False
 
     _cache = {}
+    _pool = ThreadPoolExecutor(max_workers=5)
+    _caching_paths = []
+
+    def _preload_img(self, path, index):
+        pixmap, width, height = ImageHelper.get_image_from_file(path, self.graphicsView.width(),
+                                                                self.graphicsView.height())
+        size = FileHelper.get_file_size_in_mb(path)
+        create_time = FileHelper.get_create_time(path)
+        img = PreloadImage(index, pixmap, width, height, size, create_time)
+        self._cache[path] = img
+        self._caching_paths.remove(path)
+        print(f"预加载成功：{index}, {path}")
 
     def __preload(self):
         count = 10
@@ -309,31 +322,29 @@ class TagAnalyse(QMainWindow, Ui_Manager):
             try:
                 index = self.listView.currentIndex().row()
                 remove_key = []
-                for key in self._cache:
-                    if key < index or key > index + count * 2:
+                for key, img in self._cache.items():
+                    if abs(img.index - index) > count * 2:
                         remove_key.append(key)
                 for key in remove_key:
-                    print(f'删除过期预缓存：{key}')
+                    print(f'删除过期预缓存：{self._cache[key].index}, {key}')
                     del self._cache[key]
-                cache_count = len(self._cache)
-                row_count = self._image_model.rowCount()
-                if cache_count >= count or row_count == 0 or cache_count + index >= row_count - 1:
+                last_info = self._image_model.get_item(index + count)
+                if not last_info or last_info.full_path in self._cache:
                     time.sleep(1)
                     continue
-                print('开始预加载')
+                print(f'开始预加载')
+                time.sleep(1)
                 for offset in range(1, count + 1):
                     pre_index = index + offset
-                    if pre_index in self._cache:
-                        continue
                     info = self._image_model.get_item(pre_index)
                     if not info:
                         continue
                     full_path = info.full_path
-                    pixmap, width, height = ImageHelper.get_image_from_file(full_path, self.graphicsView.width(),
-                                                                            self.graphicsView.height())
-                    img = PreloadImage(full_path, pixmap, width, height)
-                    self._cache[pre_index] = img
-                    print(f"预加载成功：{pre_index}, {full_path}")
+                    if full_path in self._cache or full_path in self._caching_paths:
+                        continue
+                    self._pool.submit(self._preload_img, full_path, pre_index)
+                    self._caching_paths.append(full_path)
+                    # print(f'开始预加载: {pre_index}, {full_path}')
                 time.sleep(1)
             except Exception as e:
                 print(f"预加载失败：{e}")
@@ -362,6 +373,7 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         rect = self.geometry()
         rect_info = f'{rect.left()},{rect.top()},{rect.width()},{rect.height()}'
         self._config.add_config_key('history', 'tagRect', rect_info)
+        self._pool.shutdown()
 
     def _on_progress(self, tip, progress):
         self._loading_mask.update(tip, progress)

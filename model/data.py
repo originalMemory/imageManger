@@ -202,7 +202,7 @@ class ImageFile(BaseData):
 
 @dataclass
 class PreloadImage:
-    full_path: str
+    index: int
     pixmap: QPixmap
     width: int
     height: int

@@ -263,7 +263,7 @@ class TagHelper:
             self.db_helper.update_one(
                 Col.Image,
                 {'_id': image.id},
-                {'$set': {'tags': new_tags, 'roles': list(roles), 'works': list(works), 'authors': list(authors)}}
+                {'tags': new_tags, 'roles': list(roles), 'works': list(works), 'authors': list(authors)}
             )
             image.tags = new_tags
             image.works = list(works)
