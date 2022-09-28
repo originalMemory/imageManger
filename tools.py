@@ -11,13 +11,13 @@
 """
 import json
 import os
+import platform
 import shutil
 
 import requests
 from PIL import Image
 from webdav3.client import Client
 from webdav3.exceptions import NoConnection
-from win32comext.shell import shell, shellcon
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, DBExecuteType, Col
@@ -30,9 +30,13 @@ Image.MAX_IMAGE_PIXELS = None
 
 
 def del_file(path):
-    shell.SHFileOperation((0, shellcon.FO_DELETE, path, None,
-                           shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
-                           None))  # 删除文件到回收站
+    if platform.system() == 'Darwin':
+        os.remove(path)
+    if platform.system() == 'Windows':
+        from win32comext.shell import shell, shellcon
+        shell.SHFileOperation((0, shellcon.FO_DELETE, path, None,
+                               shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
+                               None))  # 删除文件到回收站
 
 
 def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
