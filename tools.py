@@ -9,13 +9,18 @@
 @create  : 2021/11/13 15:57:59
 @update  :
 """
+import json
 import os
 import shutil
 
+import requests
 from PIL import Image
+from webdav3.client import Client
+from webdav3.exceptions import NoConnection
 from win32comext.shell import shell, shellcon
 
-from helper.db_helper import DBHelper, DBExecuteType, tzinfo, Col
+from helper.config_helper import ConfigHelper
+from helper.db_helper import DBHelper, DBExecuteType, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
@@ -288,6 +293,50 @@ def split_third_works():
                 dest_paths.append(dest_path)
         for path in dest_paths:
             analysis_and_rename_file(path, 'Z:/', update_path)
+
+
+def copy_from_nas():
+    config_helper = ConfigHelper()
+    webdav_sec = 'webdav'
+    options = {
+        'webdav_hostname': 'http://192.168.31.39:5007/NAS',
+        'webdav_login': config_helper.get_config_key(webdav_sec, 'login'),
+        'webdav_password': config_helper.get_config_key(webdav_sec, 'password'),
+        'webdav_timeout': 3
+    }
+    try:
+        client = Client(options)
+        client.check('test')
+        print('使用局域网 webdav')
+    except NoConnection as e:
+        options['webdav_hostname'] = config_helper.get_config_key(webdav_sec, 'hostname')
+        options['webdav_timeout'] = 10
+        client = Client(options)
+        print('使用远程 webdav')
+
+    params = {
+        'type': '1,2,3',
+        'level': '7,8',
+        'orientation': 2,
+        'count': 500
+    }
+    req = requests.get(url='https://xuanniao.fun/api/randomImagePaths', params=params)
+    infos = json.loads(req.text)
+    dir_path = '/Users/wuhb/Downloads/images/普通'
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    for i, info in enumerate(infos):
+        remote_path = info['path']
+        print(f'[{i}/{len(infos)}]{remote_path}')
+        try:
+            if not client.check(remote_path):
+                print('文件不存在，跳过')
+                continue
+            filename = info['aliasName'].replace(',', '_')
+            local_path = FileHelper.get_no_repeat_filepath(dir_path, filename)
+            client.download_sync(remote_path, local_path)
+        except Exception as e:
+            print(f'下载失败：{e}')
 
 
 if __name__ == '__main__':

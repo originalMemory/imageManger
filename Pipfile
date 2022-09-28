@@ -13,6 +13,7 @@ beautifulsoup4 = "*"
 requests = "*"
 pymongo = "3.12.3"
 pytz = "*"
+webdavclient3 = "*"
 
 [dev-packages]
 
