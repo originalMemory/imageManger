@@ -68,7 +68,7 @@ class TranDest:
             id=query['_id'],
             name=query['name'],
             type=TagType(query['type']),
-            extra=query['name'],
+            extra=query['extra'],
             create_time=query['create_time'],
             update_time=query['update_time'],
         )

@@ -137,6 +137,16 @@ class DBHelper:
         if local:
             local[col.value].update_one(fl, set_di)
 
+    def update_many(self, col, fl, item):
+        item = self._check_item(item)
+        set_di = {'$set': item}
+        server = self._get_db(DBType.Server)
+        if server:
+            server[col.value].update_many(fl, set_di)
+        local = self._get_db(DBType.Local)
+        if local:
+            local[col.value].update_many(fl, set_di)
+
     def update_image(self, image: MyImage):
         """
         更新图片分类信息
@@ -206,7 +216,8 @@ class DBHelper:
     def search_by_filter(self, fl):
         image_sql_list = []
         image_file_list = []
-        queries = self.search_all(Col.Image, fl)
+        # fl = {'type': 1, '$where': 'this.works.length>0'}
+        queries = self.search_all(Col.Image, fl).sort('create_time', pymongo.DESCENDING).limit(2000)
         for query in queries:
             image_sql = MyImage.from_dict(query)
             image_sql_list.append(image_sql)

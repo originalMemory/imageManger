@@ -9,7 +9,6 @@
 @create  : 2022/3/18 11:43 AM
 """
 import json
-import math
 import os
 import random
 import re
@@ -17,9 +16,9 @@ import shutil
 import time
 from collections import Counter
 
-import requests
 from bs4 import BeautifulSoup
 
+from helper.common import get_html
 from helper.db_helper import DBHelper, DBExecuteType, Col
 from helper.image_helper import ImageHelper
 from model.data import *
@@ -28,38 +27,17 @@ from model.data import *
 class TagHelper:
     db_helper = DBHelper(None)
 
-    def _get_html(self, url, cookies_filepath=None):
-        i = 0
-        while i < 3:
-            try:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.119 Safari/537.36'}
-                proxies = {"http": "http://127.0.0.1:7890", "https": 'http://127.0.0.1:7890'}
-                cookies = {}
-                if cookies_filepath:
-                    with open(cookies_filepath) as f:
-                        obj = json.loads(f.read())
-                        for item in obj:
-                            cookies[item['name']] = item['value']
-                return requests.get(url, headers=headers, proxies=proxies, timeout=12, cookies=cookies).text
-            except Exception as e:
-                print(f'第 {i} 次获取网页失败：{e}')
-                time.sleep(random.uniform(0, 2))
-                i += 1
-
     def get_not_exist_yande_tag(self):
-        imgs, _ = self.db_helper.search_by_filter("path like '%图片/新妹魔王的契约者%'")
+        imgs, _ = self.db_helper.search_by_filter({'authors': 'Siino'})
         n = len(imgs)
-        i = 0
-        while i < n:
-            img = imgs[i]
+        for i, img in enumerate(imgs):
             no = ImageHelper.get_yande_no(img.path)
             if not no:
                 print(f'[{i}/{n}]{img.id} - {img.path}')
                 i += 1
                 continue
             url = f'https://yande.re/post/show/{no}'
-            html = self._get_html(url)
+            html = get_html(url)
             duration = random.uniform(0, 1)
             if not html:
                 print(f'请求失败，休眠 {duration}s 重试')
@@ -75,19 +53,29 @@ class TagHelper:
             #     uploader = uploader.get_text()
             lis = val.find('ul', id='tag-sidebar').find_all('li')
             # tags = img.tags.split(',')
-            tags = []
+            tags = set()
+            authors = set()
+            tran_names = []
             for li in lis:
                 tag = li.contents[2].get_text().replace(' ', '_')
-                query = self.db_helper.search_one(Col.TranDest, {'name': tag}, {'dest_ids': 1})
+                query = self.db_helper.search_one(Col.TranSource, {'name': tag})
                 if query:
-                    tags += query['dest_ids'].split(',')
+                    source = TranSource.from_dict(query)
+                    queries = self.db_helper.search_all(Col.TranDest, {'_id': {'$in': source.dest_ids}})
+                    dests = [TranDest.from_dict(x) for x in queries]
+                    tags += [x.id for x in dests]
+                    tran_names += [x.name for x in dests]
+                    for dest in dests:
+                        if dest.type == TagType.Author:
+                            authors.add(dest.name)
                 else:
-                    tags.append(tag)
-            print(f'[{i}/{n}]{img.id} - from {img.tags} to {tags} - {img.path}')
+                    tags.add(tag)
+                    tran_names.append(tag)
+            print(f'[{i}/{n}]{img.id} - 作者：{authors} , 标签：{tran_names} - {img.path}')
             if img.tags == tags:
                 i += 1
                 continue
-            self.db_helper.update_one(Col.Image, {'_id': img.id}, {'tags': tags})
+            self.db_helper.update_one(Col.Image, {'_id': img.id}, {'tags': list(tags), 'authors': list(authors)})
             # print(f'休眠 {duration:.2f}s')
             # time.sleep(duration)
             i += 1
@@ -103,7 +91,7 @@ class TagHelper:
                 print(f'[{i}/{n}]找不到 no {img.id} - {img.path}')
                 i += 1
                 continue
-            html = self._get_html(f'https://www.pixiv.net/artworks/{no}', 'cookies.txt')
+            html = get_html(f'https://www.pixiv.net/artworks/{no}', 'cookies.txt')
             if not html:
                 time.sleep(3)
                 continue
@@ -344,7 +332,7 @@ class TagHelper:
 
     def get_yande_author_info(self, source):
         url = f'https://yande.re/artist.xml?name={source}'
-        html = self._get_html(url)
+        html = get_html(url)
         no, name = self._search_author_info_by_match(html)
         if no:
             return no, name
@@ -354,7 +342,7 @@ class TagHelper:
     def _get_danbooru_author(self, name):
         empty = None, None
         url = f"https://danbooru.donmai.us/artists?commit=Search&search[any_name_matches]={name}"
-        html = self._get_html(url)
+        html = get_html(url)
         if not html:
             return empty
         try:
@@ -363,7 +351,7 @@ class TagHelper:
             if not len(a_nodes):
                 return empty
             artist_url = f"https://danbooru.donmai.us/{a_nodes[0].attrs['href']}"
-            return self._search_author_info_by_match(self._get_html(artist_url))
+            return self._search_author_info_by_match(get_html(artist_url))
         except Exception as e:
             print(f'解析 pixiv 用户信息失败 {e}')
             return empty
@@ -382,7 +370,7 @@ class TagHelper:
                 no = match.group('no')
         if not no:
             return empty
-        html = self._get_html(f'https://www.pixiv.net/users/{no}', 'cookies.txt')
+        html = get_html(f'https://www.pixiv.net/users/{no}', 'cookies.txt')
         if not html:
             return empty
         try:

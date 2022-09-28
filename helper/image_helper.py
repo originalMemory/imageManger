@@ -158,11 +158,20 @@ class ImageHelper:
 
     @staticmethod
     def get_source_tags(filename):
-        patterns = [r'(yande|konachan).*?_\d+_.+](?P<tags>.+?)_00', r'pixiv_\d+_.+].+_(?P<tags>.+?)_00']
+        patterns = [r'(yande|konachan).*?_\d+_.+](?P<tags>.+?)_00', r'pixiv_\d+_.+](?P<name>.+?)_(?P<tags>.+?)_00']
         for pattern in patterns:
             match = re.search(pattern, filename)
-            if match:
-                return match.group('tags')
+            if not match:
+                continue
+            tags = match.group('tags')
+            if '<name>' not in patterns:
+                return tags
+            name = match.group('name')
+            if '_' not in name:
+                return tags
+            else:
+                names = name.split('_')[1:]
+                return '_'.join(names) + tags
         return ''
 
     @staticmethod
@@ -297,7 +306,7 @@ class ImageHelper:
 
     @staticmethod
     def is_image(filename):
-        image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif',
+        image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif', '.tiff',
                                 '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico', '.gif']
         extension = FileHelper.get_file_extension(filename).lower()
         return extension in image_extension_list

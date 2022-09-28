@@ -274,7 +274,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             if type.id == 1 and self.lineEdit_source.text() in ['pixiv', 'yande']:
                 self.lineEdit_role.clear()
                 self.lineEdit_works.clear()
-                self.lineEdit_series.clear()
+                # self.lineEdit_series.clear()
                 if self.lineEdit_source.text() == 'yande':
                     self.lineEdit_author.clear()
 

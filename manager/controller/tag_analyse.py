@@ -111,7 +111,7 @@ class TagAnalyse(QMainWindow, Ui_Manager):
             self._tag_model.appendRow(row)
         if lines:
             self.tableView.setCurrentIndex(self._tag_model.index(0, 2))
-            threading.Thread(target=self._load_authors, daemon=True).start()
+            # threading.Thread(target=self._load_authors, daemon=True).start()
 
     def _load_authors(self):
         count = 0
@@ -175,7 +175,7 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         if self._tag_model.rowCount():
             self.tableView.setCurrentIndex(self._tag_model.index(0, 2))
             self._load_author_stop = False
-            threading.Thread(target=self._load_authors, daemon=True).start()
+            # threading.Thread(target=self._load_authors, daemon=True).start()
 
     def _jum_pixiv(self):
         index = self.tableView.selectionModel().currentIndex()

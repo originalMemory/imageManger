@@ -13,8 +13,9 @@ import os
 
 from PyQt6.QtCore import QModelIndex, QVariant, Qt
 from PyQt6.QtGui import QBrush, QColor
+from win32comext.shell import shell, shellcon
 
-from helper.db_helper import DBHelper
+from helper.db_helper import DBHelper, Col
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
 from model.data import ImageFile, MyImage
@@ -22,14 +23,11 @@ from model.my_list_model import MyBaseListModel
 
 
 class ImageFileListModel(MyBaseListModel):
-
     delete_repeat = False
 
     def __init__(self, context):
         super().__init__()
         self._base_dir = ""
-        self.__image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif',
-                                       '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico']
         self._data_list_in_database = []
         self.__db_helper = DBHelper(context)
 
@@ -80,7 +78,7 @@ class ImageFileListModel(MyBaseListModel):
             self.__add_image_data(relative_path, file_path, filename)
 
     def __add_image_data(self, show_path, full_path, filename):
-        if not self.__is_image(filename):
+        if not ImageHelper.is_image(filename):
             return
         image = self.__db_helper.search_by_file_path(full_path)
         if not image:
@@ -94,7 +92,12 @@ class ImageFileListModel(MyBaseListModel):
                     info = ImageHelper.analyze_image_info(full_path)
                     image.source = 'pixiv'
                     image.desc = info.desc
-                    image.tags = info.tags
+                    for tag in info.tags:
+                        query = self.__db_helper.search_one(Col.TranSource, {'name': tag}, {'dest_ids': 1})
+                        if query and 'dest_ids' in query:
+                            image.tags += query['dest_ids']
+                        else:
+                            image.tags.append(tag)
                     image.authors = info.authors
                     image.uploader = ''
                     image.sequence = info.sequence
@@ -123,6 +126,10 @@ class ImageFileListModel(MyBaseListModel):
                     image.relative_path = new_path
                     print(f'新路径：{new_path}，原地址：{old_path}')
                     self.__db_helper.update_path(image.id, new_path)
+                    shell.SHFileOperation((0, shellcon.FO_DELETE, old_path, None,
+                                           shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION,
+                                           None,
+                                           None))  # 删除文件到回收站
 
         if image:
             image_id = image.id
@@ -140,18 +147,12 @@ class ImageFileListModel(MyBaseListModel):
 
     def __add_file(self, file_path):
         filename = os.path.basename(file_path)
-        if not self.__is_image(filename):
-            return
         relative_path = filename
         self.__add_image_data(relative_path, file_path, filename)
 
     def set_image_id(self, index, image_id):
         self._data_list[index.row()].id = image_id
         self.dataChanged(index, index, [Qt.ItemDataRole.BackgroundRole])
-
-    def __is_image(self, filename):
-        extension = FileHelper.get_file_extension(filename).lower()
-        return extension in self.__image_extension_list
 
     def clear(self):
         super().clear()

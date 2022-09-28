@@ -11,6 +11,7 @@
 """
 import json
 import os
+import re
 import platform
 import shutil
 
@@ -18,9 +19,12 @@ import requests
 from PIL import Image
 from webdav3.client import Client
 from webdav3.exceptions import NoConnection
+from bs4 import BeautifulSoup
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, DBExecuteType, Col
+from helper.common import get_html
+from helper.db_helper import DBHelper, DBExecuteType, tzinfo, Col, DBType
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
@@ -147,6 +151,7 @@ def update_path(filepath, prefix):
     md5 = FileHelper.get_md5(filepath)
     info = db_helper.search_by_md5(md5)
     if info:
+        print(f'更新地址。原地址：{info.full_path()}')
         db_helper.update_path(info.id, relative_path)
 
 
@@ -189,7 +194,7 @@ def check_no_split_works(filepath, prefix):
 def copy_image():
     dt = tzinfo.localize(datetime(2022, 1, 2))
     # dt = tzinfo.localize(datetime(2022, 1, 15))
-    base = 'F:/壁纸/竖/'
+    base = 'F:/手机壁纸/竖/'
     fl = {
         # 'type': 2,
         'level': {'$in': [1, 2, 3]},
@@ -197,31 +202,36 @@ def copy_image():
         '$expr': {'$lt': ['$width', '$height']}
     }
 
-    count = db_helper.get_count(fl)
+    # count = db_helper.get_count(fl)
     # query = db_helper.search_all(Col.Image, fl).skip(29246)
-    query = db_helper.search_all(Col.Image, fl)
-    i = 0
-    for item in query:
-        img = MyImage.from_dict(item)
-        target_dir = f'{base}{img.type}-{img.level}'
+    url = 'https://xuanniao.fun/api/randomImagePaths?type=1,2,3&level=4,5,6&orientation=2&count=1000'
+    test = get_html(url)
+    query = json.loads(test)
+    # query = db_helper.search_all(Col.Image, fl)
+    for i, item in enumerate(query):
+        # img = MyImage.from_dict(item)
+        path = FileHelper.get_full_path(item['path'])
+        aliasName = item['aliasName']
+        type = item['type']
+        level = item['level']
+        target_dir = f'{base}'
         # if img.width > img.height:
         #     target_dir += '-1'
         # else:
         #     target_dir += '-2'
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
-        new_filename = os.path.basename(img.path).split('.')[0]
-        if img.type == 2:
-            new_filename = f"{';'.join(img.works)}_{';'.join(img.roles)}_{img.series}_{';'.join(img.authors)}"
-        if img.type == 3:
-            new_filename = f"{';'.join(img.works)}_{img.series}_{';'.join(img.authors)}"
-        new_filename = new_filename.replace('/', '-')
-        print(f'[{i}/{count}]{img.full_path()} to {target_dir}/{new_filename}')
+        # new_filename = os.path.basename(path).split('.')[0]
+        # if img.type == 2:
+        #     new_filename = f"{';'.join(img.works)}_{';'.join(img.roles)}_{img.series}_{';'.join(img.authors)}"
+        # if img.type == 3:
+        #     new_filename = f"{';'.join(img.works)}_{img.series}_{';'.join(img.authors)}"
+        new_filename = aliasName
+        print(f'[{i}/{len(query)}]{path} to {target_dir}/{new_filename}')
         try:
-            FileHelper.copyfile_without_override(img.full_path(), target_dir, new_filename, False)
+            FileHelper.copyfile_without_override(path, target_dir, new_filename, False)
         except Exception as e:
             print(e)
-        i += 1
 
 
 def record_similar_image(author, dir_path):
@@ -299,6 +309,58 @@ def split_third_works():
             analysis_and_rename_file(path, 'Z:/', update_path)
 
 
+@dataclass
+class AuthorCount:
+    author: TranDest = field(default=None)
+    sources: list = field(default_factory=list)
+    count: int = field(default=0)
+
+
+def get_down_author():
+    queries = db_helper.search_all(Col.TranDest, {'type': 'author', '$expr': {'$gt': [{'$strLenCP': '$extra'}, 5]}})
+    authors = [TranDest.from_dict(x) for x in queries]
+    author_counts = []
+    for i, author in enumerate(authors):
+        if 'twitter' in author.extra:
+            print(f'[{i}/{len(authors)}]{author.name} - 是 twitter 地址，跳过')
+            continue
+        count = db_helper.get_count({'authors': author.name})
+        sources = db_helper.search_all(Col.TranSource, {'dest_ids': author.id}, {'name': 1})
+        sources = [x['name'] for x in sources]
+        print(f'[{i}/{len(authors)}]{author.name} - 英文名：{sources} 图片数：{count}')
+        item = AuthorCount()
+        item.author = author
+        item.count = count
+        item.sources = sources
+        author_counts.append(item)
+    author_counts = sorted(author_counts, key=lambda x: x.count, reverse=True)
+    with open('authors.csv', 'w+', encoding='utf-8') as f:
+        f.write('id, 作者, pixivId, 图片数')
+        for item in author_counts:
+            string = f'{item.author.id}, {item.author.name}, {item.author.extra}, {item.count}, {" ".join(item.sources)}\n'
+            f.write(string)
+            print(string[:-1])
+
+
+def get_or_create_dest(name, tag_type, extra):
+    fl = {'name': name}
+    query = db_helper.search_one(Col.TranDest, fl)
+    if query:
+        return TranDest.from_dict(query)
+    db_helper.insert(Col.TranDest, TranDest(name=name, type=tag_type, extra=extra).di())
+    return TranDest.from_dict(db_helper.search_one(Col.TranDest, fl))
+
+
+def update_author_name(old, new):
+    fl = {'name': old}
+    db_helper.update_one(Col.TranDest, fl, {'name': new})
+    col = db_helper.get_col(DBType.Local, Col.Image)
+    res = col.update_many({'authors': old}, {'$addToSet': {'authors': new}})
+    print(res.modified_count)
+    res = col.update_many({'authors': old}, {'$pull': {'authors': old}})
+    print(res.modified_count)
+
+
 def copy_from_nas():
     config_helper = ConfigHelper()
     webdav_sec = 'webdav'
@@ -344,7 +406,11 @@ def copy_from_nas():
 
 
 if __name__ == '__main__':
-    analysis_and_rename_file(r'E:\下载\Alisa (Alisa I, Jessica Albanka)', 'Z:/', check_exist)
+    # get_pixiv_down_author()
+    analysis_and_rename_file(r'F:\图片', 'Z:/', split_by_works)
+    # TagHelper().get_not_exist_yande_tag()
+    # update_author_name('OrangeMaru', 'YD')
+    # copy_image()
     # split_third_works()
-    # record_similar_image('雨波_HaneAme', r'E:\下载\[HaneAme Collection]')
+    # record_similar_image('星之迟迟', r'E:\下载\第四资源站\未下\星之迟迟')
     # TagHelper().analysis_tags()
