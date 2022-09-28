@@ -113,15 +113,18 @@ class FileHelper:
         if new_filename:
             new_filename = new_filename.replace(',', '_')
             filename = f"{new_filename}{extension}"
-        target_file_path = os.path.join(dir_path, filename).replace('\\', '/')
+            name = new_filename
+        else:
+            name = shot_name
+        target_file_path = os.path.join(dir_path, filename)
         no = 1
         while True:
             if not os.path.exists(target_file_path):
                 break
-            if new_filename:
-                name = new_filename
-            else:
-                name = shot_name
+            exist_md5 = FileHelper.get_md5(target_file_path)
+            cur_md5 = FileHelper.get_md5(origin_file_path)
+            if exist_md5 == cur_md5:
+                return
             filename = f"{name}_{no:0>2d}{extension}"
             target_file_path = os.path.join(dir_path, filename)
             no += 1
@@ -129,6 +132,17 @@ class FileHelper:
             FileHelper.compress_save(origin_file_path, target_file_path)
         else:
             shutil.copyfile(origin_file_path, target_file_path)
+
+    @staticmethod
+    def get_no_repeat_filepath(dir_path, filename):
+        (name, extension) = os.path.splitext(filename)
+        no = 1
+        while True:
+            filepath = os.path.join(dir_path, filename)
+            if not os.path.exists(filepath):
+                return filepath
+            filename = f"{name}_{no:0>2d}{extension}"
+            no += 1
 
     @staticmethod
     def compress_save(source_path, target_path):
