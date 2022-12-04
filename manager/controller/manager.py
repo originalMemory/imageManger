@@ -717,9 +717,11 @@ class ImageManager(QMainWindow, Ui_Manager):
                     pre_index = index + offset
                     info = self.__image_model.get_item(pre_index)
                     if not info:
+                        print("找不到信息")
                         continue
                     full_path = info.full_path
                     if full_path in self._cache or full_path in self._caching_paths:
+                        print(f'{pre_index} 已经有缓存了, {full_path}')
                         continue
                     self._pool.submit(self._preload_img, full_path, pre_index)
                     self._caching_paths.append(full_path)

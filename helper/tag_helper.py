@@ -28,7 +28,8 @@ class TagHelper:
     db_helper = DBHelper(None)
 
     def get_not_exist_yande_tag(self):
-        imgs, _ = self.db_helper.search_by_filter({'authors': 'Siino'})
+        search_author = 'SEBU'
+        imgs, _ = self.db_helper.search_by_filter({'authors': search_author, 'source': 'yande'})
         n = len(imgs)
         for i, img in enumerate(imgs):
             no = ImageHelper.get_yande_no(img.path)
@@ -54,7 +55,8 @@ class TagHelper:
             lis = val.find('ul', id='tag-sidebar').find_all('li')
             # tags = img.tags.split(',')
             tags = set()
-            authors = set()
+            authors = set(img.authors)
+            authors.remove(search_author)
             tran_names = []
             for li in lis:
                 tag = li.contents[2].get_text().replace(' ', '_')
@@ -62,8 +64,13 @@ class TagHelper:
                 if query:
                     source = TranSource.from_dict(query)
                     queries = self.db_helper.search_all(Col.TranDest, {'_id': {'$in': source.dest_ids}})
-                    dests = [TranDest.from_dict(x) for x in queries]
-                    tags += [x.id for x in dests]
+                    dests = [x for x in queries]
+                    if not dests:
+                        tags.add(tag)
+                        continue
+                    dests = [TranDest.from_dict(x) for x in dests]
+                    for dest in dests:
+                        tags.add(dest.id)
                     tran_names += [x.name for x in dests]
                     for dest in dests:
                         if dest.type == TagType.Author:

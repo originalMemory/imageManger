@@ -11,7 +11,6 @@
 """
 import json
 import os
-import re
 import platform
 import shutil
 
@@ -19,12 +18,9 @@ import requests
 from PIL import Image
 from webdav3.client import Client
 from webdav3.exceptions import NoConnection
-from bs4 import BeautifulSoup
 
 from helper.config_helper import ConfigHelper
-from helper.db_helper import DBHelper, DBExecuteType, Col
-from helper.common import get_html
-from helper.db_helper import DBHelper, DBExecuteType, tzinfo, Col, DBType
+from helper.db_helper import DBHelper, Col, DBType
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
@@ -69,49 +65,6 @@ def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
 
 db_helper = DBHelper(None)
 tag_helper = TagHelper()
-
-
-def recheck_size(start_page):
-    page_size = 500
-    error_f = open('error.log', 'a+', encoding='utf-8')
-    not_exist_f = open('notExist.log', 'a+', encoding='utf-8')
-    count = db_helper.get_table_count("select count(*) from myacg.image;")
-    while True:
-        offset = (start_page - 1) * page_size
-        sql = f"select * from myacg.image limit {page_size} offset {offset};"
-        queries = db_helper.execute(sql, DBExecuteType.FetchAll)
-        if not queries:
-            print('没有数据，结束检查')
-            break
-        infos = [MyImage.from_dict(x) for x in queries]
-        n = len(infos)
-        for i in range(n):
-            info = infos[i]
-            print(f'[{offset + i}/{count}] {info.id}, {info.path}')
-            if not os.path.exists(info.full_path()):
-                not_exist_f.write(f'{info.id},{info.full_path()}\n')
-                print('图片不存在')
-                # db_helper.delete(info.id)
-                continue
-            try:
-                width, height = Image.open(info.full_path()).size
-            except Exception as e:
-                error_f.write(f'{info.id},{info.full_path()},{info.width},{info.height},{e}\n')
-                print('尺寸读取失败')
-                continue
-            if not width or not height:
-                error_f.write(f'{info.id},{info.full_path()},{info.width},{info.height}\n')
-                print('尺寸读取失败')
-                continue
-            if width == info.width and height == info.height:
-                continue
-            print(f'宽度：{info.width} -> {width}，高度：{info.height} -> {height}')
-            info.width = width
-            info.height = height
-            db_helper.update_image(info)
-        start_page += 1
-    error_f.close()
-    not_exist_f.close()
 
 
 def check_no_record_image(file_path, prefix):
@@ -164,74 +117,6 @@ def split_by_works(filepath, prefix):
         print('无信息，跳过')
         return
     tag_helper.split_by_works(info)
-
-
-def check_no_split_works(filepath, prefix):
-    if not ImageHelper.is_image(filepath):
-        return
-    relative_path = filepath.replace('\\', '/').replace(prefix, '')
-    info = db_helper.search_by_file_path(relative_path)
-    if not info:
-        with open('notRecord.log', 'a+', encoding='utf-8') as f:
-            f.write(f'{filepath}\n')
-        print('无信息，跳过')
-        return
-    if not info.works:
-        dir_name = filepath.split('\\')[-2].replace('_', '/')
-        query = db_helper.execute(f"select id from myacg.tran_dest where name='{dir_name}'", DBExecuteType.FetchOne)
-        if query:
-            print("拆分但丢失作品信息")
-            with open('notWorks.log', 'a+', encoding='utf-8') as f:
-                f.write(f'{info.id}, {filepath}\n')
-        return
-    if info.works in filepath:
-        return
-    with open('notSplitWorks.log', 'a+', encoding='utf-8') as f:
-        print("未按作品拆分")
-        f.write(f'{info.id}, {info.works}, {filepath}\n')
-
-
-def copy_image():
-    dt = tzinfo.localize(datetime(2022, 1, 2))
-    # dt = tzinfo.localize(datetime(2022, 1, 15))
-    base = 'F:/手机壁纸/竖/'
-    fl = {
-        # 'type': 2,
-        'level': {'$in': [1, 2, 3]},
-        'create_time': {'$gte': dt},
-        '$expr': {'$lt': ['$width', '$height']}
-    }
-
-    # count = db_helper.get_count(fl)
-    # query = db_helper.search_all(Col.Image, fl).skip(29246)
-    url = 'https://xuanniao.fun/api/randomImagePaths?type=1,2,3&level=4,5,6&orientation=2&count=1000'
-    test = get_html(url)
-    query = json.loads(test)
-    # query = db_helper.search_all(Col.Image, fl)
-    for i, item in enumerate(query):
-        # img = MyImage.from_dict(item)
-        path = FileHelper.get_full_path(item['path'])
-        aliasName = item['aliasName']
-        type = item['type']
-        level = item['level']
-        target_dir = f'{base}'
-        # if img.width > img.height:
-        #     target_dir += '-1'
-        # else:
-        #     target_dir += '-2'
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir)
-        # new_filename = os.path.basename(path).split('.')[0]
-        # if img.type == 2:
-        #     new_filename = f"{';'.join(img.works)}_{';'.join(img.roles)}_{img.series}_{';'.join(img.authors)}"
-        # if img.type == 3:
-        #     new_filename = f"{';'.join(img.works)}_{img.series}_{';'.join(img.authors)}"
-        new_filename = aliasName
-        print(f'[{i}/{len(query)}]{path} to {target_dir}/{new_filename}')
-        try:
-            FileHelper.copyfile_without_override(path, target_dir, new_filename, False)
-        except Exception as e:
-            print(e)
 
 
 def record_similar_image(author, dir_path):
@@ -381,14 +266,14 @@ def copy_from_nas():
         print('使用远程 webdav')
 
     params = {
-        'type': '1,2,3',
-        'level': '7,8',
+        'type': '1',
+        'level': '4',
         'orientation': 2,
-        'count': 500
+        'count': 1100
     }
     req = requests.get(url='https://xuanniao.fun/api/randomImagePaths', params=params)
     infos = json.loads(req.text)
-    dir_path = '/Users/wuhb/Downloads/images/普通'
+    dir_path = 'F:/壁纸/竖/1-4'
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     for i, info in enumerate(infos):
@@ -405,9 +290,41 @@ def copy_from_nas():
             print(f'下载失败：{e}')
 
 
+def copy_tushy_img():
+    src_dir = r'F:\下载\Vixen'
+    dest_dir = r'Z:\和谐\写真\Vixen[网站]'
+    li = os.listdir(src_dir)
+    len_i = len(li)
+    for i, filename in enumerate(li):
+        work_path = os.path.join(src_dir, filename)
+        if not os.path.isdir(work_path):
+            continue
+        img_path = ''
+        for item in os.listdir(work_path):
+            path = os.path.join(work_path, item)
+            if os.path.isdir(path):
+                img_path = path
+                break
+        if not img_path:
+            continue
+        print(f'[{i}/{len_i}]{filename}')
+        dest_path = os.path.join(dest_dir, filename)
+        if not os.path.exists(dest_path):
+            os.makedirs(dest_path)
+        lj = os.listdir(img_path)
+        len_j = len(lj)
+        for j, sub_name in enumerate(lj):
+            dest_file = os.path.join(dest_path, sub_name)
+            print(f'[{i}/{len_i}-{j}/{len_j}]{dest_file}')
+            if os.path.exists(dest_file):
+                continue
+            shutil.copy2(os.path.join(img_path, sub_name), dest_file)
+
+
+
 if __name__ == '__main__':
     # get_pixiv_down_author()
-    analysis_and_rename_file(r'F:\图片', 'Z:/', split_by_works)
+    analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()

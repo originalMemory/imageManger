@@ -30,6 +30,6 @@ def get_html(url, cookies_filepath=None):
                         cookies[item['name']] = item['value']
             return requests.get(url, headers=headers, proxies=proxies, timeout=12, cookies=cookies).text
         except Exception as e:
-            print(f'第 {i} 次获取网页失败：{e}')
+            print(f'第 {i} 次获取网页 {url} 失败：{e}')
             time.sleep(random.uniform(0, 2))
             i += 1

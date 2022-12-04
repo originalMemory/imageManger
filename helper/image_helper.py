@@ -93,17 +93,26 @@ class ImageHelper:
             info.size = FileHelper.get_file_size_in_mb(file_path)
             info.create_time = FileHelper.get_create_time(file_path)
 
-        re_strs = [r'(?P<source>.+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<name>.+?)$']
+        re_strs = [
+            # r'/(?P<authors>.+?) - (?P<works>.+?)\[',
+            # r'/\d+-\d+-\d+ - (?P<source>.+?) - (?P<authors>.+?) - (?P<works>.+?)/',
+            # r'/\d+-\d+-\d+ - (?P<authors>.+?) - (?P<works>.+?)/'
+        ]
         for s in re_strs:
-            if os.path.isdir(file_path):
-                dir_name = os.path.basename(file_path)
-            else:
-                dir_name = file_path.split('/')[-2]
-            match = re.search(s, dir_name)
+            match = re.search(s, file_path)
             if match:
-                info.source = match.group('source')
-                info.authors = [x.strip() for x in match.group('authors').split('&')]
-                info.works = [match.group('name')]
+                groupdict = match.groupdict()
+                if 'source' in groupdict:
+                    info.source = groupdict['source']
+                info.works = [groupdict['works']]
+                authors = groupdict['authors'].split('/')[-1]
+                if ',' in authors:
+                    authors = authors.split(',')
+                if '&' in authors:
+                    authors = authors.split(',')
+                if isinstance(authors, str):
+                    authors = [authors]
+                info.authors = [x.strip() for x in authors]
                 return info
 
         filename = os.path.basename(file_path)
