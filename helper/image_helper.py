@@ -9,6 +9,7 @@
 @create  : 2020-08-01 10:10:06
 """
 import os
+import random
 import re
 
 from PIL import Image, ImageQt
@@ -312,6 +313,72 @@ class ImageHelper:
             new_im.paste(image, (start_x, start_y))
             start_x += image.size[0]
         new_im.save(save_name, quality=100, subsampling=0)
+
+    @staticmethod
+    def random_merge_image(get_image_path, size, save_name):
+        i1 = random.randint(0, 2)
+        i2 = random.randint(0, 2)
+        if size[0] > size[1]:
+            im = ImageHelper._random_merge_horizontal_image(get_image_path, size, i1, i2)
+        else:
+            im = ImageHelper._random_merge_vertical_image(get_image_path, size, i1, i2)
+        im.save(save_name, quality=100, subsampling=0)
+
+    @staticmethod
+    def _random_merge_vertical_image(get_image_path, size, i1, i2):
+        sub_width = size[0] // 2
+        new_im = Image.new('RGB', size)
+        top_y = 0
+        bottom_y = 0
+
+        hor_images = get_image_path(2, True)
+        ver_images = get_image_path(4, False)
+
+        def get_sub_image(vertical):
+            height = size[1] // 5
+            if vertical:
+                path = ver_images.pop()
+                height *= 2
+            else:
+                path = hor_images.pop()
+            return ImageHelper.get_sized_image(path, width=sub_width, height=height)
+
+        for i in range(3):
+            left_image = get_sub_image(i != i1)
+            new_im.paste(left_image, (0, top_y))
+            top_y += left_image.height
+            right_image = get_sub_image(i != i2)
+            new_im.paste(right_image, (sub_width, bottom_y))
+            bottom_y += right_image.height
+        return new_im
+
+    @staticmethod
+    def _random_merge_horizontal_image(get_image_path, size, i1, i2):
+        sub_height = size[1] // 2
+        new_im = Image.new('RGB', size)
+        top_x = 0
+        bottom_x = 0
+
+        hor_images = get_image_path(4, True)
+        ver_images = get_image_path(2, False)
+
+        def get_sub_image(horizontal):
+            width = size[0] // 5
+            if horizontal:
+                path = hor_images.pop()
+                width *= 2
+            else:
+                path = ver_images.pop()
+            return ImageHelper.get_sized_image(path, width=width, height=sub_height)
+
+        for i in range(3):
+            top_image = get_sub_image(i != i1)
+            new_im.paste(top_image, (top_x, 0))
+            top_x += top_image.width
+            bottom_image = get_sub_image(i != i2)
+            new_im.paste(bottom_image, (bottom_x, sub_height))
+            bottom_x += bottom_image.width
+        return new_im
 
     @staticmethod
     def is_image(filename):
