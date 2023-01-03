@@ -11,6 +11,7 @@
 """
 import json
 import os
+import platform
 import random
 import threading
 import time
@@ -18,9 +19,6 @@ from enum import Enum, unique
 from functools import partial
 
 import pyperclip
-import win32api
-import win32con
-import win32gui
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtWidgets import QMessageBox, QSystemTrayIcon
 from screeninfo import get_monitors
@@ -245,6 +243,11 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             return False
 
         path = os.path.join(os.getcwd(), final_image_name)
+        if platform.system() != 'Windows':
+            return True
+        import win32api
+        import win32con
+        import win32gui
         key = win32api.RegOpenKeyEx(win32con.HKEY_CURRENT_USER, "Control Panel\\Desktop", 0, win32con.KEY_SET_VALUE)
         win32api.RegSetValueEx(key, "WallpaperStyle", 0, win32con.REG_SZ, "0")
         win32api.RegSetValueEx(key, "TileWallpaper", 0, win32con.REG_SZ, "1")
