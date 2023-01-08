@@ -19,7 +19,7 @@ from webdav3.client import Client
 from webdav3.exceptions import NoConnection
 
 from helper.config_helper import ConfigHelper
-from helper.db_helper import DBHelper, Col, DBType
+from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
@@ -43,7 +43,7 @@ def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
                 prefix = f'{num_prefix}-{prefix}'
             analysis_and_rename_file(filepath, path_prefix, handler, prefix)
             if not os.listdir(filepath):
-                del_file(filepath)
+                FileHelper.del_file(filepath)
             continue
         index_str = f'{i}/{length}'
         if num_prefix:
@@ -78,7 +78,7 @@ def check_exist(file_path, prefix):
     md5 = FileHelper.get_md5(file_path)
     if db_helper.search_by_md5(md5) or db_helper.exist(Col.SimilarImage, {'md5s': md5}):
         print('已存在，删除该文件')
-        del_file(file_path)
+        FileHelper.del_file(file_path)
 
 
 def update_path(filepath, prefix):
@@ -228,7 +228,7 @@ def get_or_create_dest(name, tag_type, extra):
 def update_author_name(old, new):
     fl = {'name': old}
     db_helper.update_one(Col.TranDest, fl, {'name': new})
-    col = db_helper.get_col(DBType.Local, Col.Image)
+    col = db_helper.get_col(Col.Image)
     res = col.update_many({'authors': old}, {'$addToSet': {'authors': new}})
     print(res.modified_count)
     res = col.update_many({'authors': old}, {'$pull': {'authors': old}})
