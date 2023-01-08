@@ -11,7 +11,6 @@
 """
 import json
 import os
-import platform
 import shutil
 
 import requests
@@ -27,16 +26,6 @@ from model.data import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
-
-
-def del_file(path):
-    if platform.system() == 'Darwin':
-        os.remove(path)
-    if platform.system() == 'Windows':
-        from win32comext.shell import shell, shellcon
-        shell.SHFileOperation((0, shellcon.FO_DELETE, path, None,
-                               shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
-                               None))  # 删除文件到回收站
 
 
 def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
@@ -319,7 +308,6 @@ def copy_tushy_img():
             if os.path.exists(dest_file):
                 continue
             shutil.copy2(os.path.join(img_path, sub_name), dest_file)
-
 
 
 if __name__ == '__main__':

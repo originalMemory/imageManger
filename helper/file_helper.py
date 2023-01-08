@@ -12,6 +12,7 @@
 import datetime
 import hashlib
 import os
+import platform
 import shutil
 import time
 
@@ -190,3 +191,13 @@ class FileHelper:
     @staticmethod
     def get_path_prefix():
         return ConfigHelper(None).get_config_key('common', 'pathPrefix')
+
+    @staticmethod
+    def del_file(path):
+        if platform.system() == 'Darwin':
+            os.remove(path)
+        if platform.system() == 'Windows':
+            from win32comext.shell import shell, shellcon
+            shell.SHFileOperation((0, shellcon.FO_DELETE, path, None,
+                                   shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
+                                   None))  # 删除文件到回收站

@@ -194,7 +194,7 @@ class DBHelper:
             local[Col.Image.value].delete_one(fl)
 
     def _get_search_db(self):
-        local = self._get_db(DBType.Local)
+        local = self._get_db(DBType.Server)
         if local:
             return local
         else:

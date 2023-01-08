@@ -21,7 +21,6 @@ from PIL import Image
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
-from win32comext.shell import shell, shellcon
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, Col
@@ -495,10 +494,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             item = self.__image_model.get_item(index.row() - i)
             if item.id:
                 self.__db_helper.delete(item.id)
-            # os.remove(item.full_path)
-            shell.SHFileOperation((0, shellcon.FO_DELETE, item.full_path, None,
-                                   shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
-                                   None))  # 删除文件到回收站
+            FileHelper.del_file(item.full_path)
             self.__image_model.delete_item(index.row() - i)
             self.statusbar.showMessage(f"[{i + 1}/{len(select_rows)}] {item.name} 删除成功！")
 

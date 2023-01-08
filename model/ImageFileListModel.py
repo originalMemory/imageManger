@@ -13,7 +13,6 @@ import os
 
 from PyQt6.QtCore import QModelIndex, QVariant, Qt
 from PyQt6.QtGui import QBrush, QColor
-from win32comext.shell import shell, shellcon
 
 from helper.db_helper import DBHelper, Col
 from helper.file_helper import FileHelper
@@ -126,10 +125,7 @@ class ImageFileListModel(MyBaseListModel):
                     image.relative_path = new_path
                     print(f'新路径：{new_path}，原地址：{old_path}')
                     self.__db_helper.update_path(image.id, new_path)
-                    shell.SHFileOperation((0, shellcon.FO_DELETE, old_path, None,
-                                           shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION,
-                                           None,
-                                           None))  # 删除文件到回收站
+                    FileHelper.del_file(old_path)
 
         if image:
             image_id = image.id
