@@ -95,7 +95,11 @@ class ImageHelper:
             info.create_time = FileHelper.get_create_time(file_path)
 
         re_strs = [
-            # r'/(?P<authors>.+?) - (?P<works>.+?)\[',
+            r'/(?P<authors>.+?)/(?P<source>\w+?) .+ - (?P<works>.+?) \(',
+            # FemJoy 2019-09-15 Carolina K - Naked in the trees
+            r'/(?P<source>\w+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<works>.+?)/',
+            # Carisha\Femjoy 2011-05-15 - Hello (x38) 2667x4000
+            r'/(?P<authors>.+?) - (?P<works>.+?)\[',
             # r'/\d+-\d+-\d+ - (?P<source>.+?) - (?P<authors>.+?) - (?P<works>.+?)/',
             # r'/\d+-\d+-\d+ - (?P<authors>.+?) - (?P<works>.+?)/'
         ]
@@ -105,7 +109,7 @@ class ImageHelper:
                 groupdict = match.groupdict()
                 if 'source' in groupdict:
                     info.source = groupdict['source']
-                info.works = [groupdict['works']]
+                info.works = [groupdict['works'].strip()]
                 authors = groupdict['authors'].split('/')[-1]
                 if ',' in authors:
                     authors = authors.split(',')

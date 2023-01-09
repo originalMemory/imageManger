@@ -11,6 +11,7 @@
 """
 import json
 import os
+import re
 import shutil
 
 import requests
@@ -308,6 +309,35 @@ def copy_tushy_img():
             if os.path.exists(dest_file):
                 continue
             shutil.copy2(os.path.join(img_path, sub_name), dest_file)
+
+
+def validate_title(title):
+    rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
+    new_title = re.sub(rstr, "~", title)  # 替换为下划线
+    return new_title
+
+
+def rename_bilibili_download():
+    old_path = r'Z:\视频\MAD AMV'
+    olds = os.listdir(old_path)
+    dir_path = r'F:\B站\默认'
+    li = os.listdir(dir_path)
+    for i, av in enumerate(li):
+        item_path = os.path.join(dir_path, av)
+        dvi_path = os.path.join(item_path, f'{av}.dvi')
+        if not os.path.exists(dvi_path):
+            continue
+        with open(dvi_path, encoding='utf-8') as f:
+            di = json.load(f)
+        title = di['Title']
+        uploader = di['Uploader']
+        new_name = f'{title}_{uploader}_{av}'
+        print(f'[{i}/{len(li)}]{new_name}')
+        os.rename(item_path, os.path.join(dir_path, validate_title(new_name)))
+        for old in olds:
+            if title in old or av in old:
+                print(f'有已存在文件，删除 - {old}')
+                FileHelper.del_file(os.path.join(old_path, old))
 
 
 if __name__ == '__main__':
