@@ -125,16 +125,8 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.setTabOrder(self.pushButton_classify, self.pushButton_search)
 
         # 自动补全
-        self.__works_completer_filename = 'works.txt'
-        self.__works_completer_set = self._read_completer_file(self.__works_completer_filename)
-        works_completer = self._create_completer(self.__works_completer_set)
-        self.lineEdit_works.setCompleter(works_completer)
-        self.lineEdit_works.editingFinished.connect(self.__add_works_complete)
-        self.__role_completer_filename = 'role.txt'
-        self.__role_completer_set = self._read_completer_file(self.__role_completer_filename)
-        role_completer = self._create_completer(self.__role_completer_set)
-        self.lineEdit_role.setCompleter(role_completer)
-        self.lineEdit_role.editingFinished.connect(self.__add_role_complete)
+        self.lineEdit_works.setCompleter(self._create_completer(TagType.Works))
+        self.lineEdit_role.setCompleter(self._create_completer(TagType.Role))
         self.checkBox_delete_repeat.setChecked(True)
         self.__image_model.delete_repeat = True
 
@@ -145,56 +137,13 @@ class ImageManager(QMainWindow, Ui_Manager):
         threading.Thread(target=self.__preload, daemon=True).start()
         threading.Thread(target=self._insert_or_update, daemon=True).start()
 
-    @staticmethod
-    def _read_completer_file(filename):
-        if not os.path.exists(filename):
-            f = open(filename, 'w', encoding='utf-8')
-            f.close()
-        with open(filename, 'r+', encoding='utf-8') as f:
-            return set(list(map(lambda x: x.replace("\n", "").replace("\r", ""), f.readlines())))
-
-    @staticmethod
-    def _create_completer(completer_list):
-        completer = QCompleter(completer_list)
-        completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
+    def _create_completer(self, tag_type: TagType):
+        names = self.__db_helper.search_all(Col.TranDest, {'type': tag_type.value}, {'name': 1})
+        names = [x['name'] for x in names]
+        completer = QCompleter(names)
+        # completer.setCompletionMode(QCompleter.CompletionMode.UnfilteredPopupCompletion)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
         return completer
-
-    def _is_anime(self):
-        type = self.__type_model.get_item(self.comboBox_type.currentIndex()).id
-        return type == 1
-
-    def __add_works_complete(self):
-        """
-        添加自动补全作品
-        :return:
-        """
-        if not self._is_anime():
-            return
-        cur_completion = self.lineEdit_works.completer().currentCompletion()
-        if cur_completion == "":
-            self.__works_completer_set.add(self.lineEdit_works.text())
-            completer = QCompleter(self.__works_completer_set)
-            completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
-            completer.setFilterMode(Qt.MatchFlag.MatchContains)
-            self.lineEdit_works.setCompleter(completer)
-            print(self.__works_completer_set)
-
-    def __add_role_complete(self):
-        """
-        添加自动补全角色
-        :return:
-        """
-        if not self._is_anime():
-            return
-        cur_completion = self.lineEdit_role.completer().currentCompletion()
-        if cur_completion == "":
-            self.__role_completer_set.add(self.lineEdit_role.text())
-            completer = QCompleter(self.__role_completer_set)
-            completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
-            completer.setFilterMode(Qt.MatchFlag.MatchContains)
-            self.lineEdit_role.setCompleter(completer)
-            print(self.__role_completer_set)
 
     def _load_default_images(self):
         last_dir = self.__config.get_config_key('history', 'lastDir')
@@ -661,17 +610,10 @@ class ImageManager(QMainWindow, Ui_Manager):
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         self.__config.add_config_key('history', 'lastExportDir', self.lineEdit_export_dir.text())
         # 关闭时保存自动填充作品列表的配置文件
-        self._save_str_list_to_file(self.__works_completer_set, self.__works_completer_filename)
-        self._save_str_list_to_file(self.__role_completer_set, self.__role_completer_filename)
         rect = self.geometry()
         rect_info = f'{rect.left()},{rect.top()},{rect.width()},{rect.height()}'
         self.__config.add_config_key('history', 'rect', rect_info)
         self._pool.shutdown()
-
-    @staticmethod
-    def _save_str_list_to_file(str_list, filename):
-        with open(filename, 'w+', encoding='utf-8') as f:
-            f.writelines(list(map(lambda x: x + "\n", str_list)))
 
     # endregion
 

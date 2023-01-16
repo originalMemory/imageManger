@@ -89,10 +89,24 @@ class ImageHelper:
         :return:
         """
         info = MyImage()
-        info.filename = os.path.basename(file_path)
+        filename = os.path.basename(file_path)
+        info.filename = filename
         if os.path.exists(file_path) and check_size:
             info.size = FileHelper.get_file_size_in_mb(file_path)
             info.create_time = FileHelper.get_create_time(file_path)
+
+        # MetArt.com_22.12.04.Florens.Presenting.Florens/metart_presenting-florens_florens_high_0001.jpg
+        match = re.search(r'/MetArt.com_\d+\.\d+\.\d+\.(?P<name>.+?)/', file_path)
+        if match and 'cover' not in filename:
+            all_name = match.group('name')
+            works = filename.replace('metart_', '').replace('-', '.').split('_')[0]
+            lower = all_name.lower()
+            works_index = lower.find(works)
+            info.source = 'MertArt'
+            info.works = [all_name[works_index:]]
+            info.authors = [all_name[0:works_index - 1]]
+            return info
+
 
         re_strs = [
             r'/(?P<authors>.+?)/(?P<source>\w+?) .+ - (?P<works>.+?) \(',
@@ -120,7 +134,6 @@ class ImageHelper:
                 info.authors = [x.strip() for x in authors]
                 return info
 
-        filename = os.path.basename(file_path)
         yande = 'yande'
         pixiv = 'pixiv'
         konachan = 'konachan'

@@ -265,7 +265,7 @@ class TagHelper:
             self.split_by_works(image)
 
     def split_by_works(self, info: MyImage):
-        if not info.works or not os.path.exists(info.path):
+        if not info.works or not os.path.exists(info.full_path()):
             return
         base = 'Z:/图片/'
         max_work = ''

@@ -10,6 +10,7 @@
 @update  :
 """
 import os
+import re
 
 from PyQt6.QtCore import QModelIndex, QVariant, Qt
 from PyQt6.QtGui import QBrush, QColor
@@ -21,12 +22,18 @@ from model.data import ImageFile, MyImage
 from model.my_list_model import MyBaseListModel
 
 
+def _get_int_key(item):
+    name = os.path.splitext(item)[0]
+    match = re.search(r'(?P<no>\d+?)[)_]?$', name)
+    if match:
+        return int(match.group('no'))
+
+
 class ImageFileListModel(MyBaseListModel):
     delete_repeat = False
 
     def __init__(self, context):
         super().__init__()
-        self._base_dir = ""
         self._data_list_in_database = []
         self.__db_helper = DBHelper(context)
 
@@ -57,24 +64,28 @@ class ImageFileListModel(MyBaseListModel):
             return self._data_list[row]
 
     def __add_dir(self, dir_path):
-        self._base_dir = os.path.basename(dir_path)
-        for filename in os.listdir(dir_path):
-            file_path = "%s/%s" % (dir_path, filename)
-            if os.path.isdir(file_path):
-                self.__add_children_dir(file_path)
-                continue
-            relative_path = "%s/%s" % (self._base_dir, filename)
-            self.__add_image_data(relative_path, file_path, filename)
-
-    def __add_children_dir(self, dir_path):
-        for filename in os.listdir(dir_path):
-            file_path = "%s/%s" % (dir_path, filename)
-            dir_name = os.path.basename(dir_path)
-            if os.path.isdir(file_path):
-                self.__add_children_dir(file_path)
-                continue
-            relative_path = "%s/%s/%s" % (self._base_dir, dir_name, filename)
-            self.__add_image_data(relative_path, file_path, filename)
+        paths = []
+        cp = re.compile(r'\d+$')
+        for root, ds, fs in os.walk(dir_path):
+            tp_paths = []
+            all_int = True
+            for name in fs:
+                if not ImageHelper.is_image(name) or '$RECYCLE' in name:
+                    continue
+                if all_int and not _get_int_key(name):
+                    all_int = False
+                tp_paths.append(f'{root}/{name}'.replace('\\', '/'))
+            if all_int:
+                tp_paths.sort(key=_get_int_key)
+            else:
+                tp_paths.sort()
+            paths += tp_paths
+        if not len(paths):
+            return
+        for path in paths:
+            filename = os.path.basename(path)
+            relative_path = path.replace(os.path.dirname(dir_path), '')[1:]
+            self.__add_image_data(relative_path, path, filename)
 
     def __add_image_data(self, show_path, full_path, filename):
         if not ImageHelper.is_image(filename):
@@ -116,7 +127,7 @@ class ImageFileListModel(MyBaseListModel):
                     # 已有图片存在且删除重复时删除当前图片
                     if os.path.exists(image.full_path()) and self.delete_repeat:
                         print(f'删除重复图片: {full_path}, 原图地址：{old_path}')
-                        os.remove(full_path)
+                        FileHelper.del_file(full_path)
                         return
                     if os.path.exists(image.full_path()):
                         os.remove(image.full_path())
