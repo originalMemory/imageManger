@@ -16,10 +16,7 @@ import shutil
 
 import requests
 from PIL import Image
-from webdav3.client import Client
-from webdav3.exceptions import NoConnection
 
-from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
@@ -237,45 +234,32 @@ def update_author_name(old, new):
 
 
 def copy_from_nas():
-    config_helper = ConfigHelper()
-    webdav_sec = 'webdav'
-    options = {
-        'webdav_hostname': 'http://192.168.31.39:5007/NAS',
-        'webdav_login': config_helper.get_config_key(webdav_sec, 'login'),
-        'webdav_password': config_helper.get_config_key(webdav_sec, 'password'),
-        'webdav_timeout': 3
-    }
-    try:
-        client = Client(options)
-        client.check('test')
-        print('使用局域网 webdav')
-    except NoConnection as e:
-        options['webdav_hostname'] = config_helper.get_config_key(webdav_sec, 'hostname')
-        options['webdav_timeout'] = 10
-        client = Client(options)
-        print('使用远程 webdav')
-
     params = {
-        'type': '1',
-        'level': '4',
-        'orientation': 2,
-        'count': 1100
+        'filter': {
+            'create_time': {'$gte': '2022-10-25 00:00:00'},
+            'type': {'$in': [1, 2, 3]},
+            'level': {'$in': [6, 7, 8]},
+            '$expr': {'$lte': ['$width', '$height']},
+        },
+        'limit': 600,
+        'random': True
     }
-    req = requests.get(url='https://xuanniao.fun/api/randomImagePaths', params=params)
+    req = requests.get(url='http://127.0.0.1:8000/api/randomImageSql', data=json.dumps(params),
+                       headers={'Content-Type': 'application/json'})
     infos = json.loads(req.text)
-    dir_path = 'F:/壁纸/竖/1-4'
+    dir_path = '/Users/wuhb/Downloads/竖'
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     for i, info in enumerate(infos):
-        remote_path = info['path']
+        remote_path = f'/Volumes/NAS/{info["path"]}'
         print(f'[{i}/{len(infos)}]{remote_path}')
         try:
-            if not client.check(remote_path):
+            if not os.path.exists(remote_path):
                 print('文件不存在，跳过')
                 continue
             filename = info['aliasName'].replace(',', '_')
-            local_path = FileHelper.get_no_repeat_filepath(dir_path, filename)
-            client.download_sync(remote_path, local_path)
+            local_path = f'{dir_path}/{filename}'
+            FileHelper.compress_save(remote_path, local_path)
         except Exception as e:
             print(f'下载失败：{e}')
 
