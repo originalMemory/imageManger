@@ -131,7 +131,7 @@ dmypy.json
 .pyre/
 config.ini
 works.txt
-.idea/workspace.xml
+.idea/
 .vscode/
 final.jpg
 role.txt
