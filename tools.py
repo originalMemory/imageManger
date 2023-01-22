@@ -236,18 +236,18 @@ def update_author_name(old, new):
 def copy_from_nas():
     params = {
         'filter': {
-            'create_time': {'$gte': '2022-10-25 00:00:00'},
+            'create_time': {'$lt': '2022-10-25 00:00:00'},
             'type': {'$in': [1, 2, 3]},
-            'level': {'$in': [6, 7, 8]},
-            '$expr': {'$lte': ['$width', '$height']},
+            'level': {'$in': [5, 6, 7]},
+            '$expr': {'$gte': ['$width', '$height']},
         },
-        'limit': 600,
+        'limit': 800,
         'random': True
     }
     req = requests.get(url='http://127.0.0.1:8000/api/randomImageSql', data=json.dumps(params),
                        headers={'Content-Type': 'application/json'})
     infos = json.loads(req.text)
-    dir_path = '/Users/wuhb/Downloads/竖'
+    dir_path = '普通壁纸/横'
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     for i, info in enumerate(infos):
