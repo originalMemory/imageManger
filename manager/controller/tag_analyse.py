@@ -18,7 +18,6 @@ from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import QModelIndex, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QMainWindow, QMessageBox, QHeaderView
-from win32comext.shell import shell, shellcon
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper
@@ -216,9 +215,6 @@ class TagAnalyse(QMainWindow, Ui_Manager):
         FileHelper.open_file_directory(file_path)
 
     def key_press_delegate(self, event: QtGui.QKeyEvent):
-        if event.key() == Qt.Key.Key_D:
-            self._del_select_list_rows()
-            return True
         if event.key() == Qt.Key.Key_W:
             current_index = self.listView.currentIndex()
             if current_index.row() > 0:
@@ -230,31 +226,6 @@ class TagAnalyse(QMainWindow, Ui_Manager):
                 self.listView.setCurrentIndex(self._image_model.index(current_index.row() + 1, current_index.column()))
             return True
         return False
-
-    def _del_select_list_rows(self):
-        """
-        删除选中行
-        :return:
-        """
-        select_rows = self.listView.selectionModel().selectedRows()
-        if len(select_rows) == 0:
-            return
-        first_index = select_rows[0].row()
-        row = first_index.row()
-        item = self._image_model.get_item(row)
-        if item.id:
-            self._db_helper.delete(item.id)
-        shell.SHFileOperation((0, shellcon.FO_DELETE, item.full_path, None,
-                               shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
-                               None))  # 删除文件到回收站
-        self._image_model.delete_item(row)
-        self.statusbar.showMessage(f"{item.name} 删除成功！")
-
-        # 如果删除到了最后一行，则刷新上一个
-        if first_index.row() >= self._image_model.rowCount():
-            row = self._image_model.rowCount() - 1
-            self.listView.setCurrentIndex(self.listView.model().index(row, first_index.column()))
-        self._show_image(row)
 
     def __on_list_view_current_row_change(self, current: QModelIndex, previous: QModelIndex):
         """

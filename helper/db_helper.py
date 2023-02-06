@@ -16,6 +16,7 @@ from enum import unique, Enum
 
 import pymongo
 import pytz
+from pymongo.collection import Collection
 
 from helper.config_helper import ConfigHelper
 from model.data import MyImage, BaseData, ImageFile
@@ -79,7 +80,7 @@ class DBHelper:
     #     if self.error_handler:
     #         self.error_handler(error_str)
 
-    def get_col(self, col: Col):
+    def get_col(self, col: Col) -> Collection:
         return self._get_db()[col.value]
 
     def get_model_data_list(self, table):

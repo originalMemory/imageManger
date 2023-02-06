@@ -6,13 +6,14 @@
 @file    : main
 @author  : wuhoubo
 @desc    :
-@create  : 2021/11/13 15:57:59
+@create  : 202111/13 15:57:59
 @update  :
 """
 import json
 import os
 import re
 import shutil
+import exifread
 
 import requests
 from PIL import Image
@@ -236,13 +237,13 @@ def update_author_name(old, new):
 def copy_from_nas():
     params = {
         'filter': {
-            'create_time': {'$lt': '2022-10-25 00:00:00'},
             'type': {'$in': [1, 2, 3]},
-            'level': {'$in': [5, 6, 7]},
-            '$expr': {'$gte': ['$width', '$height']},
+            'level': {'$in': [5, 6, 4]},
+            '$expr': {'$lte': ['$width', '$height']},
         },
         'limit': 800,
-        'random': True
+        'random': True,
+        'halfRecent': True,
     }
     req = requests.get(url='http://127.0.0.1:8000/api/randomImageSql', data=json.dumps(params),
                        headers={'Content-Type': 'application/json'})
@@ -324,9 +325,54 @@ def rename_bilibili_download():
                 FileHelper.del_file(os.path.join(old_path, old))
 
 
+def get_exif():
+    src = '/Users/wuhb/develop/self/image-album/public/src/__Lanthanum_Flameworks.jpg'
+    with open(src, 'rb') as f:
+        infos = []
+        tags = exifread.process_file(f)
+        model = tags.get('Image Model')
+        infos.append(('器材', model))
+        focal_length = tags.get('EXIF FocalLength')
+        infos.append(('焦距', f'{focal_length}mm'))
+        f_number = tags.get('EXIF FNumber', 0)
+        if f_number:
+            f_number = f'F{f_number}, '
+        else:
+            f_number = ''
+        et = tags.get('EXIF ExposureTime', 0)
+        if f_number:
+            et = f'{et}s, '
+        else:
+            et = ''
+        iso = tags.get('EXIF ISOSpeedRatings', 0)
+        if iso:
+            iso = f'ISO{iso}'
+        else:
+            iso = ''
+        infos.append(('参数', f'{f_number}{et}{iso}'))
+        infos.append(('软件', str(tags.get('Image Software'))))
+        infos.append(('拍摄时间', tags.get('EXIF DateTimeOriginal')))
+        for info in infos:
+            print(info)
+
+        for tag in tags:
+            print(f'{tag}, {tags.get(tag)}')
+
+
+def update_image_color():
+    page = 0
+    pagesize = 100
+    col = db_helper.get_col(Col.Image)
+    queries = col.find({'color': {'$exists': False}}, {'_id': 1, 'path': 1}).limit(pagesize).skip(page * pagesize)
+    queries = [x for x in queries]
+    db_helper.close()
+    print(queries)
+
+
 if __name__ == '__main__':
     # get_pixiv_down_author()
-    analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
+    # analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
+    update_image_color()
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
