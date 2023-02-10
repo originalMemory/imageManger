@@ -13,7 +13,7 @@ import json
 import os
 import re
 import shutil
-import exifread
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 import requests
 from PIL import Image
@@ -22,6 +22,7 @@ from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
+from colorthief import ColorThief
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -359,20 +360,57 @@ def get_exif():
             print(f'{tag}, {tags.get(tag)}')
 
 
-def update_image_color():
+# RGB格式颜色转换为16进制颜色格式
+def RGB_to_Hex(rgb):
+    color = '#'
+    for i in rgb:
+        num = int(i)
+        # 将R、G、B分别转化为16进制拼接转换并大写  hex() 函数用于将10进制整数转换成16进制，以字符串形式表示
+        color += str(hex(num))[-2:].replace('x', '0').upper()
+    return color
+
+
+executor = ThreadPoolExecutor(max_workers=20)
+col = db_helper.get_col(Col.Image)
+
+
+def update_color(prefix, query):
+    path = FileHelper.get_full_path(query['path'])
+    if not os.path.exists(path):
+        print(f'{prefix}图片不存在, {path}')
+        return
+    color = ColorThief(path).get_color()
+    hex = RGB_to_Hex(color)
+    print(f'{prefix}{hex}, {path}')
+    col.update_one({'_id': query['_id']}, {'$set': {'color': hex}})
+
+
+def update_all_image_color():
     page = 0
-    pagesize = 100
-    col = db_helper.get_col(Col.Image)
-    queries = col.find({'color': {'$exists': False}}, {'_id': 1, 'path': 1}).limit(pagesize).skip(page * pagesize)
-    queries = [x for x in queries]
-    db_helper.close()
-    print(queries)
+    pagesize = 500
+    fl = {'color': {'$exists': False}, 'level': {'$lte': 8}}
+    total_count = col.count_documents(fl)
+    while True:
+        queries = col.find(fl, {'_id': 1, 'path': 1}).limit(pagesize)
+        empty = True
+        tp = []
+        for i, query in enumerate(queries):
+            empty = False
+            tp.append((f'[{page * pagesize + i}/{total_count}]', query))
+            if len(tp) == 20:
+                all_task = [executor.submit(update_color, x[0], x[1]) for x in tp]
+                wait(all_task, return_when=ALL_COMPLETED)
+                tp = []
+        page += 1
+        print()
+        if empty:
+            break
 
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
-    update_image_color()
+    update_all_image_color()
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
