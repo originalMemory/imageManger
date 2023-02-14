@@ -148,6 +148,7 @@ class MyImage:
     地址
     """
     path: str = field(default="")
+    color: str = field(default='')
 
     @staticmethod
     def from_dict(query):
@@ -173,6 +174,8 @@ class MyImage:
             series=query['series'],
             uploader=query['uploader']
         )
+        if 'color' in query:
+            image.color = query['color']
         return image
 
     def di(self, with_id=False):

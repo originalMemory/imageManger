@@ -403,3 +403,12 @@ class ImageHelper:
                                 '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico', '.gif']
         extension = FileHelper.get_file_extension(filename).lower()
         return extension in image_extension_list
+
+    @staticmethod
+    def save_thumb(source_path, dest_path, size=500):
+        img = Image.open(source_path)
+        # if img.mode != 'RGB':
+        #     img = img.convert('RGB')
+        img.thumbnail((size, size))
+        print(img.format, img.size, img.mode)
+        img.save(dest_path)

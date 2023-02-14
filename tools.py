@@ -17,12 +17,12 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 import requests
 from PIL import Image
+from colorthief import ColorThief
 
 from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
 from helper.tag_helper import TagHelper
 from model.data import *
-from colorthief import ColorThief
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -391,7 +391,7 @@ def update_all_image_color():
     fl = {'color': {'$exists': False}, 'level': {'$lte': 8}}
     total_count = col.count_documents(fl)
     while True:
-        queries = col.find(fl, {'_id': 1, 'path': 1}).limit(pagesize)
+        queries = col.find(fl, {'_id': 1, 'path': 1}).sort('_id', 1).limit(pagesize)
         empty = True
         tp = []
         for i, query in enumerate(queries):
@@ -407,10 +407,51 @@ def update_all_image_color():
             break
 
 
+def update_tag_cover_and_count():
+    fl = {'color': {'$exists': False}}
+    col_dest = db_helper.get_col(Col.TranDest)
+    length = col_dest.count_documents(fl)
+    queries = col_dest.find(fl).skip(26)
+    for i, query in enumerate(queries):
+        dest = TranDest.from_dict(query)
+        fl_img = {'tags': dest.id}
+        count = col.count_documents(fl_img)
+        if not count:
+            continue
+        # if dest.type == TagType.Works:
+        #     fl_img['works'] = [dest.name]
+        # elif dest.type == TagType.Role:
+        #     fl_img['roles'] = [dest.name]
+        limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
+        if not limit:
+            continue
+        img = MyImage.from_dict(limit[0])
+        col_dest.update_one({'_id': dest.id}, {'$set': {'cover': img.path, 'color': img.color, 'count': count}})
+        print(f'[{i}/{length}]{dest.name}, {count}, {img.color}, {img.path}')
+
+
+def create_thumb():
+    from PIL import ImageFile
+    ImageFile.LOAD_TRUNCATED_IMAGES = True
+    queries = db_helper.search_all(Col.Image,
+                                   {'tags': ObjectId('6294de1cdc57125408abbb4f'), 'level': {'$gte': 6}}).limit(72)
+    dest_dir_path = '/Volumes/Normal1/thumb'
+    for i, query in enumerate(queries):
+        img = MyImage.from_dict(query)
+        if not os.path.exists(img.full_path()):
+            continue
+        dest_path = f'{dest_dir_path}/{img.path}'
+        dir_path = os.path.dirname(dest_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        ImageHelper.save_thumb(img.full_path(), dest_path)
+        print(f'{i}, {str(img.id)}, {img.path}')
+
+
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
-    update_all_image_color()
+    create_thumb()
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
