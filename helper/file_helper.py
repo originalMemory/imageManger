@@ -182,14 +182,22 @@ class FileHelper:
 
     @staticmethod
     def get_full_path(relative_path):
-        prefix = FileHelper.get_path_prefix()
+        prefix = FileHelper._get_path_prefix()
         if not prefix or os.path.exists(relative_path):
             return relative_path
         else:
-            return os.path.join(prefix, relative_path)
+            return os.path.join(prefix, relative_path).replace('\\', '/')
 
     @staticmethod
-    def get_path_prefix():
+    def get_relative_path(full_path):
+        path = full_path.replace('\\', '/').replace(FileHelper._get_path_prefix(), '')
+        if path.startswith('/'):
+            return path[1:]
+        else:
+            return path
+
+    @staticmethod
+    def _get_path_prefix():
         return ConfigHelper(None).get_config_key('common', 'pathPrefix')
 
     @staticmethod

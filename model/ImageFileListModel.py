@@ -84,67 +84,77 @@ class ImageFileListModel(MyBaseListModel):
             return
         for path in paths:
             filename = os.path.basename(path)
-            relative_path = path.replace(os.path.dirname(dir_path), '')[1:]
-            self.__add_image_data(relative_path, path, filename)
+            self.__add_image_data(dir_path, path, filename)
 
-    def __add_image_data(self, show_path, full_path, filename):
+    def __add_image_data(self, dir_path, full_path, filename):
         if not ImageHelper.is_image(filename):
             return
+        image = self._check_exist_image(full_path)
+        if image:
+            image_id = image.id
+            self._data_list_in_database.append(image)
+            full_path = image.full_path()
+        else:
+            image_id = None
+        show_path = full_path.replace(dir_path, '')
+        if show_path.startswith('/'):
+            show_path = show_path[1:]
+        item_data = ImageFile(image_id, show_path, full_path)
+        self.add_item(item_data)
+
+    def _check_exist_image(self, full_path):
         image = self.__db_helper.search_by_file_path(full_path)
+        if image:
+            return image
         if not image:
             # 根据md5再做1次判断
             md5 = FileHelper.get_md5(full_path)
             image = self.__db_helper.search_by_md5(md5)
-            if image and image.full_path() != full_path:
-                old_path = image.full_path()
-                # 当前是 pixiv ，数据库是 yande 时更新为 pixiv 的信息
-                if image.source == 'yande' and ImageHelper.get_pixiv_no(full_path):
-                    info = ImageHelper.analyze_image_info(full_path)
-                    image.source = 'pixiv'
-                    image.desc = info.desc
-                    for tag in info.tags:
-                        query = self.__db_helper.search_one(Col.TranSource, {'name': tag}, {'dest_ids': 1})
-                        if query and 'dest_ids' in query:
-                            image.tags += query['dest_ids']
-                        else:
-                            image.tags.append(tag)
-                    image.authors = info.authors
-                    image.uploader = ''
-                    image.sequence = info.sequence
-                    image.file_create_time = FileHelper.get_create_time(full_path)
-                    yande_path = image.full_path()
-                    sub_str = f'_{info.tags}'
-                    source_pixiv_path = full_path
-                    full_path = full_path.replace(sub_str, '')
-                    show_path = show_path.replace(sub_str, '')
-                    new_path = full_path.replace(FileHelper.get_path_prefix(), '')
-                    image.path = new_path
-                    self.__db_helper.update_image(image)
-                    os.rename(source_pixiv_path, full_path)
-                    os.remove(yande_path)
-                    print(f'pixiv 替换 yande\nyande: {yande_path}, pixiv: {full_path}')
+        if not image:
+            return
+        exist_full_path = image.full_path().replace('\\', '/')
+        if exist_full_path == full_path:
+            return image
+        old_path = exist_full_path
+        # 当前是 pixiv ，数据库是 yande 时更新为 pixiv 的信息
+        if image.source == 'yande' and ImageHelper.get_pixiv_no(full_path):
+            info = ImageHelper.analyze_image_info(full_path)
+            image.source = 'pixiv'
+            image.desc = info.desc
+            for tag in info.tags:
+                query = self.__db_helper.search_one(Col.TranSource, {'name': tag}, {'dest_ids': 1})
+                if query and 'dest_ids' in query:
+                    image.tags += query['dest_ids']
                 else:
-                    # 已有图片存在且删除重复时删除当前图片
-                    if os.path.exists(image.full_path()) and self.delete_repeat:
-                        print(f'删除重复图片: {full_path}, 原图地址：{old_path}')
-                        FileHelper.del_file(full_path)
-                        return
-                    if os.path.exists(image.full_path()):
-                        os.remove(image.full_path())
-                        print(f'删除已存在图片：{image.full_path()}')
-                    new_path = full_path.replace(FileHelper.get_path_prefix(), '')
-                    image.relative_path = new_path
-                    print(f'新路径：{new_path}，原地址：{old_path}')
-                    self.__db_helper.update_path(image.id, new_path)
-                    FileHelper.del_file(old_path)
-
-        if image:
-            image_id = image.id
-            self._data_list_in_database.append(image)
+                    image.tags.append(tag)
+            image.authors = info.authors
+            image.uploader = ''
+            image.sequence = info.sequence
+            image.file_create_time = FileHelper.get_create_time(full_path)
+            yande_path = exist_full_path
+            sub_str = f'_{info.tags}'
+            source_pixiv_path = full_path
+            full_path = full_path.replace(sub_str, '')
+            image.path = FileHelper.get_relative_path(full_path)
+            self.__db_helper.update_image(image)
+            os.rename(source_pixiv_path, full_path)
+            os.remove(yande_path)
+            print(f'pixiv 替换 yande\nyande: {yande_path}, pixiv: {full_path}')
         else:
-            image_id = None
-        item_data = ImageFile(image_id, show_path, full_path)
-        self.add_item(item_data)
+            # 已有图片存在且删除重复时删除当前图片
+            if os.path.exists(exist_full_path) and self.delete_repeat:
+                print(f'删除重复图片: {full_path}, 原图地址：{old_path}')
+                FileHelper.del_file(full_path)
+                return
+            if os.path.exists(exist_full_path):
+                os.remove(exist_full_path)
+                print(f'删除已存在图片：{exist_full_path}')
+            new_path = FileHelper.get_relative_path(full_path)
+            image.path = new_path
+            print(f'新路径：{new_path}，原地址：{old_path}')
+            self.__db_helper.update_path(image.id, new_path)
+            FileHelper.del_file(old_path)
+        return image
 
     def add_path(self, path):
         if os.path.isdir(path):
@@ -154,8 +164,7 @@ class ImageFileListModel(MyBaseListModel):
 
     def __add_file(self, file_path):
         filename = os.path.basename(file_path)
-        relative_path = filename
-        self.__add_image_data(relative_path, file_path, filename)
+        self.__add_image_data(os.path.dirname(file_path), file_path, filename)
 
     def set_image_id(self, index, image_id):
         self._data_list[index.row()].id = image_id

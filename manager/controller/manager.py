@@ -215,7 +215,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.__show_image(current.row())
 
     def __analysis_file_info(self, path):
-        info = self.__db_helper.search_by_file_path(path.replace(FileHelper.get_path_prefix(), ''))
+        info = self.__db_helper.search_by_file_path(path)
         if not info:
             # 清空二次元图上一次自动识别的结果
             type = self.__type_model.get_item(self.comboBox_type.currentIndex())
@@ -342,7 +342,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         for row in select_rows:
             item = self.__image_model.get_item(row.row())
             path = item.full_path
-            relative_path = path.replace(FileHelper.get_path_prefix(), '')
+            relative_path = FileHelper.get_relative_path(path)
             # width 和 height 放到编程里更新
             image = MyImage(id=item.id, desc=desc, authors=authors, type=type, level=level, tags=tags, works=works,
                             roles=roles, source=source, width=0, height=0, size=0,
@@ -403,11 +403,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                 if not query:
                     continue
                 image.tags[i] = query['_id']
-            relative_path = path.replace(FileHelper.get_path_prefix(), '')
-            image.path = relative_path
             if not image.id:
                 self.__db_helper.insert_image(image)
-                image_id = self.__db_helper.get_id_by_path(relative_path)
+                image_id = self.__db_helper.get_id_by_path(image.path)
                 need_refresh_item = True
                 new_item.id = image_id
             else:

@@ -16,9 +16,9 @@ from enum import unique, Enum
 
 import pymongo
 import pytz
-from pymongo.collection import Collection
 
 from helper.config_helper import ConfigHelper
+from helper.file_helper import FileHelper
 from model.data import MyImage, BaseData, ImageFile
 
 
@@ -64,12 +64,13 @@ class DBHelper:
         global _db
         if _db:
             return _db
-        if os.system('ping -c 1 192.168.31.39') == 0:
-            url = ConfigHelper().get_config_key('database', 'mongoLocal')
-            print('使用局域网连接')
-        else:
-            url = ConfigHelper().get_config_key('database', 'mongoServer')
-            print('使用域名连接')
+        url = ConfigHelper().get_config_key('database', 'mongoLocal')
+        # if os.system('ping -c 1 192.168.31.39') == 0:
+        #     url = ConfigHelper().get_config_key('database', 'mongoLocal')
+        #     print('使用局域网连接')
+        # else:
+        #     url = ConfigHelper().get_config_key('database', 'mongoServer')
+        #     print('使用域名连接')
         db = pymongo.MongoClient(url, tz_aware=True, tzinfo=tzinfo)['acg']
         _db = db
         return db
@@ -80,7 +81,7 @@ class DBHelper:
     #     if self.error_handler:
     #         self.error_handler(error_str)
 
-    def get_col(self, col: Col) -> Collection:
+    def get_col(self, col: Col):
         return self._get_db()[col.value]
 
     def get_model_data_list(self, table):
@@ -159,7 +160,8 @@ class DBHelper:
         :param filepath:
         :return:
         """
-        query = self.search_one(Col.Image, {'path': filepath})
+        relative_path = FileHelper.get_relative_path(filepath)
+        query = self.search_one(Col.Image, {'path': relative_path})
         if query:
             return MyImage.from_dict(query)
 

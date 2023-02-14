@@ -322,7 +322,7 @@ class TagAnalyse(QMainWindow, Ui_Manager):
                 time.sleep(1)
 
     def _show_info(self, path):
-        info = self._db_helper.search_by_file_path(path.replace(FileHelper.get_path_prefix(), ''))
+        info = self._db_helper.search_by_file_path(path)
         if not info:
             return
         # 显示已有记录
