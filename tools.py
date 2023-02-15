@@ -440,6 +440,7 @@ def create_thumb(prefix, query):
     dest_path = f'{dest_dir_path}/{relative_path}'
     if os.path.exists(dest_path):
         print(f'{prefix}{full_path} 缩略图文件已存在')
+        col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True}})
         return
     dir_path = os.path.dirname(dest_path)
     if not os.path.exists(dir_path):
@@ -451,7 +452,7 @@ def create_thumb(prefix, query):
 
 def thumb_all_thumb():
     page = 0
-    pagesize = 500
+    pagesize = 2000
     exist_param = 'exist_thumb'
     fl = {'level': {'$lte': 8}}
     total_count = col.count_documents(fl)
@@ -460,9 +461,11 @@ def thumb_all_thumb():
             pagesize)
         tp = []
         for i, query in enumerate(queries):
+            prefix = f'[{page * pagesize + i}/{total_count}]'
             if exist_param in query:
+                print(f'{prefix}已创建。{query["path"]}')
                 continue
-            tp.append((f'[{page * pagesize + i}/{total_count}]', query))
+            tp.append((prefix, query))
             if len(tp) == 20:
                 all_task = [executor.submit(create_thumb, x[0], x[1]) for x in tp]
                 wait(all_task, return_when=ALL_COMPLETED)
