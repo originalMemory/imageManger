@@ -410,5 +410,5 @@ class ImageHelper:
         # if img.mode != 'RGB':
         #     img = img.convert('RGB')
         img.thumbnail((size, size))
-        print(img.format, img.size, img.mode)
         img.save(dest_path)
+        return img.size

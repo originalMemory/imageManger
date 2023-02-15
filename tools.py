@@ -430,28 +430,50 @@ def update_tag_cover_and_count():
         print(f'[{i}/{length}]{dest.name}, {count}, {img.color}, {img.path}')
 
 
-def create_thumb():
-    from PIL import ImageFile
-    ImageFile.LOAD_TRUNCATED_IMAGES = True
-    queries = db_helper.search_all(Col.Image,
-                                   {'tags': ObjectId('6294de1cdc57125408abbb4f'), 'level': {'$gte': 6}}).limit(72)
-    dest_dir_path = '/Volumes/Normal1/thumb'
-    for i, query in enumerate(queries):
-        img = MyImage.from_dict(query)
-        if not os.path.exists(img.full_path()):
-            continue
-        dest_path = f'{dest_dir_path}/{img.path}'
-        dir_path = os.path.dirname(dest_path)
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
-        ImageHelper.save_thumb(img.full_path(), dest_path)
-        print(f'{i}, {str(img.id)}, {img.path}')
+def create_thumb(prefix, query):
+    dest_dir_path = 'Y:/thumb'
+    relative_path = query['path']
+    full_path = FileHelper.get_full_path(relative_path)
+    if not os.path.exists(full_path):
+        print(f'{prefix}{full_path} 源文件不存在')
+        return
+    dest_path = f'{dest_dir_path}/{relative_path}'
+    if os.path.exists(dest_path):
+        print(f'{prefix}{full_path} 缩略图文件已存在')
+        return
+    dir_path = os.path.dirname(dest_path)
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    size = ImageHelper.save_thumb(full_path, dest_path)
+    col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True}})
+    print(f'{prefix}{size}, {dest_path}')
+
+
+def thumb_all_thumb():
+    page = 0
+    pagesize = 500
+    exist_param = 'exist_thumb'
+    fl = {'level': {'$lte': 8}}
+    total_count = col.count_documents(fl)
+    while page * pagesize <= total_count:
+        queries = col.find(fl, {'_id': 1, 'path': 1, exist_param: 1}).sort('_id', 1).skip(page * pagesize).limit(
+            pagesize)
+        tp = []
+        for i, query in enumerate(queries):
+            if exist_param in query:
+                continue
+            tp.append((f'[{page * pagesize + i}/{total_count}]', query))
+            if len(tp) == 20:
+                all_task = [executor.submit(create_thumb, x[0], x[1]) for x in tp]
+                wait(all_task, return_when=ALL_COMPLETED)
+                tp = []
+        page += 1
 
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
-    create_thumb()
+    thumb_all_thumb()
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
