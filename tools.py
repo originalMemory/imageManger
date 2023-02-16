@@ -408,26 +408,33 @@ def update_all_image_color():
 
 
 def update_tag_cover_and_count():
-    fl = {'color': {'$exists': False}}
+    fl = {}
     col_dest = db_helper.get_col(Col.TranDest)
     length = col_dest.count_documents(fl)
-    queries = col_dest.find(fl).skip(26)
+    queries = col_dest.find(fl).skip(1214)
     for i, query in enumerate(queries):
         dest = TranDest.from_dict(query)
-        fl_img = {'tags': dest.id}
-        count = col.count_documents(fl_img)
-        if not count:
-            continue
+        fl_img = {
+            'tags': dest.id,
+            'level': {'$gte': 5, '$lte': 8},
+            '$expr': {'$gte': ['$width', '$height']},
+        }
         # if dest.type == TagType.Works:
         #     fl_img['works'] = [dest.name]
         # elif dest.type == TagType.Role:
         #     fl_img['roles'] = [dest.name]
         limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
         if not limit:
+            fl_img['level'] = {'$lte': 8}
+            limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
+        if not limit:
+            del fl_img['$expr']
+            limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
+        if not limit:
             continue
         img = MyImage.from_dict(limit[0])
-        col_dest.update_one({'_id': dest.id}, {'$set': {'cover': img.path, 'color': img.color, 'count': count}})
-        print(f'[{i}/{length}]{dest.name}, {count}, {img.color}, {img.path}')
+        col_dest.update_one({'_id': dest.id}, {'$set': {'cover': img.path, 'color': img.color}})
+        print(f'[{i}/{length}]{dest.name}, {img.color}, {img.path}')
 
 
 def create_thumb(prefix, query):
@@ -476,7 +483,8 @@ def thumb_all_thumb():
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
-    thumb_all_thumb()
+    update_all_image_color()
+    # update_tag_cover_and_count()
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
