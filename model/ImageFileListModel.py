@@ -96,6 +96,8 @@ class ImageFileListModel(MyBaseListModel):
             full_path = image.full_path()
         else:
             image_id = None
+        if not os.path.exists(full_path):
+            return
         show_path = full_path.replace(dir_path, '')
         if show_path.startswith('/'):
             show_path = show_path[1:]

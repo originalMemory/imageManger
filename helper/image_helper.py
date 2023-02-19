@@ -16,6 +16,7 @@ from PIL import Image, ImageQt
 from PyQt6 import QtGui
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImageReader
+from colorthief import ColorThief
 
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
@@ -109,11 +110,11 @@ class ImageHelper:
 
 
         re_strs = [
-            r'/(?P<authors>.+?)/(?P<source>\w+?) .+ - (?P<works>.+?) \(',
+            # r'/(?P<authors>.+?)/(?P<source>\w+?) .+ - (?P<works>.+?) \(',
             # FemJoy 2019-09-15 Carolina K - Naked in the trees
-            r'/(?P<source>\w+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<works>.+?)/',
+            r'/(?P<source>[\w-]+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<works>.+?)/',
             # Carisha\Femjoy 2011-05-15 - Hello (x38) 2667x4000
-            r'/(?P<authors>.+?) - (?P<works>.+?)\[',
+            # r'/(?P<authors>.+?) - (?P<works>.+?)\[',
             # r'/\d+-\d+-\d+ - (?P<source>.+?) - (?P<authors>.+?) - (?P<works>.+?)/',
             # r'/\d+-\d+-\d+ - (?P<authors>.+?) - (?P<works>.+?)/'
         ]
@@ -412,3 +413,14 @@ class ImageHelper:
         img.thumbnail((size, size))
         img.save(dest_path)
         return img.size
+
+    @staticmethod
+    def get_hex_color(path):
+        rgb = ColorThief(path).get_color()
+        color = '#'
+        for i in rgb:
+            num = int(i)
+            # 将R、G、B分别转化为16进制拼接转换并大写  hex() 函数用于将10进制整数转换成16进制，以字符串形式表示
+            color += str(hex(num))[-2:].replace('x', '0').upper()
+        return color
+

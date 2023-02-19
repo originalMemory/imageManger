@@ -360,16 +360,6 @@ def get_exif():
             print(f'{tag}, {tags.get(tag)}')
 
 
-# RGB格式颜色转换为16进制颜色格式
-def RGB_to_Hex(rgb):
-    color = '#'
-    for i in rgb:
-        num = int(i)
-        # 将R、G、B分别转化为16进制拼接转换并大写  hex() 函数用于将10进制整数转换成16进制，以字符串形式表示
-        color += str(hex(num))[-2:].replace('x', '0').upper()
-    return color
-
-
 executor = ThreadPoolExecutor(max_workers=20)
 col = db_helper.get_col(Col.Image)
 
@@ -379,15 +369,14 @@ def update_color(prefix, query):
     if not os.path.exists(path):
         print(f'{prefix}图片不存在, {path}')
         return
-    color = ColorThief(path).get_color()
-    hex = RGB_to_Hex(color)
+    hex = ImageHelper.get_hex_color(path)
     print(f'{prefix}{hex}, {path}')
     col.update_one({'_id': query['_id']}, {'$set': {'color': hex}})
 
 
 def update_all_image_color():
     page = 0
-    pagesize = 500
+    pagesize = 5000
     fl = {'color': {'$exists': False}, 'level': {'$lte': 8}}
     total_count = col.count_documents(fl)
     while True:
@@ -478,6 +467,10 @@ def thumb_all_thumb():
                 wait(all_task, return_when=ALL_COMPLETED)
                 tp = []
         page += 1
+
+
+def pf(i, count, msg):
+    print(f'[{i}/{count}]{msg}')
 
 
 if __name__ == '__main__':
