@@ -20,7 +20,7 @@ from pymongo.collection import Collection
 
 from helper.config_helper import ConfigHelper
 from helper.file_helper import FileHelper
-from model.data import MyImage, BaseData, ImageFile
+from model.data import MyImage, BaseData, ImageFile, TagType, TranDest
 
 
 def get_time(f):
@@ -212,3 +212,11 @@ class DBHelper:
             return col.count_documents(fl)
         else:
             return col.estimated_document_count()
+
+    def get_or_create_dest(self, name, tag_type=TagType.Unknown, extra=''):
+        fl = {'name': name}
+        query = self.search_one(Col.TranDest, fl)
+        if query:
+            return TranDest.from_dict(query)
+        self.insert(Col.TranDest, TranDest(name=name, type=tag_type, extra=extra).di())
+        return TranDest.from_dict(self.search_one(Col.TranDest, fl))

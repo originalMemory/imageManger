@@ -406,6 +406,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                         else:
                             os.rename(path, new_path)
                         path = new_path
+                        image.path = FileHelper.get_relative_path(path)
                         need_refresh_item = True
                     except Exception as e:
                         print(f"重命名失败：{e}")
@@ -414,14 +415,14 @@ class ImageManager(QMainWindow, Ui_Manager):
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
                 continue
-            for i in range(len(image.tags)):
+            for i, tag in enumerate(image.tags):
                 tag = image.tags[i]
-                query = self.__db_helper.search_one(Col.TranDest, {'name': tag})
-                if not query:
-                    continue
-                image.tags[i] = query['_id']
+                dest = self.__db_helper.get_or_create_dest(tag)
+                image.tags[i] = dest.id()
             if not image.id():
                 self.__db_helper.insert_image(image)
+                for tag in image.tags:
+                    self.__db_helper.get_col(Col.TranDest).update_one({'_id': tag}, {'$inc': {'count': 1}})
                 image_id = self.__db_helper.get_id_by_path(image.path)
                 need_refresh_item = True
                 new_item.id = image_id

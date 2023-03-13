@@ -17,6 +17,9 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 import requests
 from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.common.by import By
 
 from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
@@ -97,8 +100,7 @@ def update_path(filepath, prefix):
 def split_by_works(filepath, prefix):
     if not ImageHelper.is_image(filepath):
         return
-    relative_path = filepath.replace('\\', '/').replace(prefix, '')
-    info = db_helper.search_by_file_path(relative_path)
+    info = db_helper.search_by_file_path(filepath)
     if not info:
         print('无信息，跳过')
         return
@@ -374,7 +376,7 @@ def update_color(prefix, query):
 def update_all_image_color():
     page = 0
     pagesize = 5000
-    fl = {'color': {'$exists': False}, 'level': {'$lte': 8}}
+    fl = {'color': '', 'level': {'$lte': 8}}
     total_count = col.count_documents(fl)
     while True:
         queries = col.find(fl, {'_id': 1, 'path': 1}).sort('_id', 1).limit(pagesize)
@@ -394,16 +396,17 @@ def update_all_image_color():
 
 
 def update_tag_cover_and_count():
-    fl = {}
+    fl = {'type': {'$ne': TagType.Unknown.value}}
     col_dest = db_helper.get_col(Col.TranDest)
     length = col_dest.count_documents(fl)
-    queries = col_dest.find(fl).skip(1214)
+    queries = col_dest.find(fl)
     for i, query in enumerate(queries):
         dest = TranDest.from_dict(query)
         fl_img = {
             'tags': dest.id(),
             'level': {'$gte': 5, '$lte': 8},
             '$expr': {'$gte': ['$width', '$height']},
+            "color": {"$exists": True}, "$where": "this.color.length>0"
         }
         # if dest.type == TagType.Works:
         #     fl_img['works'] = [dest.name]
@@ -473,6 +476,21 @@ def pf(i, count, msg):
     print(f'[{i}/{count}]{msg}')
 
 
+def update_works(old_name, new_name):
+    col_dest = db_helper.get_col(Col.TranDest)
+    old_works = db_helper.get_or_create_dest(old_name, TagType.Author, '')
+    col_dest.update_one({'_id': old_works.id}, {'$set': {'name': new_name}})
+    images = [MyImage.from_dict(x) for x in col.find({'works': old_works.name})]
+    old_image1 = [MyImage.from_dict(x) for x in col.find({'tags': old_works.id})]
+    images += old_image1
+    for i, image in enumerate(images):
+        image.works.remove(old_name)
+        image.works.append(new_name)
+        image.path = image.path.replace(old_name, new_name)
+        col.update_one({'_id': image.id}, {'$set': {'works': image.works, 'path': image.path}})
+        pf(i, len(images), image.path)
+
+
 def merge_tag(old, new, tag_type):
     col_dest = db_helper.get_col(Col.TranDest)
     old_dest = TranDest.from_dict(col_dest.find_one({'name': old, 'type': tag_type.value}))
@@ -503,8 +521,8 @@ def merge_tag(old, new, tag_type):
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
-    # analysis_and_rename_file(r'D:新建文件夹 (2)下载弥音音', 'Z:/', check_exist)
-    merge_tag('阿波妮亚', '阿波尼亚', TagType.Role)
+    # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
+    update_all_image_color()
     # update_tag_cover_and_count()
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
