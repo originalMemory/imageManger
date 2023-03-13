@@ -9,6 +9,7 @@
 @create  : 2019/6/2 23:57:26
 @update  :
 """
+import datetime
 import json
 import os
 import queue
@@ -26,7 +27,6 @@ from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, Col
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
-from helper.tag_helper import TagHelper
 from manager.view.manager import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
 from model.data import ImageFile, PreloadImage, MyImage, TagType
@@ -59,7 +59,6 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.__config.add_config_key('history', 'rect', '')
 
         self.__db_helper = DBHelper(self.db_error_handler)  # 数据库操作
-        self._tag_helper = TagHelper()
 
         # 下拉列表设置
         self.__type_model = MyBaseListModel()
@@ -205,11 +204,11 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.__analysis_file_info(path)
         self.statusbar.showMessage(status)
 
-    def __on_list_view_current_row_change(self, current: QModelIndex, previous: QModelIndex):
+    def __on_list_view_current_row_change(self, current: QModelIndex, _: QModelIndex):
         """
         图片列表当前行变化事件
         :param current: 当前行索引
-        :param previous:
+        :param _:
         :return:
         """
         self.__show_image(current.row())
@@ -218,12 +217,12 @@ class ImageManager(QMainWindow, Ui_Manager):
         info = self.__db_helper.search_by_file_path(path)
         if not info:
             # 清空二次元图上一次自动识别的结果
-            type = self.__type_model.get_item(self.comboBox_type.currentIndex())
-            if type.id == 1 and self.lineEdit_source.text() in ['pixiv', 'yande']:
+            is_anim = self.__type_model.get_item(self.comboBox_type.currentIndex()).id == 1
+            if is_anim and self.lineEdit_source.text() in ['pixiv', 'yande']:
                 self.lineEdit_role.clear()
                 self.lineEdit_works.clear()
                 # self.lineEdit_series.clear()
-                if self.lineEdit_source.text() == 'yande':
+                if self.lineEdit_source.text() != 'pixiv':
                     self.lineEdit_author.clear()
 
             # 分析图片信息
@@ -319,7 +318,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def _prepare_classify(self, select_rows):
         index = self.comboBox_type.currentIndex()
-        type = self.__type_model.get_item(index).id
+        type_value = self.__type_model.get_item(index).id
         index = self.comboBox_level.currentIndex()
         level = self.__level_model.get_item(index).id
         desc = self.lineEdit_desc.text()
@@ -344,9 +343,9 @@ class ImageManager(QMainWindow, Ui_Manager):
             path = item.full_path
             relative_path = FileHelper.get_relative_path(path)
             # width 和 height 放到编程里更新
-            image = MyImage(id=item.id, desc=desc, authors=authors, type=type, level=level, tags=tags, works=works,
-                            roles=roles, source=source, width=0, height=0, size=0,
-                            path=relative_path, md5='', file_create_time=None, series=series, uploader=uploader,
+            image = MyImage(_id=item.id, desc=desc, authors=authors, type=type_value, level=level, tags=tags,
+                            works=works, roles=roles, source=source, width=0, height=0, size=0, path=relative_path,
+                            md5='', file_create_time=datetime.datetime.now(), series=series, uploader=uploader,
                             sequence=sequence)
             if image.id:
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
@@ -482,22 +481,21 @@ class ImageManager(QMainWindow, Ui_Manager):
 
         for i in range(self.__image_model.rowCount()):
             image = self.__image_model.get_item(i)
-            if image.id:
-                image_sql = self.__image_model.get_database_item(image.id)
-                if not os.path.exists(image_sql.full_path()):
-                    continue
+            if not image.id:
+                continue
+            image_sql = self.__image_model.get_database_item(image.id)
+            if not os.path.exists(image_sql.full_path()):
+                continue
 
-                try:
-                    new_filename = None
-                    if image_sql.type == 2:
-                        new_filename = f"{image_sql.works}_{image_sql.roles}_{image_sql.series}_{image_sql.author_str()}"
-                    if image_sql.type == 3:
-                        new_filename = f"{image_sql.works}_{image_sql.series}_{image_sql.author_str()}"
-                    FileHelper.copyfile_without_override(image_sql.full_path(), dir_path, new_filename)
-                except Exception as e:
-                    print(e)
-            else:
-                FileHelper.copyfile_without_override(image.full_path, dir_path)
+            try:
+                new_filename = None
+                if image_sql.type == 2:
+                    new_filename = f"{image_sql.works}_{image_sql.roles}_{image_sql.series}_{image_sql.author_str()}"
+                if image_sql.type == 3:
+                    new_filename = f"{image_sql.works}_{image_sql.series}_{image_sql.author_str()}"
+                FileHelper.copyfile_without_override(image_sql.full_path(), dir_path, new_filename)
+            except Exception as e:
+                print(e)
 
             msg = f"[{i + 1}/{self.__image_model.rowCount()}] {image.name} 复制成功！"
             self._signal_update_status.emit(msg)

@@ -17,11 +17,9 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 import requests
 from PIL import Image
-from colorthief import ColorThief
 
 from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
-from helper.tag_helper import TagHelper
 from model.data import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -53,7 +51,6 @@ def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
 
 
 db_helper = DBHelper(None)
-tag_helper = TagHelper()
 
 
 def check_no_record_image(file_path, prefix):
@@ -222,14 +219,13 @@ def get_or_create_dest(name, tag_type, extra):
     if query:
         return TranDest.from_dict(query)
     print('创建新的')
-    db_helper.insert(Col.TranDest, TranDest(name=name, type=tag_type, extra=extra).di())
+    db_helper.insert(Col.TranDest, TranDest(name=name, type=tag_type.value, extra=extra).dict())
     return TranDest.from_dict(db_helper.search_one(Col.TranDest, fl))
 
 
 def update_author_name(old, new):
     fl = {'name': old}
     db_helper.update_one(Col.TranDest, fl, {'name': new})
-    col = db_helper.get_col(Col.Image)
     res = col.update_many({'authors': old}, {'$addToSet': {'authors': new}})
     print(res.modified_count)
     res = col.update_many({'authors': old}, {'$pull': {'authors': old}})

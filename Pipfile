@@ -16,6 +16,7 @@ pytz = "*"
 webdavclient3 = "*"
 exifread = "*"
 colorthief = "*"
+dacite = "*"
 
 [dev-packages]
 

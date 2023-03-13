@@ -16,6 +16,7 @@ from enum import unique, Enum
 
 import pymongo
 import pytz
+from pymongo.collection import Collection
 
 from helper.config_helper import ConfigHelper
 from helper.file_helper import FileHelper
@@ -62,9 +63,9 @@ class DBHelper:
     @staticmethod
     def _get_db():
         global _db
-        if _db:
+        if _db is not None:
             return _db
-        url = ConfigHelper().get_config_key('database', 'mongoLocal')
+        url = ConfigHelper().get_config_key('database', 'mongoServer')
         # if os.system('ping -c 1 192.168.31.39') == 0:
         #     url = ConfigHelper().get_config_key('database', 'mongoLocal')
         #     print('使用局域网连接')
@@ -75,13 +76,7 @@ class DBHelper:
         _db = db
         return db
 
-    # def __show_error(self, error):
-    #     error_str = str(error)
-    #     print(error_str)
-    #     if self.error_handler:
-    #         self.error_handler(error_str)
-
-    def get_col(self, col: Col):
+    def get_col(self, col: Col) -> Collection:
         return self._get_db()[col.value]
 
     def get_model_data_list(self, table):
@@ -103,7 +98,7 @@ class DBHelper:
         :return:
         """
         image.file_create_time = tzinfo.localize(image.file_create_time)
-        di = image.di(True)
+        di = image.dict()
         return self.insert(Col.Image, di)
 
     @staticmethod
@@ -198,7 +193,7 @@ class DBHelper:
 
             path = image_sql.full_path()
             tp_lists = path.split('/')
-            image_file = ImageFile(image_sql.id, "%s/%s" % (tp_lists[-2], tp_lists[-1]), path)
+            image_file = ImageFile(image_sql.id(), "%s/%s" % (tp_lists[-2], tp_lists[-1]), path)
             image_file_list.append(image_file)
         return image_sql_list, image_file_list
 
