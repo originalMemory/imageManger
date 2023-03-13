@@ -217,10 +217,11 @@ def get_down_author():
 
 
 def get_or_create_dest(name, tag_type, extra):
-    fl = {'name': name}
+    fl = {'name': name, 'type': tag_type.value}
     query = db_helper.search_one(Col.TranDest, fl)
     if query:
         return TranDest.from_dict(query)
+    print('创建新的')
     db_helper.insert(Col.TranDest, TranDest(name=name, type=tag_type, extra=extra).di())
     return TranDest.from_dict(db_helper.search_one(Col.TranDest, fl))
 
@@ -426,8 +427,10 @@ def update_tag_cover_and_count():
         print(f'[{i}/{length}]{dest.name}, {img.color}, {img.path}')
 
 
+dest_dir_path = '/Volumes/Normal1/thumb'
+
+
 def create_thumb(prefix, query):
-    dest_dir_path = 'Y:/thumb'
     relative_path = query['path']
     full_path = FileHelper.get_full_path(relative_path)
     if not os.path.exists(full_path):
@@ -458,8 +461,9 @@ def thumb_all_thumb():
         tp = []
         for i, query in enumerate(queries):
             prefix = f'[{page * pagesize + i}/{total_count}]'
-            if exist_param in query:
-                print(f'{prefix}已创建。{query["path"]}')
+            path = query["path"]
+            if exist_param in query and os.path.exists(f'{dest_dir_path}/{path}'):
+                print(f'{prefix}已创建。{path}')
                 continue
             tp.append((prefix, query))
             if len(tp) == 20:
@@ -473,14 +477,42 @@ def pf(i, count, msg):
     print(f'[{i}/{count}]{msg}')
 
 
+def merge_tag(old, new, tag_type):
+    col_dest = db_helper.get_col(Col.TranDest)
+    old_dest = TranDest.from_dict(col_dest.find_one({'name': old, 'type': tag_type.value}))
+    new_dest = get_or_create_dest(new, tag_type, '')
+    if not new_dest.color:
+        new_dest.color = old_dest.color
+        new_dest.cover = old_dest.cover
+        new_dest.count = old_dest.count
+        db_helper.update_one(Col.TranDest, {'_id': new_dest.id}, new_dest.di())
+    col_source = db_helper.get_col(Col.TranSource)
+    col_source.update_many({'dest_ids': old_dest.id}, {'$addToSet': {'dest_ids': new_dest.id}})
+    col_source.update_many({'dest_ids': old_dest.id}, {'$pull': {'dest_ids': old_dest.id}})
+    col.update_many({'tags': old_dest.id}, {'$addToSet': {'tags': new_dest.id}})
+    col.update_many({'tags': old_dest.id}, {'$pull': {'tags': old_dest.id}})
+    col_dest.delete_one({'_id': old_dest.id})
+    key = None
+    if tag_type == TagType.Author:
+        key = 'authors'
+    elif tag_type == TagType.Works:
+        key = 'works'
+    elif tag_type == TagType.Role:
+        key = 'roles'
+    if not key:
+        return
+    col.update_many({'tags': new_dest.id}, {'$addToSet': {key: new_dest.name}})
+    col.update_many({'tags': new_dest.id}, {'$pull': {key: old_dest.name}})
+
+
 if __name__ == '__main__':
     # get_pixiv_down_author()
-    # analysis_and_rename_file(r'D:\新建文件夹 (2)\下载\弥音音', 'Z:/', check_exist)
-    update_all_image_color()
+    # analysis_and_rename_file(r'D:新建文件夹 (2)下载弥音音', 'Z:/', check_exist)
+    merge_tag('阿波妮亚', '阿波尼亚', TagType.Role)
     # update_tag_cover_and_count()
     # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
     # split_third_works()
-    # record_similar_image('星之迟迟', r'E:\下载\第四资源站\未下\星之迟迟')
+    # record_similar_image('星之迟迟', r'E:下载第四资源站未下星之迟迟')
     # TagHelper().analysis_tags()
