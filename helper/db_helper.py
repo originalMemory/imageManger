@@ -134,7 +134,7 @@ class DBHelper:
         :return: ObjectId
         """
         image.file_create_time = tzinfo.localize(image.file_create_time)
-        return self.update_one(Col.Image, {'_id': image.id}, image)
+        return self.update_one(Col.Image, {'_id': image.id()}, image)
 
     def update_path(self, img_id, relative_path):
         return self.update_one(Col.Image, {'_id': img_id}, {'path': relative_path})

@@ -136,7 +136,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             for level in self._levels:
                 level_action = level_menu.addAction(level.name)
                 level_action.setCheckable(True)
-                level_action.triggered.connect(partial(self._set_level, i, level.id))
+                level_action.triggered.connect(partial(self._set_level, i, level.id()))
                 level_actions.append(level_action)
             menu.addSeparator()
 
@@ -273,7 +273,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         else:
             offset = random.randint(0, image_count)
         img = MyImage.from_dict(self._db_helper.img_col.find(fl).skip(offset).limit(1)[0])
-        print(f'where: {json.dumps(fl)}, id: {img.id}, width: {img.width}, height: {img.height}, path: {img.path}')
+        print(f'where: {json.dumps(fl)}, id: {img.id()}, width: {img.width}, height: {img.height}, path: {img.path}')
         return img, offset, image_count
 
     def _get_order_offset(self, image_count):
@@ -306,7 +306,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         level_actions = self._monitor_settings[index].image_level_actions
         for i in range(len(self._levels)):
             level = self._levels[i]
-            level_actions[i].setChecked(level.id == level)
+            level_actions[i].setChecked(level.id() == level)
 
     def _on_tray_click(self, reason: QSystemTrayIcon.ActivationReason):
         if reason == QSystemTrayIcon.Trigger:

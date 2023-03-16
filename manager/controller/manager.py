@@ -22,6 +22,7 @@ from PIL import Image
 from PyQt6 import QtWidgets, QtGui
 from PyQt6.QtCore import QModelIndex, Qt, pyqtSignal
 from PyQt6.QtWidgets import QMainWindow, QApplication, QCompleter, QMessageBox
+from bson import ObjectId
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, Col
@@ -29,7 +30,7 @@ from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
 from manager.view.manager import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
-from model.data import ImageFile, PreloadImage, MyImage, TagType
+from model.data import ImageFile, PreloadImage, MyImage, TagType, TranSource, TranDest
 from model.my_list_model import MyBaseListModel
 
 
@@ -69,7 +70,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.__level_model = MyBaseListModel()
         self.comboBox_level.setModel(self.__level_model)
         levels = self.__db_helper.get_model_data_list('level')
-        levels = sorted(levels, key=lambda x: x.id)
+        levels = sorted(levels, key=lambda x: x.id())
         self.__level_model.add_items(levels)
         self.comboBox_level.setCurrentIndex(0)
 
@@ -272,7 +273,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             self._signal_update_tags.emit('')
             # self.textEdit_tag.setText('')
             return
-        tran_tags, source_tags = self._tag_helper.get_tran_tags(tags)
+        tran_tags, source_tags = self.get_tran_tags(tags)
         roles = set()
         works = set()
         authors = set()
@@ -296,6 +297,23 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.lineEdit_works.setText(','.join(works))
         if authors and not self.lineEdit_author.text():
             self.lineEdit_author.setText(','.join(authors))
+
+    def get_tran_tags(self, tags):
+        source_tags = []
+        dest_ids = []
+        for tag in tags:
+            if isinstance(tag, ObjectId):
+                dest_ids.append(tag)
+                continue
+            query = self.__db_helper.search_one(Col.TranSource, {'name': tag})
+            if not query:
+                source_tags.append(tag)
+                continue
+            source = TranSource.from_dict(query)
+            dest_ids += source.dest_ids
+        query = self.__db_helper.search_all(Col.TranDest, {'_id': {'$in': dest_ids}})
+        tran_tags = list(map(lambda x: TranDest.from_dict(x), query))
+        return tran_tags, source_tags
 
     def __classify(self):
         """
@@ -347,9 +365,9 @@ class ImageManager(QMainWindow, Ui_Manager):
                             works=works, roles=roles, source=source, width=0, height=0, size=0, path=relative_path,
                             md5='', file_create_time=datetime.datetime.now(), series=series, uploader=uploader,
                             sequence=sequence)
-            if image.id:
+            if image.id():
                 # 批量更新时，保持原来的描述、作者、等级、标签、作品
-                old_image = self.__image_model.get_database_item(image.id)
+                old_image = self.__image_model.get_database_item(image.id())
                 if old_image and len(select_rows) > 1:
                     image.desc = old_image.desc
                     image.authors = old_image.authors
@@ -392,7 +410,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                     except Exception as e:
                         print(f"重命名失败：{e}")
                         continue
-                new_item = ImageFile(id=image.id, name=item.name.replace(sub_str, ''), full_path=path)
+                new_item = ImageFile(id=image.id(), name=item.name.replace(sub_str, ''), full_path=path)
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
                 continue
@@ -402,7 +420,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 if not query:
                     continue
                 image.tags[i] = query['_id']
-            if not image.id:
+            if not image.id():
                 self.__db_helper.insert_image(image)
                 image_id = self.__db_helper.get_id_by_path(image.path)
                 need_refresh_item = True

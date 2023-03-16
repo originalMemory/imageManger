@@ -265,7 +265,7 @@ class ImageHelper:
                 if "?" in image.path:
                     continue
                 if not os.path.exists(image.full_path()):
-                    db_helper.delete(image.id)
+                    db_helper.delete(image.id())
                     continue
                 # if not image.series:
                 #     image.series = ""

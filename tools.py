@@ -62,7 +62,7 @@ def check_no_record_image(file_path, prefix):
         md5 = FileHelper.get_md5(file_path)
         info = db_helper.search_by_md5(md5)
         if info:
-            db_helper.update_path(info.id, relative_path)
+            db_helper.update_path(info.id(), relative_path)
     if not info:
         with open('notRecord.log', 'a+', encoding='utf-8') as f:
             f.write(f'{file_path}\n')
@@ -91,7 +91,7 @@ def update_path(filepath, prefix):
     info = db_helper.search_by_md5(md5)
     if info:
         print(f'更新地址。原地址：{info.full_path()}')
-        db_helper.update_path(info.id, relative_path)
+        db_helper.update_path(info.id(), relative_path)
 
 
 def split_by_works(filepath, prefix):
@@ -196,7 +196,7 @@ def get_down_author():
             print(f'[{i}/{len(authors)}]{author.name} - 是 twitter 地址，跳过')
             continue
         count = db_helper.get_count({'authors': author.name})
-        sources = db_helper.search_all(Col.TranSource, {'dest_ids': author.id}, {'name': 1})
+        sources = db_helper.search_all(Col.TranSource, {'dest_ids': author.id()}, {'name': 1})
         sources = [x['name'] for x in sources]
         print(f'[{i}/{len(authors)}]{author.name} - 英文名：{sources} 图片数：{count}')
         item = AuthorCount()
@@ -208,7 +208,7 @@ def get_down_author():
     with open('authors.csv', 'w+', encoding='utf-8') as f:
         f.write('id, 作者, pixivId, 图片数')
         for item in author_counts:
-            string = f'{item.author.id}, {item.author.name}, {item.author.extra}, {item.count}, {" ".join(item.sources)}\n'
+            string = f'{item.author.id()}, {item.author.name}, {item.author.extra}, {item.count}, {" ".join(item.sources)}\n'
             f.write(string)
             print(string[:-1])
 
@@ -401,7 +401,7 @@ def update_tag_cover_and_count():
     for i, query in enumerate(queries):
         dest = TranDest.from_dict(query)
         fl_img = {
-            'tags': dest.id,
+            'tags': dest.id(),
             'level': {'$gte': 5, '$lte': 8},
             '$expr': {'$gte': ['$width', '$height']},
         }
@@ -419,7 +419,7 @@ def update_tag_cover_and_count():
         if not limit:
             continue
         img = MyImage.from_dict(limit[0])
-        col_dest.update_one({'_id': dest.id}, {'$set': {'cover': img.path, 'color': img.color}})
+        col_dest.update_one({'_id': dest.id()}, {'$set': {'cover': img.path, 'color': img.color}})
         print(f'[{i}/{length}]{dest.name}, {img.color}, {img.path}')
 
 
@@ -481,13 +481,13 @@ def merge_tag(old, new, tag_type):
         new_dest.color = old_dest.color
         new_dest.cover = old_dest.cover
         new_dest.count = old_dest.count
-        db_helper.update_one(Col.TranDest, {'_id': new_dest.id}, new_dest.di())
+        db_helper.update_one(Col.TranDest, {'_id': new_dest.id()}, new_dest.di())
     col_source = db_helper.get_col(Col.TranSource)
-    col_source.update_many({'dest_ids': old_dest.id}, {'$addToSet': {'dest_ids': new_dest.id}})
-    col_source.update_many({'dest_ids': old_dest.id}, {'$pull': {'dest_ids': old_dest.id}})
-    col.update_many({'tags': old_dest.id}, {'$addToSet': {'tags': new_dest.id}})
-    col.update_many({'tags': old_dest.id}, {'$pull': {'tags': old_dest.id}})
-    col_dest.delete_one({'_id': old_dest.id})
+    col_source.update_many({'dest_ids': old_dest.id()}, {'$addToSet': {'dest_ids': new_dest.id()}})
+    col_source.update_many({'dest_ids': old_dest.id()}, {'$pull': {'dest_ids': old_dest.id()}})
+    col.update_many({'tags': old_dest.id()}, {'$addToSet': {'tags': new_dest.id()}})
+    col.update_many({'tags': old_dest.id()}, {'$pull': {'tags': old_dest.id()}})
+    col_dest.delete_one({'_id': old_dest.id()})
     key = None
     if tag_type == TagType.Author:
         key = 'authors'
@@ -497,8 +497,8 @@ def merge_tag(old, new, tag_type):
         key = 'roles'
     if not key:
         return
-    col.update_many({'tags': new_dest.id}, {'$addToSet': {key: new_dest.name}})
-    col.update_many({'tags': new_dest.id}, {'$pull': {key: old_dest.name}})
+    col.update_many({'tags': new_dest.id()}, {'$addToSet': {key: new_dest.name}})
+    col.update_many({'tags': new_dest.id()}, {'$pull': {key: old_dest.name}})
 
 
 if __name__ == '__main__':

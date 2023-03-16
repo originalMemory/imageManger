@@ -44,7 +44,7 @@ class ImageFileListModel(MyBaseListModel):
             elif role == Qt.ItemDataRole.StatusTipRole:
                 return QVariant(self._data_list[index.row()].full_path)
             elif role == Qt.ItemDataRole.BackgroundRole:
-                if self._data_list[index.row()].id:
+                if self._data_list[index.row()].id():
                     return QBrush(QColor(84, 255, 159))
                 else:
                     return QBrush(QColor(255, 255, 255))
@@ -91,7 +91,7 @@ class ImageFileListModel(MyBaseListModel):
             return
         image = self._check_exist_image(full_path)
         if image:
-            image_id = image.id
+            image_id = image.id()
             self._data_list_in_database.append(image)
             full_path = image.full_path()
         else:
@@ -154,7 +154,7 @@ class ImageFileListModel(MyBaseListModel):
             new_path = FileHelper.get_relative_path(full_path)
             image.path = new_path
             print(f'新路径：{new_path}，原地址：{old_path}')
-            self.__db_helper.update_path(image.id, new_path)
+            self.__db_helper.update_path(image.id(), new_path)
             FileHelper.del_file(old_path)
         return image
 
@@ -178,7 +178,7 @@ class ImageFileListModel(MyBaseListModel):
 
     def get_database_item(self, image_id) -> MyImage:
         for image in self._data_list_in_database:
-            if image.id == image_id:
+            if image.id() == image_id:
                 return image
         return None
 
