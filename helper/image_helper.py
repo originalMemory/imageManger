@@ -108,7 +108,6 @@ class ImageHelper:
             info.authors = [all_name[0:works_index - 1]]
             return info
 
-
         re_strs = [
             # r'/(?P<authors>.+?)/(?P<source>\w+?) .+ - (?P<works>.+?) \(',
             # FemJoy 2019-09-15 Carolina K - Naked in the trees
@@ -135,146 +134,42 @@ class ImageHelper:
                 info.authors = [x.strip() for x in authors]
                 return info
 
-        yande = 'yande'
-        pixiv = 'pixiv'
-        konachan = 'konachan'
-        # cosplay = '/Cosplay/'
-        filter_list = [yande, pixiv, konachan]
-        exclude_list = ['Cosplay/购买', 'Cosplay/Flameworks']
-        is_in = False
-        for f in filter_list:
-            if f in file_path:
-                is_in = True
-                break
-        for e in exclude_list:
-            if e in file_path:
-                is_in = False
-        if not is_in:
+        match = re.search(r"\[(?P<source>(konachan|yande|donmai))_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
+        if match:
+            info.source = match.group('source')
+            info.uploader = match.group('uploader')
+            info.tags = match.group('tags').replace("_00000", "").split(' ')
+            info.sequence = int(match.group('no'))
             return info
-
-        if yande in filename:
-            info.source = 'yande'
-            info.tags, info.uploader, info.sequence = ImageHelper.analyze_yande(filename)
-        elif pixiv in filename:
+        # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
+        match = re.search(r"pixiv_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)\.(jpg|png|jpeg|bmp)",
+                          filename)
+        if match:
             info.source = 'pixiv'
-            # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
-            match = re.search(r"pixiv.*?_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)_00", filename)
-            if match:
-                author = match.group('author').replace("「", '').replace('」的插画', '').replace('」的漫画', '')
-                info.authors = [author]
-                info.desc = match.group('desc')
-                tags = match.group('tags').split(';')
-                info.tags = tags
-                info.sequence = int(match.group('no'))
-            else:
-                match = re.search(r"pixiv.*?_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_0", filename)
-                if match:
-                    author = match.group('author')
-                    info.authors = [author.replace("「", '').replace('」的插画', '').replace('」的漫画', '')]
-                    info.sequence = int(match.group('no'))
-                    info.desc = match.group('desc')
-        elif konachan in filename:
-            info.source = konachan
-            # [konachan_241354_RyuZU]blindfold breast_grab breasts demiroid elbow_gloves
-            match = re.search(r"konachan_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
-            if match:
-                info.uploader = match.group('uploader')
-                info.tags = match.group('tags').replace("_00000", "").split(' ')
-                info.sequence = int(match.group('no'))
-
+            author = match.group('author').replace("「", '').replace('」的插画', '').replace('」的漫画', '')
+            info.authors = [author]
+            info.desc = match.group('desc')
+            tags_str = match.group('tags').strip()
+            tags_str = re.sub(r'(_00\d+| {2}p[\d-]+)$', '', tags_str)
+            info.tags = tags_str.split(';' if ';' in tags_str else ' ')
+            info.sequence = int(match.group('no'))
         return info
 
     @staticmethod
-    def get_source_tags(filename):
-        patterns = [r'(yande|konachan).*?_\d+_.+](?P<tags>.+?)_00', r'pixiv_\d+_.+](?P<name>.+?)_(?P<tags>.+?)_00']
+    def remove_tags(filename):
+        patterns = [
+            r'(yande|konachan|donmai)_\d+_.+](?P<tags>.+?)\.(jpg|png|jpeg|bmp)',
+            r'pixiv_\d+_.+](?P<desc>.+?)_(?P<tags>.+?)(_00| p[\d-]+)?\.(jpg|png|jpeg|bmp)'
+        ]
         for pattern in patterns:
             match = re.search(pattern, filename)
             if not match:
                 continue
-            tags = match.group('tags')
-            if '<name>' not in patterns:
-                return tags
-            name = match.group('name')
-            if '_' not in name:
-                return tags
-            else:
-                names = name.split('_')[1:]
-                return '_'.join(names) + tags
-        return ''
-
-    @staticmethod
-    def analyze_yande(filename):
-        # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-        match = re.search(r"yande.*?_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)_00", filename)
-        if match:
-            uploader = match.group('uploader')
-            tags = match.group('tags')
-            tags = tags.replace("_00", "").split(' ')
-            return tags, uploader, int(match.group('no'))
-        else:
-            # [yande_492889_Mr_GT].jpg
-            match = re.search(r"yande_\d*?_(?P<uploader>.+?)]", filename)
-            if match:
-                uploader = match.group('uploader')
-                return None, uploader, None
-            else:
-                # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-                match = re.search(r"yande(.re)? (?P<id>.+?) (?P<tags>.+?)\.(?:jpg|png|gif|jpeg|bmp)", filename)
-                if match:
-                    tags = match.group('tags').split(' ')
-                    return tags, None, None
-        return None, None, None
-
-    @staticmethod
-    def get_yande_no(filename):
-        # [yande_492889_Mr_GT]asian_clothes cleavage clouble tianxia_00
-        match = re.search(r"yande.*?_(?P<no>\d+?)_", filename)
-        if match:
-            return match.group('no')
-        else:
-            # yande.re 505 hook neko seifuku shimazu_wakana _summer wallpaper.jpg
-            match = re.search(r"yande(.re)? (?P<no>\d+?)[ \.]", filename)
-            if match:
-                return match.group('no')
-        return None
-
-    @staticmethod
-    def get_pixiv_no(filename):
-        match = re.search(r"pixiv_??(?P<no>\d+?)_", filename)
-        if match:
-            return match.group('no')
-        return None
-
-    @staticmethod
-    def refresh_recode_info(error_handler, message_handler):
-        """
-        刷新数据库里文件信息，包括宽高和md5
-        :return:
-        """
-        page = 0
-        pagesize = 500
-        db_helper = DBHelper(error_handler)
-        count = db_helper.get_count()
-        while True:
-            image_list = db_helper.get_images(page, pagesize)
-
-            if len(image_list) == 0:
-                break
-            for index, image in enumerate(image_list):
-                print(f"[{page * pagesize + index}/{count}] 更新数据中")
-                if "?" in image.path:
-                    continue
-                if not os.path.exists(image.full_path()):
-                    db_helper.delete(image.id())
-                    continue
-                # if not image.series:
-                #     image.series = ""
-                # if not image.uploader:
-                #     image.uploader = ""
-                # image.width, image.height = ImageHelper.get_image_width_and_height(image.path)
-                # image.md5 = FileHelper.get_md5(image.path)
-                # db_helper.update_image(image)
-            page += 1
+            tags_str = match.group('tags')
+            if '[pixiv_' in filename and not tags_str.isdigit():
+                tags_str = '_' + re.sub(r'_00\d+$', '', tags_str)
+            return filename.replace(tags_str, '')
+        return filename
 
     @staticmethod
     def get_sized_image(image_path, *, size=None, width=None, height=None):
@@ -300,7 +195,7 @@ class ImageHelper:
         target_scale = width / height
         new_width = int(image_height * target_scale)
         if new_width < image_width:
-            width_crop = (image_width - new_width) / 2
+            width_crop = (image_width - new_width) // 2
             image = image.crop((width_crop, 0, image_width - width_crop, image_height))
         else:
             new_height = image_width // target_scale
@@ -408,8 +303,6 @@ class ImageHelper:
     @staticmethod
     def save_thumb(source_path, dest_path, size=500):
         img = Image.open(source_path)
-        # if img.mode != 'RGB':
-        #     img = img.convert('RGB')
         img.thumbnail((size, size))
         img.save(dest_path)
         return img.size
@@ -423,4 +316,3 @@ class ImageHelper:
             # 将R、G、B分别转化为16进制拼接转换并大写  hex() 函数用于将10进制整数转换成16进制，以字符串形式表示
             color += str(hex(num))[-2:].replace('x', '0').upper()
         return color
-

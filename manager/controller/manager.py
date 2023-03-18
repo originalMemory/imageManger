@@ -70,7 +70,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.__level_model = MyBaseListModel()
         self.comboBox_level.setModel(self.__level_model)
         levels = self.__db_helper.get_model_data_list('level')
-        levels = sorted(levels, key=lambda x: x.id())
+        levels = sorted(levels, key=lambda x: x.id)
         self.__level_model.add_items(levels)
         self.comboBox_level.setCurrentIndex(0)
 
@@ -90,7 +90,6 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.listView.set_action_show_file_directory_delegate(self.open_file_directory)
         self.pushButton_classify.clicked.connect(self.__classify)
         self.pushButton_search.clicked.connect(self.__search)
-        self.pushButton_clean.clicked.connect(self.__clean_not_exist_images)
         self.checkBox_delete_repeat.clicked.connect(self._on_check_box_delete_repeat_click)
         self.actionOpen.triggered.connect(self.__open_files)
         self.lineEdit_sql_where.returnPressed.connect(self.__search)
@@ -219,7 +218,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         if not info:
             # 清空二次元图上一次自动识别的结果
             is_anim = self.__type_model.get_item(self.comboBox_type.currentIndex()).id == 1
-            if is_anim and self.lineEdit_source.text() in ['pixiv', 'yande']:
+            if is_anim:
                 self.lineEdit_role.clear()
                 self.lineEdit_works.clear()
                 # self.lineEdit_series.clear()
@@ -273,22 +272,22 @@ class ImageManager(QMainWindow, Ui_Manager):
             self._signal_update_tags.emit('')
             # self.textEdit_tag.setText('')
             return
-        tran_tags, source_tags = self.get_tran_tags(tags)
+        tran_tags = self.get_tran_tags(tags)
         roles = set()
         works = set()
         authors = set()
         tags = []
         for dest in tran_tags:
-            tags.append(dest.name)
-            if dest.type == TagType.Role:
+            tags.append(f'{dest.name}##{dest.type}')
+            if dest.get_type() == TagType.Role:
                 roles.add(dest.name)
-            elif dest.type == TagType.Works:
+            elif dest.get_type() == TagType.Works:
                 works.add(dest.name)
-            elif dest.type == TagType.Author:
+            elif dest.get_type() == TagType.Author:
                 authors.add(dest.name)
         if keep_role and self.lineEdit_role.text():
             roles += set(self.lineEdit_role.text().split(','))
-        text = ','.join(tags + source_tags)
+        text = ','.join(tags)
         # self.textEdit_tag.setText(text)
         self._signal_update_tags.emit(text)
         if roles and not self.lineEdit_role.text():
@@ -299,21 +298,21 @@ class ImageManager(QMainWindow, Ui_Manager):
             self.lineEdit_author.setText(','.join(authors))
 
     def get_tran_tags(self, tags):
-        source_tags = []
         dest_ids = []
         for tag in tags:
             if isinstance(tag, ObjectId):
                 dest_ids.append(tag)
                 continue
             query = self.__db_helper.search_one(Col.TranSource, {'name': tag})
-            if not query:
-                source_tags.append(tag)
-                continue
-            source = TranSource.from_dict(query)
-            dest_ids += source.dest_ids
+            if query:
+                source = TranSource.from_dict(query)
+                dest_ids += source.dest_ids
+            else:
+                dest = self.__db_helper.get_or_create_dest(tag)
+                dest_ids.append(dest.id())
         query = self.__db_helper.search_all(Col.TranDest, {'_id': {'$in': dest_ids}})
         tran_tags = list(map(lambda x: TranDest.from_dict(x), query))
-        return tran_tags, source_tags
+        return tran_tags
 
     def __classify(self):
         """
@@ -330,9 +329,9 @@ class ImageManager(QMainWindow, Ui_Manager):
         next_index = self.__image_model.index(end_index.row() + 1, end_index.column())
         if 0 < next_index.row() < self.__image_model.rowCount():
             self.listView.setCurrentIndex(next_index)
-        else:
-            self.listView.clearFocus()
-        self.listView.setFocus()
+        # else:
+        #     self.listView.clearFocus()
+        # self.listView.setFocus()
 
     def _prepare_classify(self, select_rows):
         index = self.comboBox_type.currentIndex()
@@ -390,34 +389,28 @@ class ImageManager(QMainWindow, Ui_Manager):
             image.size = FileHelper.get_file_size_in_mb(path)
             image.md5 = FileHelper.get_md5(path)
             image.file_create_time = FileHelper.get_create_time(path)
-            source = image.source
             new_item = item
-            source_tags = ImageHelper.get_source_tags(image.path)
-            if source in ['pixiv', 'yande', 'kona'] and source_tags and source_tags in path:
-                if source == 'pixiv':
-                    sub_str = f'_{source_tags}'
-                else:
-                    sub_str = f'{source_tags}_00000'
-                new_path = path.replace(sub_str, '')
-                if new_path != path:
-                    try:
-                        if os.path.exists(new_path):
-                            os.remove(path)
-                        else:
-                            os.rename(path, new_path)
-                        path = new_path
-                        image.path = FileHelper.get_relative_path(path)
-                        need_refresh_item = True
-                    except Exception as e:
-                        print(f"重命名失败：{e}")
-                        continue
-                new_item = ImageFile(id=image.id(), name=item.name.replace(sub_str, ''), full_path=path)
+            remove_tag_path = ImageHelper.remove_tags(path)
+            if remove_tag_path and remove_tag_path != path:
+                try:
+                    if os.path.exists(remove_tag_path):
+                        os.remove(path)
+                    else:
+                        os.rename(path, remove_tag_path)
+                    new_name = remove_tag_path.replace(path.replace(item.name, ''), '')
+                    path = remove_tag_path
+                    image.path = FileHelper.get_relative_path(path)
+                    need_refresh_item = True
+                    new_item = ImageFile(id=image.id(), name=new_name, full_path=path)
+                except Exception as e:
+                    print(f"重命名失败：{e}")
+                    print(image.tags)
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
                 continue
             for i, tag in enumerate(image.tags):
-                tag = image.tags[i]
-                dest = self.__db_helper.get_or_create_dest(tag)
+                name, tag_type = image.tags[i].split('##')
+                dest = self.__db_helper.get_or_create_dest(name, tag_type)
                 image.tags[i] = dest.id()
             if not image.id():
                 self.__db_helper.insert_image(image)
@@ -706,18 +699,6 @@ class ImageManager(QMainWindow, Ui_Manager):
         return image, False
 
     # endregion
-
-    def __clean_not_exist_images(self):
-        """
-        清理不存在的图片
-        :return:
-        """
-        th = threading.Thread(
-            target=ImageHelper.refresh_recode_info,
-            args=(self.db_error_handler, self.show_status_message,),
-            daemon=True
-        )
-        th.start()
 
     def show_status_message(self, message):
         self.statusbar.showMessage(message)

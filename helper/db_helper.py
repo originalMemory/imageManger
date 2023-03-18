@@ -213,10 +213,11 @@ class DBHelper:
         else:
             return col.estimated_document_count()
 
-    def get_or_create_dest(self, name, tag_type=TagType.Unknown, extra=''):
-        fl = {'name': name}
+    def get_or_create_dest(self, name, tag_type=TagType.Unknown.value, extra=''):
+        fl = {'name': name, 'type': tag_type}
         query = self.search_one(Col.TranDest, fl)
         if query:
             return TranDest.from_dict(query)
-        self.insert(Col.TranDest, TranDest(name=name, type=tag_type, extra=extra).di())
+        self.insert(Col.TranDest, TranDest(name=name, type=tag_type, extra=extra).dict())
+        print(f'创建标签：{name}##{tag_type}')
         return TranDest.from_dict(self.search_one(Col.TranDest, fl))

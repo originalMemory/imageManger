@@ -104,7 +104,26 @@ def split_by_works(filepath, prefix):
     if not info:
         print('无信息，跳过')
         return
-    tag_helper.split_by_works(info)
+    if not info.works or not os.path.exists(info.full_path()):
+        return
+    base = 'Z:/image/二次元'
+    max_work = ''
+    for work in info.works:
+        tp = re.sub(r'[<>/\\|:"?]', '_', work)
+        if tp in info.path:
+            return
+        if len(max_work) < len(work):
+            max_work = work
+    work_dir = re.sub(r'[<>/\\|:"?]', '_', max_work)
+    dir_path = os.path.join(base, work_dir)
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    filepath = info.full_path()
+    filename = os.path.basename(filepath)
+    new_filepath = os.path.join(dir_path, filename)
+    shutil.move(filepath, new_filepath)
+    db_helper.update_path(info.id(), FileHelper.get_relative_path(new_filepath))
+    print(f'归档到作品 {max_work} 内，文件名 {filename}')
 
 
 def record_similar_image(author, dir_path):
@@ -426,7 +445,7 @@ def update_tag_cover_and_count():
         print(f'[{i}/{length}]{dest.name}, {img.color}, {img.path}')
 
 
-dest_dir_path = '/Volumes/Normal1/thumb'
+dest_dir_path = 'Y:/thumb'
 
 
 def create_thumb(prefix, query):
@@ -455,7 +474,7 @@ def thumb_all_thumb():
     fl = {'level': {'$lte': 8}}
     total_count = col.count_documents(fl)
     while page * pagesize <= total_count:
-        queries = col.find(fl, {'_id': 1, 'path': 1, exist_param: 1}).sort('_id', 1).skip(page * pagesize).limit(
+        queries = col.find(fl, {'_id': 1, 'path': 1, exist_param: 1}).sort('update_time', -1).skip(page * pagesize).limit(
             pagesize)
         tp = []
         for i, query in enumerate(queries):
@@ -478,7 +497,7 @@ def pf(i, count, msg):
 
 def update_works(old_name, new_name):
     col_dest = db_helper.get_col(Col.TranDest)
-    old_works = db_helper.get_or_create_dest(old_name, TagType.Author, '')
+    old_works = db_helper.get_or_create_dest(old_name, TagType.Author.value, '')
     col_dest.update_one({'_id': old_works.id}, {'$set': {'name': new_name}})
     images = [MyImage.from_dict(x) for x in col.find({'works': old_works.name})]
     old_image1 = [MyImage.from_dict(x) for x in col.find({'tags': old_works.id})]
@@ -524,7 +543,6 @@ if __name__ == '__main__':
     # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
     update_all_image_color()
     # update_tag_cover_and_count()
-    # TagHelper().get_not_exist_yande_tag()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
     # split_third_works()

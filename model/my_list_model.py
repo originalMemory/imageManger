@@ -106,7 +106,7 @@ class MyBaseListModel(QAbstractListModel):
         # 如果是数字类型，则以id进行对比
         if isinstance(key, int):
             for i in range(len(self._data_list)):
-                if key == self._data_list[i].id():
+                if key == self._data_list[i].id:
                     return i
         elif isinstance(key, str):
             for i in range(len(self._data_list)):

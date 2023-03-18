@@ -44,7 +44,7 @@ class ImageFileListModel(MyBaseListModel):
             elif role == Qt.ItemDataRole.StatusTipRole:
                 return QVariant(self._data_list[index.row()].full_path)
             elif role == Qt.ItemDataRole.BackgroundRole:
-                if self._data_list[index.row()].id():
+                if self._data_list[index.row()].id:
                     return QBrush(QColor(84, 255, 159))
                 else:
                     return QBrush(QColor(255, 255, 255))
@@ -118,31 +118,8 @@ class ImageFileListModel(MyBaseListModel):
         if exist_full_path == full_path:
             return image
         old_path = exist_full_path
-        # 当前是 pixiv ，数据库是 yande 时更新为 pixiv 的信息
-        if image.source == 'yande' and ImageHelper.get_pixiv_no(full_path):
-            info = ImageHelper.analyze_image_info(full_path)
-            image.source = 'pixiv'
-            image.desc = info.desc
-            for tag in info.tags:
-                query = self.__db_helper.search_one(Col.TranSource, {'name': tag}, {'dest_ids': 1})
-                if query and 'dest_ids' in query:
-                    image.tags += query['dest_ids']
-                else:
-                    image.tags.append(tag)
-            image.authors = info.authors
-            image.uploader = ''
-            image.sequence = info.sequence
-            image.file_create_time = FileHelper.get_create_time(full_path)
-            yande_path = exist_full_path
-            sub_str = f'_{info.tags}'
-            source_pixiv_path = full_path
-            full_path = full_path.replace(sub_str, '')
-            image.path = FileHelper.get_relative_path(full_path)
-            self.__db_helper.update_image(image)
-            os.rename(source_pixiv_path, full_path)
-            os.remove(yande_path)
-            print(f'pixiv 替换 yande\nyande: {yande_path}, pixiv: {full_path}')
-        else:
+        info = ImageHelper.analyze_image_info(full_path)
+        if image.type != 1 or image.source == info.source or not os.path.exists(exist_full_path):
             # 已有图片存在且删除重复时删除当前图片
             if os.path.exists(exist_full_path) and self.delete_repeat:
                 print(f'删除重复图片: {full_path}, 原图地址：{old_path}')
@@ -156,6 +133,28 @@ class ImageFileListModel(MyBaseListModel):
             print(f'新路径：{new_path}，原地址：{old_path}')
             self.__db_helper.update_path(image.id(), new_path)
             FileHelper.del_file(old_path)
+            return image
+        # 当前是 pixiv ，更新为 pixiv 的信息
+        if info.source == 'pixiv':
+            image.source = 'pixiv'
+            image.desc = info.desc
+            image.authors = info.authors
+            image.uploader = ''
+            image.sequence = info.sequence
+        for tag in info.tags:
+            query = self.__db_helper.search_one(Col.TranSource, {'name': tag}, {'dest_ids': 1})
+            if query and 'dest_ids' in query:
+                image.tags += query['dest_ids']
+            else:
+                image.tags.append(self.__db_helper.get_or_create_dest(tag).id())
+        image.tags = list(set(image.tags))
+        image.file_create_time = FileHelper.get_create_time(full_path)
+        remove_tags_filepath = ImageHelper.remove_tags(full_path)
+        os.rename(full_path, remove_tags_filepath)
+        os.remove(exist_full_path)
+        image.path = FileHelper.get_relative_path(remove_tags_filepath)
+        self.__db_helper.update_image(image)
+        print(f'合并文件。增加标签：{info.tags}。新地址：{remove_tags_filepath}, 原地址：{exist_full_path}')
         return image
 
     def add_path(self, path):
