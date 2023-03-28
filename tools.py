@@ -17,9 +17,6 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 import requests
 from PIL import Image
-from selenium import webdriver
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.common.by import By
 
 from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
@@ -257,21 +254,21 @@ def copy_from_nas():
     params = {
         'filter': {
             'type': {'$in': [1, 2, 3]},
-            'level': {'$in': [5, 6, 4]},
+            'level': {'$in': [1, 2, 3]},
             '$expr': {'$lte': ['$width', '$height']},
         },
-        'limit': 800,
+        'limit': 3000,
         'random': True,
         'halfRecent': True,
     }
-    req = requests.get(url='http://127.0.0.1:8000/api/randomImageSql', data=json.dumps(params),
+    req = requests.get(url='http://127.0.0.1:8000/api/moneyAccounting/randomImageSql', data=json.dumps(params),
                        headers={'Content-Type': 'application/json'})
     infos = json.loads(req.text)
-    dir_path = '普通壁纸/横'
+    dir_path = '/Users/wuhb/Downloads/竖/123'
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     for i, info in enumerate(infos):
-        remote_path = f'/Volumes/NAS/{info["path"]}'
+        remote_path = f'/Volumes/Core/image/{info["path"]}'
         print(f'[{i}/{len(infos)}]{remote_path}')
         try:
             if not os.path.exists(remote_path):
@@ -474,7 +471,8 @@ def thumb_all_thumb():
     fl = {'level': {'$lte': 8}}
     total_count = col.count_documents(fl)
     while page * pagesize <= total_count:
-        queries = col.find(fl, {'_id': 1, 'path': 1, exist_param: 1}).sort('update_time', -1).skip(page * pagesize).limit(
+        queries = col.find(fl, {'_id': 1, 'path': 1, exist_param: 1}).sort('update_time', -1).skip(
+            page * pagesize).limit(
             pagesize)
         tp = []
         for i, query in enumerate(queries):
@@ -518,7 +516,7 @@ def merge_tag(old, new, tag_type):
         new_dest.color = old_dest.color
         new_dest.cover = old_dest.cover
         new_dest.count = old_dest.count
-        db_helper.update_one(Col.TranDest, {'_id': new_dest.id()}, new_dest.di())
+        db_helper.update_one(Col.TranDest, {'_id': new_dest.id()}, new_dest.dict())
     col_source = db_helper.get_col(Col.TranSource)
     col_source.update_many({'dest_ids': old_dest.id()}, {'$addToSet': {'dest_ids': new_dest.id()}})
     col_source.update_many({'dest_ids': old_dest.id()}, {'$pull': {'dest_ids': old_dest.id()}})
@@ -536,6 +534,16 @@ def merge_tag(old, new, tag_type):
         return
     col.update_many({'tags': new_dest.id()}, {'$addToSet': {key: new_dest.name}})
     col.update_many({'tags': new_dest.id()}, {'$pull': {key: old_dest.name}})
+
+
+def add_source_to_dest(dest_name, tag_type, source_name):
+    dest = db_helper.get_or_create_dest(dest_name, tag_type.value)
+    col_source = db_helper.get_col(Col.TranSource)
+    source = col_source.find_one({'name': source_name})
+    if not source:
+        db_helper.insert(Col.TranSource, TranSource(name=source_name, dest_ids=[dest.id()]).dict())
+    else:
+        col_source.update_one({'_id': source['_id']}, {'$addToSet': {'dest_ids': dest.id()}})
 
 
 if __name__ == '__main__':
