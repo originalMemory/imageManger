@@ -155,8 +155,15 @@ class FileHelper:
         :return:
         """
         img = Image.open(source_path)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
+        img = img.convert('RGB')
+        max_height = 2160
+        if img.height > max_height:
+            width, height = img.size
+            scale = max_height / height
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            img = img.resize((new_width, new_height))
+            print(f'有缩放，从({width}, {height}) -> ({new_width}, {new_height})')
         filename, ext = os.path.splitext(os.path.basename(target_path))
         new_path = target_path.replace(f'{ext}', '.jpg')
         no = 1
