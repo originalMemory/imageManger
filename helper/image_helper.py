@@ -8,6 +8,7 @@
 @desc    : 图片处理帮助类，将对图片的处理抽离出来
 @create  : 2020-08-01 10:10:06
 """
+import math
 import os
 import random
 import re
@@ -251,8 +252,13 @@ class ImageHelper:
 
     @staticmethod
     def random_merge_image(get_image_path, size):
-        if size[0] > size[1]:
-            im = ImageHelper._random_merge_horizontal_image(get_image_path, size)
+        width, height = size
+        if width > height:
+            # 超宽小副屏不垂直分割，走单独逻辑
+            if width / height > 16 / 9 * 2 and height < 500:
+                im = ImageHelper._random_ultra_width_image(get_image_path, size)
+            else:
+                im = ImageHelper._random_merge_horizontal_image(get_image_path, size)
         else:
             im = ImageHelper._random_merge_vertical_image(get_image_path, size)
         return im
@@ -284,6 +290,31 @@ class ImageHelper:
             right_image = get_sub_image(i != right_hor_i)
             new_im.paste(right_image, (sub_width, bottom_y))
             bottom_y += right_image.height
+        return new_im
+
+    @staticmethod
+    def _random_ultra_width_image(get_image_path, size):
+        width, height = size
+        multi = 16 / 9
+        ver_img_width = int(height / multi)
+        hor_width = int(height * multi)
+        hor_count = int(math.floor(width / hor_width))
+        # 优先保证竖图等比例展示
+        hor_width = int((width - ver_img_width) / hor_count)
+        ver_img_width += width - ver_img_width - hor_width * hor_count
+
+        hor_paths = get_image_path(hor_count, True)
+        ver_path = get_image_path(1, False)[0]
+        ver_i = random.randint(0, hor_count)
+        new_im = Image.new('RGBA', size)
+        x = 0
+        for i in range(hor_count + 1):
+            sub_width = ver_img_width if i == ver_i else hor_width
+            path = ver_path if i == ver_i else hor_paths.pop()
+            img = ImageHelper.get_sized_image(path, width=sub_width, height=height)
+            ImageHelper._draw_text_in_img(img, FileHelper.get_relative_path(path))
+            new_im.paste(img, (x, 0))
+            x += sub_width
         return new_im
 
     @staticmethod
