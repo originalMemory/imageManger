@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import QMessageBox, QSystemTrayIcon
 from screeninfo import get_monitors
 
 from helper.config_helper import ConfigHelper
-from helper.db_helper import DBHelper
+from helper.db_helper import DBHelper, Col
 from helper.image_helper import ImageHelper
 from model.data import MonitorSetting, MyImage
 from tray.view.tray_setting import Ui_TraySetting
@@ -43,8 +43,8 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
     _monitor_start_y = 0
     _monitor_settings = []  # 显示器设定列表
 
-    def _init_(self, parent=None):
-        super(TraySetting, self)._init_(parent)
+    def __init__(self, parent=None):
+        super(TraySetting, self).__init__(parent)
         self.setupUi(self)
 
         # 初始化数据
@@ -136,7 +136,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             for level in self._levels:
                 level_action = level_menu.addAction(level.name)
                 level_action.setCheckable(True)
-                level_action.triggered.connect(partial(self._set_level, i, level.id()))
+                level_action.triggered.connect(partial(self._set_level, i, level.id))
                 level_actions.append(level_action)
             menu.addSeparator()
 
@@ -272,7 +272,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             offset = self._get_order_offset(image_count)
         else:
             offset = random.randint(0, image_count)
-        img = MyImage.from_dict(self._db_helper.img_col.find(fl).skip(offset).limit(1)[0])
+        img = MyImage.from_dict(self._db_helper.search_all(Col.Image, fl).skip(offset).limit(1)[0])
         print(f'where: {json.dumps(fl)}, id: {img.id()}, width: {img.width}, height: {img.height}, path: {img.path}')
         return img, offset, image_count
 
@@ -306,7 +306,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         level_actions = self._monitor_settings[index].image_level_actions
         for i in range(len(self._levels)):
             level = self._levels[i]
-            level_actions[i].setChecked(level.id() == level)
+            level_actions[i].setChecked(level.id == level)
 
     def _on_tray_click(self, reason: QSystemTrayIcon.ActivationReason):
         if reason == QSystemTrayIcon.Trigger:
