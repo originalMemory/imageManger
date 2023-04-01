@@ -25,6 +25,7 @@ from screeninfo import get_monitors
 
 from helper.config_helper import ConfigHelper
 from helper.db_helper import DBHelper, Col
+from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
 from model.data import MonitorSetting, MyImage
 from tray.view.tray_setting import Ui_TraySetting
@@ -81,6 +82,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         # 壁纸切换方式
         self._change_type_actions = list()
         self.create_change_type_menu(menu)
+        self._random_merge = self._create_random_merge_action(menu)
 
         switch_next = QtGui.QAction("切换下一张", self)
         switch_next.triggered.connect(self._change_background)
@@ -106,7 +108,11 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         setting.triggered.connect(self.show)
         menu.addAction(setting)
         close = QtGui.QAction("退出", self)
-        close.triggered.connect(self.close)
+
+        def finish():
+            exit(0)
+
+        close.triggered.connect(finish)
         menu.addAction(close)
         self._tray.setContextMenu(menu)
         self._tray.show()
@@ -178,6 +184,26 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             change_type.value
         )
 
+    def _create_random_merge_action(self, menu):
+        action = QtGui.QAction('随机拼接图片', self)
+        action.setCheckable(True)
+        menu.addAction(action)
+        key = 'randomMerge'
+        random_merge = self._config_helper.get_config_key(self._config_section_background, key,
+                                                          default_value='true') == 'true'
+        action.setChecked(random_merge)
+
+        def update():
+            new_random_merge = not self._config_helper.get_config_key(self._config_section_background, key,
+                                                                      default_value=True) == 'true'
+            action.setChecked(new_random_merge)
+            self._random_merge = new_random_merge
+            self._config_helper.add_config_key(self._config_section_background, key,
+                                               'true' if new_random_merge else 'false')
+
+        action.triggered.connect(update)
+        return random_merge
+
     def _save(self):
         fl = self.textEdit_sqlWhere.toPlainText()
         self._fl = json.loads(fl)
@@ -210,24 +236,29 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         i = 0
         while i < len(self._monitor_settings):
             setting = self._monitor_settings[i]
-            image, index, count = self._get_image(setting.monitor.width >= setting.monitor.height)
-            if image and os.path.exists(image.full_path()):
-                setting.image = image
-            else:
-                continue
-            filename = image.full_path().split('/')[-1]
-            desc = f"[{index}/{count}] {','.join(image.authors)} - {filename}"
-            if len(desc) > 50:
-                desc = f"{desc[0:46]}..."
-            setting.image_desc_action.setText(desc)
-            self._update_level_action(i, image.level)
-
             try:
-                image_data = ImageHelper.get_sized_image(
-                    image.full_path(),
-                    width=setting.monitor.width,
-                    height=setting.monitor.height
-                )
+                if self._random_merge:
+                    image_data = ImageHelper.random_merge_image(
+                        self._get_image_path,
+                        (setting.monitor.width, setting.monitor.height)
+                    )
+                else:
+                    image, index, count = self._get_image(setting.monitor.width >= setting.monitor.height)
+                    if image and os.path.exists(image.full_path()):
+                        setting.image = image
+                    else:
+                        continue
+                    filename = image.full_path().split('/')[-1]
+                    desc = f"[{index}/{count}] {','.join(image.authors)} - {filename}"
+                    if len(desc) > 50:
+                        desc = f"{desc[0:46]}..."
+                    setting.image_desc_action.setText(desc)
+                    self._update_level_action(i, image.level)
+                    image_data = ImageHelper.get_sized_image(
+                        image.full_path(),
+                        width=setting.monitor.width,
+                        height=setting.monitor.height
+                    )
             except IOError as e:
                 print(f'读取图片错误 - {e}')
                 return False
@@ -239,7 +270,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         ImageHelper.merge_horizontal_img(images, start_y_list, final_image_name)
 
         if len(images) != len(self._monitor_settings):
-            QMessageBox.information(self, "提示", "sql 语句限制过多，获取不到图片",  QMessageBox.StandardButton.Ok)
+            QMessageBox.information(self, "提示", "sql 语句限制过多，获取不到图片", QMessageBox.StandardButton.Ok)
             return False
 
         path = os.path.join(os.getcwd(), final_image_name)
@@ -275,6 +306,21 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         img = MyImage.from_dict(self._db_helper.search_all(Col.Image, fl).skip(offset).limit(1)[0])
         print(f'where: {json.dumps(fl)}, id: {img.id()}, width: {img.width}, height: {img.height}, path: {img.path}')
         return img, offset, image_count
+
+    def _get_image_path(self, count, horizontal):
+        fl = self._fl.copy()
+        if horizontal:
+            fl['$expr'] = {'$gte': ['$width', '$height']}
+        else:
+            fl['$expr'] = {'$lte': ['$width', '$height']}
+        fl = [
+            {'$match': fl},
+            {'$sample': {'size': count}},
+            {'$project': {'path': 1, }}
+        ]
+        col = self._db_helper.get_col(Col.Image)
+        paths = [FileHelper.get_full_path(x['path']) for x in col.aggregate(fl)]
+        return paths
 
     def _get_order_offset(self, image_count):
         """

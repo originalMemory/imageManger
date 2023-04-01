@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['tray_start.py'],
-             pathex=['G:\\Code\\MyGit\\ImageManager'],
+             pathex=['D:\\Code\\MyGit\\ImageManager'],
              binaries=[],
              datas=[
                 ('config.ini', '.'),

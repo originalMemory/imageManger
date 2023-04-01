@@ -11,8 +11,9 @@
 import os
 import random
 import re
+import textwrap
 
-from PIL import Image, ImageQt
+from PIL import Image, ImageQt, ImageDraw, ImageFont, ImageFile
 from PyQt6 import QtGui
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImageReader
@@ -21,6 +22,26 @@ from colorthief import ColorThief
 from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from model.data import MyImage
+
+ImageFile.MAX_IMAGE_PIXELS = None
+
+
+def get_two_different_numbers():
+    attempts = 0
+    while attempts < 3:
+        # 生成两个随机数
+        num1 = random.randint(0, 2)
+        num2 = random.randint(0, 2)
+
+        # 如果两个数不相等，则直接返回
+        if num1 != num2:
+            return num1, num2
+
+        # 如果两个数相等，重试
+        attempts += 1
+
+    # 重试 3 次后仍然相等，返回两个相等的数
+    return num1, num2
 
 
 class ImageHelper:
@@ -134,7 +155,8 @@ class ImageHelper:
                 info.authors = [x.strip() for x in authors]
                 return info
 
-        match = re.search(r"\[(?P<source>(konachan|yande|donmai))_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)\.", filename)
+        match = re.search(r"\[(?P<source>(konachan|yande|donmai))_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)\.",
+                          filename)
         if match:
             info.source = match.group('source')
             info.uploader = match.group('uploader')
@@ -228,17 +250,16 @@ class ImageHelper:
         new_im.save(save_name, quality=100, subsampling=0)
 
     @staticmethod
-    def random_merge_image(get_image_path, size, save_name):
-        i1 = random.randint(0, 2)
-        i2 = random.randint(0, 2)
+    def random_merge_image(get_image_path, size):
         if size[0] > size[1]:
-            im = ImageHelper._random_merge_horizontal_image(get_image_path, size, i1, i2)
+            im = ImageHelper._random_merge_horizontal_image(get_image_path, size)
         else:
-            im = ImageHelper._random_merge_vertical_image(get_image_path, size, i1, i2)
-        im.save(save_name, quality=100, subsampling=0)
+            im = ImageHelper._random_merge_vertical_image(get_image_path, size)
+        return im
 
     @staticmethod
-    def _random_merge_vertical_image(get_image_path, size, i1, i2):
+    def _random_merge_vertical_image(get_image_path, size):
+        left_hor_i, right_hor_i = get_two_different_numbers()
         sub_width = size[0] // 2
         new_im = Image.new('RGB', size)
         top_y = 0
@@ -257,18 +278,19 @@ class ImageHelper:
             return ImageHelper.get_sized_image(path, width=sub_width, height=height)
 
         for i in range(3):
-            left_image = get_sub_image(i != i1)
+            left_image = get_sub_image(i != left_hor_i)
             new_im.paste(left_image, (0, top_y))
             top_y += left_image.height
-            right_image = get_sub_image(i != i2)
+            right_image = get_sub_image(i != right_hor_i)
             new_im.paste(right_image, (sub_width, bottom_y))
             bottom_y += right_image.height
         return new_im
 
     @staticmethod
-    def _random_merge_horizontal_image(get_image_path, size, i1, i2):
+    def _random_merge_horizontal_image(get_image_path, size):
+        top_ver_i, bottom_ver_i = get_two_different_numbers()
         sub_height = size[1] // 2
-        new_im = Image.new('RGB', size)
+        new_im = Image.new('RGBA', size)
         top_x = 0
         bottom_x = 0
 
@@ -282,16 +304,40 @@ class ImageHelper:
                 width *= 2
             else:
                 path = ver_images.pop()
-            return ImageHelper.get_sized_image(path, width=width, height=sub_height)
+            img = ImageHelper.get_sized_image(path, width=width, height=sub_height)
+            img = img.convert('RGBA')
+            ImageHelper._draw_text_in_img(img, FileHelper.get_relative_path(path))
+            return img
 
         for i in range(3):
-            top_image = get_sub_image(i != i1)
+            top_image = get_sub_image(i != top_ver_i)
             new_im.paste(top_image, (top_x, 0))
             top_x += top_image.width
-            bottom_image = get_sub_image(i != i2)
+            bottom_image = get_sub_image(i != bottom_ver_i)
             new_im.paste(bottom_image, (bottom_x, sub_height))
             bottom_x += bottom_image.width
         return new_im
+
+    @staticmethod
+    def _draw_text_in_img(image, text):
+        # 创建一个 ImageDraw 对象
+        draw = ImageDraw.Draw(image)
+        # 设置字体和字体大小
+        font = ImageFont.truetype('msyh.ttc', size=20)
+        x, y = 10, 10
+        max_width = image.width - 40
+        text_wrap = textwrap.wrap(text, width=max_width // font.getsize(' ')[0])
+        # lines = len(text_wrap)
+        # line_height = font.getsize(' ')[1]
+        # 绘制阴影和文本
+        # 设置文字颜色和透明度
+        text_color = (255, 255, 255, 10)
+        # 设置阴影颜色
+        shadow_color = (0, 0, 0, 20)
+        for i, line in enumerate(text_wrap):
+            line_width, line_height = font.getsize(line)
+            draw.text((x + 2, y + i * line_height + 2), line, font=font, fill=shadow_color)
+            draw.text((x, y + i * line_height), line, font=font, fill=text_color)
 
     @staticmethod
     def is_image(filename):
