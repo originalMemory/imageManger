@@ -135,12 +135,6 @@ class ImageFileListModel(MyBaseListModel):
             FileHelper.del_file(old_path)
             return image
         # 当前是 pixiv ，更新为 pixiv 的信息
-        if info.source == 'pixiv':
-            image.source = 'pixiv'
-            image.desc = info.desc
-            image.authors = info.authors
-            image.uploader = ''
-            image.sequence = info.sequence
         for tag in info.tags:
             query = self.__db_helper.search_one(Col.TranSource, {'name': tag}, {'dest_ids': 1})
             if query and 'dest_ids' in query:
@@ -150,12 +144,21 @@ class ImageFileListModel(MyBaseListModel):
         image.tags = list(set(image.tags))
         image.file_create_time = FileHelper.get_create_time(full_path)
         remove_tags_filepath = ImageHelper.remove_tags(full_path)
-        os.rename(full_path, remove_tags_filepath)
-        os.remove(exist_full_path)
-        image.path = FileHelper.get_relative_path(remove_tags_filepath)
-        self.__db_helper.update_image(image)
         print(f'合并文件。增加标签：{info.tags}。新地址：{remove_tags_filepath}, 原地址：{exist_full_path}')
-        return image
+        if info.source != 'pixiv':
+            os.remove(full_path)
+            self.__db_helper.update_image(image)
+        else:
+            image.source = 'pixiv'
+            image.desc = info.desc
+            image.authors = info.authors
+            image.uploader = ''
+            image.sequence = info.sequence
+            os.rename(full_path, remove_tags_filepath)
+            os.remove(exist_full_path)
+            image.path = FileHelper.get_relative_path(remove_tags_filepath)
+            self.__db_helper.update_image(image)
+            return image
 
     def add_path(self, path):
         if os.path.isdir(path):
