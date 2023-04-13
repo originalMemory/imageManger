@@ -227,27 +227,28 @@ class ImageHelper:
         return image.resize((width, height), Image.ANTIALIAS)
 
     @staticmethod
-    def merge_horizontal_img(images, start_y_list, save_name):
+    def merge_horizontal_img(img2monitors, save_name):
         """
         横向合并图片
-        :param images: 图片列表
-        :param start_y_list: 竖直偏移列表
+        :param img2monitors: 图片列表
         :param save_name: 保存名称
         :return:
         """
-        widths, heights = zip(*(i.size for i in images))
-
-        total_width = sum(widths)
-        max_height = max(heights)
+        min_x, min_y, max_x, max_y = 0, 0, 0, 0
+        for _, monitor in img2monitors:
+            min_x = min(min_x, monitor.x)
+            max_x = max(max_x, monitor.x + monitor.width)
+            min_y = min(min_y, monitor.y)
+            max_y = max(max_y, monitor.y + monitor.height)
+        total_width = max_x - min_x
+        max_height = max_y - min_y
 
         new_im = Image.new('RGB', (total_width, max_height))
 
-        start_x = 0
-        for i in range(len(images)):
-            image = images[i]
-            start_y = start_y_list[i]
-            new_im.paste(image, (start_x, start_y))
-            start_x += image.size[0]
+        for img, monitor in img2monitors:
+            start_x = monitor.x - min_x
+            start_y = monitor.y - min_y
+            new_im.paste(img, (start_x, start_y))
         new_im.save(save_name, quality=100, subsampling=0)
 
     @staticmethod
@@ -281,7 +282,9 @@ class ImageHelper:
                 height *= 2
             else:
                 path = hor_images.pop()
-            return ImageHelper.get_sized_image(path, width=sub_width, height=height)
+            img = ImageHelper.get_sized_image(path, width=sub_width, height=height)
+            ImageHelper._draw_text_in_img(img, FileHelper.get_relative_path(path))
+            return img
 
         for i in range(3):
             left_image = get_sub_image(i != left_hor_i)

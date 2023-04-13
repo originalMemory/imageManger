@@ -41,7 +41,6 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
     _config_section_background = "background"
     _config_key_change_type = "changeType"
     _config_key_last_order_image_offset = "lastOrderImageOffset"
-    _monitor_start_y = 0
     _monitor_settings = []  # 显示器设定列表
 
     def __init__(self, parent=None):
@@ -125,7 +124,6 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         :param menu:
         :return:
         """
-        start_y = 0
         monitors = get_monitors()
         for i in range(len(monitors)):
             monitor = monitors[i]
@@ -149,8 +147,6 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
             self._monitor_settings.append(
                 MonitorSetting(monitor=monitor, image_desc_action=desc_action, image_level_actions=level_actions)
             )
-            start_y = min(start_y, monitor.y)
-        self._monitor_start_y = start_y
 
     def create_change_type_menu(self, menu):
         change_type_menu = menu.addMenu("切换方式")
@@ -263,11 +259,10 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
                 print(f'读取图片错误 - {e}')
                 return False
             if image_data:
-                images.append(image_data)
-                start_y_list.append(setting.monitor.y - self._monitor_start_y)
+                images.append((image_data, self._monitors[i]))
             i += 1
         final_image_name = "final.jpg"
-        ImageHelper.merge_horizontal_img(images, start_y_list, final_image_name)
+        ImageHelper.merge_horizontal_img(images, final_image_name)
 
         if len(images) != len(self._monitor_settings):
             QMessageBox.information(self, "提示", "sql 语句限制过多，获取不到图片", QMessageBox.StandardButton.Ok)
