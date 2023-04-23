@@ -8,6 +8,7 @@
 @desc    :
 @create  : 2022/3/18 11:43 AM
 """
+import json
 import random
 import time
 
@@ -65,15 +66,18 @@ class TagHelper:
             col.update_one({'_id': img.id()}, {'$unset': {'refresh': None}})
             return
         lis = val.find(id='tag-sidebar').find_all('li')
+        new_tags = list(map(lambda li: li.contents[2].get_text(), lis))
+        self._update_tags(img, new_tags)
+
+    def _update_tags(self, img: MyImage, new_tags):
         tag_names = []
         tag_ids = []
         for tag_id in img.tags:
             tag = self.db_helper.find_one_decode(Tag, {'_id': tag_id})
             if tag:
                 tag_ids.append(tag_id)
-        for li in lis:
-            name = li.contents[2].get_text()
-            tag = self.db_helper.find_or_create_tag(name)
+        for new_tag in new_tags:
+            tag = self.db_helper.find_or_create_tag(new_tag)
             if tag.tran:
                 tag_names.append(tag.tran)
             else:
@@ -81,9 +85,36 @@ class TagHelper:
             tag_ids.append(tag.id())
         duration = random.uniform(0, 2)
         tag_ids = list(set(tag_ids))
+        col = self.db_helper.get_col(Col.Image)
         col.update_one({'_id': img.id()}, {'$set': {'tags': tag_ids}, '$unset': {'refresh': None}})
         print(f'休眠 {duration:.2f}s, 查找到标签：{tag_names}')
         time.sleep(duration)
+
+    def get_danbooru_author(self, img: MyImage):
+        empty = None, None
+        params = {
+            'api_key': 'L8QToTt8JorY3PExiQjcHnz3',
+            'login': 'originalMemory',
+            # 'only': 'id,name,urls'
+        }
+        url = f'https://danbooru.donmai.us/posts/{img.sequence}.json'
+        try:
+            req = requests.get(url=url, params=params)
+            if not req:
+                return empty
+            js = json.loads(req.text)
+            if not len(js):
+                return empty
+            tags = js['tag_string_general'].split(' ')
+            tags += js['tag_string_character'].split(' ')
+            tags += js['tag_string_copyright'].split(' ')
+            tags += js['tag_string_artist'].split(' ')
+            tags += js['tag_string_meta'].split(' ')
+            new_tags = list(map(lambda x: x.replace('_', ' '), tags))
+            self._update_tags(img, new_tags)
+        except Exception as e:
+            print(f'解析 donmai 作者信息失败：{e}')
+            return empty
 
     # def get_not_exist_pixiv_tag(self):
     #     imgs, _ = db_helper.search_by_where("source='pixiv' and tags=''")
