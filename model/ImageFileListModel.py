@@ -47,7 +47,7 @@ class ImageFileListModel(MyBaseListModel):
                 if self._data_list[index.row()].id:
                     return QBrush(QColor(84, 255, 159))
                 else:
-                    return QBrush(QColor(255, 255, 255))
+                    return QBrush(QColor(255, 255, 255, 0))
         else:
             return QVariant()
 
@@ -118,20 +118,19 @@ class ImageFileListModel(MyBaseListModel):
             return image
         old_path = exist_full_path
         info = ImageHelper.analyze_image_info(full_path)
-        if image.type != 1 or image.source == info.source or not os.path.exists(exist_full_path):
+        if image.type != 1 or not info.source or image.source == info.source or not os.path.exists(exist_full_path):
             # 已有图片存在且删除重复时删除当前图片
             if os.path.exists(exist_full_path) and self.delete_repeat:
                 print(f'删除重复图片: {full_path}, 原图地址：{old_path}')
                 FileHelper.del_file(full_path)
                 return
             if os.path.exists(exist_full_path):
-                os.remove(exist_full_path)
+                FileHelper.del_file(exist_full_path)
                 print(f'删除已存在图片：{exist_full_path}')
             new_path = FileHelper.get_relative_path(full_path)
             image.path = new_path
             print(f'新路径：{new_path}，原地址：{old_path}')
             self.__db_helper.update_path(image.id(), new_path)
-            FileHelper.del_file(old_path)
             return image
         for tag_name in info.tags:
             tag = self.__db_helper.find_or_create_tag(tag_name, TagSource(info.source))

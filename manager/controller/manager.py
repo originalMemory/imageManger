@@ -221,9 +221,8 @@ class ImageManager(QMainWindow, Ui_Manager):
             if is_anim:
                 self.lineEdit_role.clear()
                 self.lineEdit_works.clear()
+                self.lineEdit_author.clear()
                 # self.lineEdit_series.clear()
-                if self.lineEdit_source.text() != 'pixiv':
-                    self.lineEdit_author.clear()
 
             # 分析图片信息
             self.lineEdit_path.setText(path)
@@ -375,6 +374,8 @@ class ImageManager(QMainWindow, Ui_Manager):
                     image.tags = old_image.tags
                     image.works = old_image.works
             self._change_tasks.put((row, image))
+            if not self.listView.hasFocus():
+                self.listView.setFocus()
 
     _change_tasks = queue.Queue()
 
