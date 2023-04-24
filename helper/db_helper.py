@@ -214,7 +214,7 @@ class DBHelper:
         find = self.find(col, fl)
         if limit:
             find = find.limit(limit)
-        return [from_dict(data_class=data_class, data=x) for x in find]
+        return [data_class.from_dict(x) for x in find]
 
     def find_one(self, col, fl=None, filed=None):
         if fl is None:

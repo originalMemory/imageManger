@@ -454,11 +454,22 @@ def search_tags():
         tag_helper.get_pixiv_tags(img)
 
 
+def temp():
+    prefix = 'tagme '
+    tags = db_helper.find_decode(Tag, {'name': {'$regex': prefix}, 'children': {'$size': 0}})
+    tagme = db_helper.find_one_decode(Tag, {'name': 'tagme'})
+    for i, tag in enumerate(tags):
+        print(f'[{i}/{len(tags)}]{tag.name}')
+        sub_tag = db_helper.find_or_create_tag(tag.name.replace(prefix, ''), TagSource(tag.source), tag.tran)
+        db_helper.update_one(Col.Tag, {'_id': tag.id()},
+                             {'children': [sub_tag.id(), tagme.id()], 'tran': '', 'type': TagType.Composite.value})
+
+
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
     # update_all_image_color()
-    search_tags()
+    temp()
     print('结束')
     # update_tag_cover_and_count()
     # update_author_name('OrangeMaru', 'YD')

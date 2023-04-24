@@ -38,6 +38,8 @@ class BaseDB:
 
     @classmethod
     def from_dict(cls: Type[DB], query) -> DB:
+        if cls == Tag and 'category_id' in query and query['category_id'] is None:
+            del query['category_id']
         return from_dict(data_class=cls, data=query)
 
 
@@ -50,6 +52,7 @@ class TagType(Enum):
     Company = 'company'
     Author = 'author'
     Unknown = 'unknown'
+    Composite = 'composite'
 
 
 @unique
@@ -67,6 +70,23 @@ class Col(Enum):
             return Col.Tag
         if data_class == TagCategory:
             return Col.TagCategory
+
+
+@dataclass
+class ImgInfo:
+    desc: str = field(default="")
+    authors: list = field(default_factory=list)
+    tags: list = field(default_factory=list)
+    works: list = field(default_factory=list)
+    source: str = field(default="")
+    width: int = field(default=0)
+    height: int = field(default=0)
+    size: float = field(default=0.0)
+    sequence: int = field(default=0)
+    md5: str = field(default="")
+    file_create_time: datetime = field(default=datetime.now())
+    uploader: str = field(default="")
+    path: str = field(default="")
 
 
 @dataclass
@@ -112,6 +132,7 @@ class Tag(BaseDB):
     description: str = field(default='')
     restricted: bool = field(default=False)
     alias: list = field(default_factory=list)
+    tran_alias: list = field(default_factory=list)
     source: str = field(default='')
     wiki_url: str = field(default='')
     category_id: ObjectId = field(default=None)

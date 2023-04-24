@@ -21,7 +21,7 @@ from PyQt6.QtGui import QImageReader
 from colorthief import ColorThief
 
 from helper.file_helper import FileHelper
-from model.data import MyImage
+from model.data import MyImage, ImgInfo
 
 ImageFile.MAX_IMAGE_PIXELS = None
 
@@ -105,19 +105,18 @@ class ImageHelper:
             return 0, 0
 
     @staticmethod
-    def analyze_image_info(file_path, check_size=True):
+    def analyze_image_info(file_path, check_size=True) -> ImgInfo:
         """
         根据文件路径分析图片信息
         :param file_path: 图片路径
         :param check_size: 是否检查图片大小
         :return:
         """
-        info = MyImage()
+        info = ImgInfo()
         filename = os.path.basename(file_path)
-        info.filename = filename
         if os.path.exists(file_path) and check_size:
             info.size = FileHelper.get_file_size_in_mb(file_path)
-            info.create_time = FileHelper.get_create_time(file_path)
+            info.file_create_time = FileHelper.get_create_time(file_path)
 
         # MetArt.com_22.12.04.Florens.Presenting.Florens/metart_presenting-florens_florens_high_0001.jpg
         match = re.search(r'/MetArt.com_\d+\.\d+\.\d+\.(?P<name>.+?)/', file_path)

@@ -85,7 +85,7 @@ class TagHelper:
             else:
                 tag_names.append(tag.name)
             tag_ids.append(tag.id())
-        duration = random.uniform(0, 2)
+        duration = random.uniform(0, 1)
         tag_ids = list(set(tag_ids))
         col = self.db_helper.get_col(Col.Image)
         col.update_one({'_id': img.id()}, {'$set': {'tags': tag_ids}, '$unset': {'refresh': None}})
@@ -123,17 +123,21 @@ class TagHelper:
         try:
             req = requests.get(url=url)
             js = json.loads(req.text)
-            if js['error']:
+            del_message = '尚无权限浏览该作品'
+            if js['error'] and js['message'] != del_message:
                 print(f'解析 pixiv 标签信息失败：{js["message"]}')
                 return
-            tags = js['body']['tags']['tags']
             new_tags = []
             tran_di = {}
-            for tag in tags:
-                name = tag['tag']
-                new_tags.append(name)
-                if 'translation' in tag:
-                    tran_di[name] = tag['translation'].get('en', '')
+            if not js['error'] or js['message'] != del_message:
+                tags = js['body']['tags']['tags']
+                for tag in tags:
+                    name = tag['tag']
+                    new_tags.append(name)
+                    if 'translation' in tag:
+                        tran_di[name] = tag['translation'].get('en', '')
+            elif js['message'] == del_message:
+                print(f'图片已删除')
             self._update_tags(img, TagSource.Pixiv, new_tags, tran_di)
         except Exception as e:
             print(f'解析 pixiv 标签信息失败：{e}')
