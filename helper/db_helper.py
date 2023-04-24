@@ -9,18 +9,20 @@
 @create  : 2019/5/27 21:03:31
 @update  :
 """
-import os
 import time
 from datetime import datetime
 from enum import unique, Enum
+from typing import TypeVar, Type
 
 import pymongo
 import pytz
+from bson import ObjectId
+from dacite import from_dict
 from pymongo.collection import Collection
 
 from helper.config_helper import ConfigHelper
 from helper.file_helper import FileHelper
-from model.data import MyImage, BaseData, ImageFile, TagType, TranDest
+from model.data import MyImage, BaseData, ImageFile, Tag, Col
 
 
 def get_time(f):
@@ -34,6 +36,9 @@ def get_time(f):
     return inner
 
 
+T = TypeVar('T')
+
+
 @unique
 class DBExecuteType(Enum):
     Run = 0
@@ -41,43 +46,25 @@ class DBExecuteType(Enum):
     FetchOne = 2
 
 
-@unique
-class Col(Enum):
-    Image = 'image'
-    Level = 'level'
-    Type = 'type'
-    TranSource = 'tran_source'
-    TranDest = 'tran_dest'
-    SimilarImage = 'similar_image'
-
-
 tzinfo = pytz.timezone('Asia/Shanghai')
 
-_db = None
+
+def _get_local_dt(dt):
+    return tzinfo.localize(dt)
 
 
 class DBHelper:
     def __init__(self, error_handler, with_server=False):
         self.error_handler = error_handler
-
-    @staticmethod
-    def _get_db():
-        global _db
-        if _db is not None:
-            return _db
         url = ConfigHelper().get_config_key('database', 'mongoServer')
-        # if os.system('ping -c 1 192.168.31.39') == 0:
-        #     url = ConfigHelper().get_config_key('database', 'mongoLocal')
-        #     print('使用局域网连接')
-        # else:
-        #     url = ConfigHelper().get_config_key('database', 'mongoServer')
-        #     print('使用域名连接')
-        db = pymongo.MongoClient(url, tz_aware=True, tzinfo=tzinfo)['acg']
-        _db = db
-        return db
+        self._client = pymongo.MongoClient(url, tz_aware=True, tzinfo=tzinfo)
+        self._db = self._client['acg']
+
+    def __del__(self):
+        self._client.close()
 
     def get_col(self, col: Col) -> Collection:
-        return self._get_db()[col.value]
+        return self._db[col.value]
 
     def get_model_data_list(self, table):
         """
@@ -85,7 +72,7 @@ class DBHelper:
         :param table: 数据表名
         :return:
         """
-        col = self._get_db()[table]
+        col = self._db[table]
         query = col.find()
         if query:
             lists = [BaseData(x['value'], x['name']) for x in query]
@@ -109,23 +96,25 @@ class DBHelper:
             del item['_id']
         if 'id' in item:
             del item['id']
+        if 'category_id' in item and item['category_id'] is None:
+            del item['category_id']
         item['update_time'] = tzinfo.localize(datetime.now())
         return item
 
     def insert(self, col, item):
         item = self._check_item(item)
         item['create_time'] = tzinfo.localize(datetime.now())
-        return self._get_db()[col.value].insert_one(item)
+        return self._db[col.value].insert_one(item)
 
     def update_one(self, col, fl, item):
         item = self._check_item(item)
         set_di = {'$set': item}
-        return self._get_db()[col.value].update_one(fl, set_di)
+        return self._db[col.value].update_one(fl, set_di)
 
     def update_many(self, col, fl, item):
         item = self._check_item(item)
         set_di = {'$set': item}
-        return self._get_db()[col.value].update_many(fl, set_di)
+        return self._db[col.value].update_many(fl, set_di)
 
     def update_image(self, image: MyImage):
         """
@@ -167,17 +156,17 @@ class DBHelper:
 
     def delete(self, image_id):
         fl = {'_id': image_id}
-        self._get_db()[Col.Image.value].delete_one(fl)
+        self._db[Col.Image.value].delete_one(fl)
 
     def search_one(self, col, fl, filed=None):
         if not fl:
             fl = {}
-        return self._get_db()[col.value].find_one(fl, filed)
+        return self._db[col.value].find_one(fl, filed)
 
     def search_all(self, col, fl=None, filed=None):
         if not fl:
             fl = {}
-        return self._get_db()[col.value].find(fl, filed)
+        return self._db[col.value].find(fl, filed)
 
     def exist(self, col, fl):
         return self.search_one(col, fl, {'_id': 1}) is not None
@@ -198,7 +187,7 @@ class DBHelper:
         return image_sql_list, image_file_list
 
     def get_images(self, page, pagesize):
-        queries = self._get_db()[Col.Image.value].find().limit(pagesize).skip(page * pagesize)
+        queries = self._db[Col.Image.value].find().limit(pagesize).skip(page * pagesize)
         return [MyImage.from_dict(x) for x in queries]
 
     def get_count(self, fl=None):
@@ -207,17 +196,59 @@ class DBHelper:
         :return:
         """
 
-        col = self._get_db()[Col.Image.value]
+        col = self._db[Col.Image.value]
         if fl:
             return col.count_documents(fl)
         else:
             return col.estimated_document_count()
 
-    def get_or_create_dest(self, name, tag_type=TagType.Unknown.value, extra=''):
-        fl = {'name': name, 'type': tag_type}
-        query = self.search_one(Col.TranDest, fl)
-        if query:
-            return TranDest.from_dict(query)
-        self.insert(Col.TranDest, TranDest(name=name, type=tag_type, extra=extra).dict())
-        print(f'创建标签：{name}##{tag_type}')
-        return TranDest.from_dict(self.search_one(Col.TranDest, fl))
+    def find(self, col, fl=None, filed=None):
+        if fl is None:
+            fl = {}
+        return self._db[col.value].find(fl, filed)
+
+    def find_decode(self, data_class: Type[T], fl=None, limit=0) -> [T]:
+        col = Col.from_dataclass(data_class)
+        if not col:
+            raise f'{data_class}没有对应的表'
+        find = self.find(col, fl)
+        if limit:
+            find = find.limit(limit)
+        return [from_dict(data_class=data_class, data=x) for x in find]
+
+    def find_one(self, col, fl=None, filed=None):
+        if fl is None:
+            fl = {}
+        return self._db[col.value].find_one(fl, filed)
+
+    def find_one_decode(self, dataclass: Type[T], fl) -> T:
+        cursor = self.find_one(Col.from_dataclass(dataclass), fl)
+        if cursor:
+            if 'category_id' in cursor and cursor['category_id'] is None:
+                del cursor['category_id']
+            return from_dict(data_class=dataclass, data=cursor)
+
+    def find_or_create_tag(self, name, source, tran='') -> Tag:
+        fl = {'$or': [{'name': name}, {'alias': name}]}
+        tag = self.find_one_decode(Tag, fl)
+        if tag:
+            return tag
+        self.insert(Col.Tag, Tag(name=name, source=source.value, tran=tran))
+        return self.find_one_decode(Tag, fl)
+
+    def delete_one(self, col, item_id):
+        fl = {'_id': item_id}
+        self._db[col.value].delete_one(fl)
+
+    def update_one_by_id(self, col, obj_id, data):
+        if isinstance(obj_id, str):
+            obj_id = ObjectId(obj_id)
+        data['update_time'] = _get_local_dt(datetime.now())
+        self.update_one_by_data(col, {'_id': obj_id}, data)
+
+    def update_one_by_data(self, col, fl, data):
+        self.base_update_one(col, fl, {'$set': data})
+
+    def base_update_one(self, col, fl, data):
+        self._db[col.value].update_one(fl, data)
+

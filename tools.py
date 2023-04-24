@@ -18,9 +18,10 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 import requests
 from PIL import Image
 
-from helper.db_helper import DBHelper, Col
+from helper.db_helper import DBHelper
 from helper.image_helper import ImageHelper
 from model.data import *
+from tools.tag_helper import TagHelper
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -69,7 +70,7 @@ def check_no_record_image(file_path, prefix):
         print('文件不存在')
 
 
-def check_exist(file_path, prefix):
+def check_exist(file_path, _):
     if not ImageHelper.is_image(file_path):
         return
     md5 = FileHelper.get_md5(file_path)
@@ -94,7 +95,7 @@ def update_path(filepath, prefix):
         db_helper.update_path(info.id(), relative_path)
 
 
-def split_by_works(filepath, prefix):
+def split_by_works(filepath, _):
     if not ImageHelper.is_image(filepath):
         return
     info = db_helper.search_by_file_path(filepath)
@@ -196,58 +197,6 @@ def split_third_works():
                 dest_paths.append(dest_path)
         for path in dest_paths:
             analysis_and_rename_file(path, 'Z:/', update_path)
-
-
-@dataclass
-class AuthorCount:
-    author: TranDest = field(default=None)
-    sources: list = field(default_factory=list)
-    count: int = field(default=0)
-
-
-def get_down_author():
-    queries = db_helper.search_all(Col.TranDest, {'type': 'author', '$expr': {'$gt': [{'$strLenCP': '$extra'}, 5]}})
-    authors = [TranDest.from_dict(x) for x in queries]
-    author_counts = []
-    for i, author in enumerate(authors):
-        if 'twitter' in author.extra:
-            print(f'[{i}/{len(authors)}]{author.name} - 是 twitter 地址，跳过')
-            continue
-        count = db_helper.get_count({'authors': author.name})
-        sources = db_helper.search_all(Col.TranSource, {'dest_ids': author.id()}, {'name': 1})
-        sources = [x['name'] for x in sources]
-        print(f'[{i}/{len(authors)}]{author.name} - 英文名：{sources} 图片数：{count}')
-        item = AuthorCount()
-        item.author = author
-        item.count = count
-        item.sources = sources
-        author_counts.append(item)
-    author_counts = sorted(author_counts, key=lambda x: x.count, reverse=True)
-    with open('authors.csv', 'w+', encoding='utf-8') as f:
-        f.write('id, 作者, pixivId, 图片数')
-        for item in author_counts:
-            string = f'{item.author.id()}, {item.author.name}, {item.author.extra}, {item.count}, {" ".join(item.sources)}\n'
-            f.write(string)
-            print(string[:-1])
-
-
-def get_or_create_dest(name, tag_type, extra):
-    fl = {'name': name, 'type': tag_type.value}
-    query = db_helper.search_one(Col.TranDest, fl)
-    if query:
-        return TranDest.from_dict(query)
-    print('创建新的')
-    db_helper.insert(Col.TranDest, TranDest(name=name, type=tag_type.value, extra=extra).dict())
-    return TranDest.from_dict(db_helper.search_one(Col.TranDest, fl))
-
-
-def update_author_name(old, new):
-    fl = {'name': old}
-    db_helper.update_one(Col.TranDest, fl, {'name': new})
-    res = col.update_many({'authors': old}, {'$addToSet': {'authors': new}})
-    print(res.modified_count)
-    res = col.update_many({'authors': old}, {'$pull': {'authors': old}})
-    print(res.modified_count)
 
 
 def copy_from_nas():
@@ -384,9 +333,9 @@ def update_color(prefix, query):
     if not os.path.exists(path):
         print(f'{prefix}图片不存在, {path}')
         return
-    hex = ImageHelper.get_hex_color(path)
-    print(f'{prefix}{hex}, {path}')
-    col.update_one({'_id': query['_id']}, {'$set': {'color': hex}})
+    hex_color = ImageHelper.get_hex_color(path)
+    print(f'{prefix}{hex_color}, {path}')
+    col.update_one({'_id': query['_id']}, {'$set': {'color': hex_color}})
 
 
 def update_all_image_color():
@@ -412,22 +361,17 @@ def update_all_image_color():
 
 
 def update_tag_cover_and_count():
-    fl = {'type': {'$ne': TagType.Unknown.value}}
-    col_dest = db_helper.get_col(Col.TranDest)
-    length = col_dest.count_documents(fl)
-    queries = col_dest.find(fl)
-    for i, query in enumerate(queries):
-        dest = TranDest.from_dict(query)
+    fl = {'category_id': {'$exist': True, '$ne': ''}, 'children': {'$size': 0}}
+    col_tag = db_helper.get_col(Col.Tag)
+    length = col_tag.count_documents(fl)
+    tags = db_helper.find_decode(Tag, fl)
+    for i, tag in enumerate(tags):
         fl_img = {
-            'tags': dest.id(),
+            'tags': tag.id(),
             'level': {'$gte': 5, '$lte': 8},
             '$expr': {'$gte': ['$width', '$height']},
             "color": {"$exists": True}, "$where": "this.color.length>0"
         }
-        # if dest.type == TagType.Works:
-        #     fl_img['works'] = [dest.name]
-        # elif dest.type == TagType.Role:
-        #     fl_img['roles'] = [dest.name]
         limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
         if not limit:
             fl_img['level'] = {'$lte': 8}
@@ -438,8 +382,8 @@ def update_tag_cover_and_count():
         if not limit:
             continue
         img = MyImage.from_dict(limit[0])
-        col_dest.update_one({'_id': dest.id()}, {'$set': {'cover': img.path, 'color': img.color}})
-        print(f'[{i}/{length}]{dest.name}, {img.color}, {img.path}')
+        col_tag.update_one({'_id': tag.id()}, {'$set': {'cover': img.path, 'color': img.color}})
+        print(f'[{i}/{length}]{tag.tran}, {img.color}, {img.path}')
 
 
 dest_dir_path = 'Y:/thumb'
@@ -493,63 +437,29 @@ def pf(i, count, msg):
     print(f'[{i}/{count}]{msg}')
 
 
-def update_works(old_name, new_name):
-    col_dest = db_helper.get_col(Col.TranDest)
-    old_works = db_helper.get_or_create_dest(old_name, TagType.Author.value, '')
-    col_dest.update_one({'_id': old_works.id}, {'$set': {'name': new_name}})
-    images = [MyImage.from_dict(x) for x in col.find({'works': old_works.name})]
-    old_image1 = [MyImage.from_dict(x) for x in col.find({'tags': old_works.id})]
-    images += old_image1
-    for i, image in enumerate(images):
-        image.works.remove(old_name)
-        image.works.append(new_name)
-        image.path = image.path.replace(old_name, new_name)
-        col.update_one({'_id': image.id}, {'$set': {'works': image.works, 'path': image.path}})
-        pf(i, len(images), image.path)
+def update_author_name(old, new):
+    fl = {'name': old, 'type': TagType.Work.value}
+    db_helper.update_one(Col.Tag, fl, {'name': new})
+    res = col.update_many({'authors': old}, {'$addToSet': {'authors': new}})
+    print(res.modified_count)
+    res = col.update_many({'authors': old}, {'$pull': {'authors': old}})
+    print(res.modified_count)
 
 
-def merge_tag(old, new, tag_type):
-    col_dest = db_helper.get_col(Col.TranDest)
-    old_dest = TranDest.from_dict(col_dest.find_one({'name': old, 'type': tag_type.value}))
-    new_dest = get_or_create_dest(new, tag_type, '')
-    if not new_dest.color:
-        new_dest.color = old_dest.color
-        new_dest.cover = old_dest.cover
-        new_dest.count = old_dest.count
-        db_helper.update_one(Col.TranDest, {'_id': new_dest.id()}, new_dest.dict())
-    col_source = db_helper.get_col(Col.TranSource)
-    col_source.update_many({'dest_ids': old_dest.id()}, {'$addToSet': {'dest_ids': new_dest.id()}})
-    col_source.update_many({'dest_ids': old_dest.id()}, {'$pull': {'dest_ids': old_dest.id()}})
-    col.update_many({'tags': old_dest.id()}, {'$addToSet': {'tags': new_dest.id()}})
-    col.update_many({'tags': old_dest.id()}, {'$pull': {'tags': old_dest.id()}})
-    col_dest.delete_one({'_id': old_dest.id()})
-    key = None
-    if tag_type == TagType.Author:
-        key = 'authors'
-    elif tag_type == TagType.Works:
-        key = 'works'
-    elif tag_type == TagType.Role:
-        key = 'roles'
-    if not key:
-        return
-    col.update_many({'tags': new_dest.id()}, {'$addToSet': {key: new_dest.name}})
-    col.update_many({'tags': new_dest.id()}, {'$pull': {key: old_dest.name}})
-
-
-def add_source_to_dest(dest_name, tag_type, source_name):
-    dest = db_helper.get_or_create_dest(dest_name, tag_type.value)
-    col_source = db_helper.get_col(Col.TranSource)
-    source = col_source.find_one({'name': source_name})
-    if not source:
-        db_helper.insert(Col.TranSource, TranSource(name=source_name, dest_ids=[dest.id()]).dict())
-    else:
-        col_source.update_one({'_id': source['_id']}, {'$addToSet': {'dest_ids': dest.id()}})
+def search_tags():
+    imgs = db_helper.find_decode(MyImage, {'refresh': {'$exists': True}, 'source': 'pixiv'})
+    tag_helper = TagHelper(db_helper)
+    for i, img in enumerate(imgs):
+        print(f'[{i}/{len(imgs)}]{img.path}')
+        tag_helper.get_pixiv_tags(img)
 
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
-    update_all_image_color()
+    # update_all_image_color()
+    search_tags()
+    print('结束')
     # update_tag_cover_and_count()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()

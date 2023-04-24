@@ -30,7 +30,7 @@ from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
 from manager.view.manager import Ui_Manager
 from model.ImageFileListModel import ImageFileListModel
-from model.data import ImageFile, PreloadImage, MyImage, TagType, TranSource, TranDest
+from model.data import ImageFile, PreloadImage, MyImage, TagType, Tag, TagSource
 from model.my_list_model import MyBaseListModel
 
 
@@ -137,7 +137,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         threading.Thread(target=self._insert_or_update, daemon=True).start()
 
     def _create_completer(self, tag_type: TagType):
-        names = self.__db_helper.search_all(Col.TranDest, {'type': tag_type.value}, {'name': 1})
+        names = self.__db_helper.search_all(Col.Tag, {'type': tag_type.value}, {'tran': 1})
         names = [x['name'] for x in names]
         completer = QCompleter(names)
         # completer.setCompletionMode(QCompleter.CompletionMode.UnfilteredPopupCompletion)
@@ -272,19 +272,19 @@ class ImageManager(QMainWindow, Ui_Manager):
             self._signal_update_tags.emit('')
             # self.textEdit_tag.setText('')
             return
-        tran_tags = self.get_tran_tags(tags)
+        tran_tags = self._get_tran_tags(tags)
         roles = set()
         works = set()
         authors = set()
         tags = []
-        for dest in tran_tags:
-            tags.append(f'{dest.name}##{dest.type}')
-            if dest.get_type() == TagType.Role:
-                roles.add(dest.name)
-            elif dest.get_type() == TagType.Works:
-                works.add(dest.name)
-            elif dest.get_type() == TagType.Author:
-                authors.add(dest.name)
+        for tag in tran_tags:
+            tags.append(f'{tag.name}##{tag.type}')
+            if tag.get_type() == TagType.Role:
+                roles.add(tag.name)
+            elif tag.get_type() == TagType.Work:
+                works.add(tag.name)
+            elif tag.get_type() == TagType.Author:
+                authors.add(tag.name)
         if keep_role and self.lineEdit_role.text():
             roles += set(self.lineEdit_role.text().split(','))
         text = ','.join(tags)
@@ -297,22 +297,23 @@ class ImageManager(QMainWindow, Ui_Manager):
         if authors and not self.lineEdit_author.text():
             self.lineEdit_author.setText(','.join(authors))
 
-    def get_tran_tags(self, tags):
+    def _get_tran_tags(self, tags):
         dest_ids = []
-        for tag in tags:
-            if isinstance(tag, ObjectId):
-                dest_ids.append(tag)
+        for tag_name in tags:
+            if isinstance(tag_name, ObjectId):
+                dest_ids.append(tag_name)
                 continue
-            query = self.__db_helper.search_one(Col.TranSource, {'name': tag})
-            if query:
-                source = TranSource.from_dict(query)
-                dest_ids += source.dest_ids
+            source = TagSource.Unknown
+            source_name = self.lineEdit_source.text()
+            if source_name:
+                source = TagSource(source_name)
+            tag = self.__db_helper.find_or_create_tag(Tag, source, tag_name)
+            if tag.children:
+                dest_ids += tag.children
             else:
-                dest = self.__db_helper.get_or_create_dest(tag)
-                dest_ids.append(dest.id())
-        query = self.__db_helper.search_all(Col.TranDest, {'_id': {'$in': dest_ids}})
-        tran_tags = list(map(lambda x: TranDest.from_dict(x), query))
-        return tran_tags
+                dest_ids.append(tag.id())
+        tags = self.__db_helper.find_decode(Tag, {'_id': {'$in': dest_ids}})
+        return tags
 
     def __classify(self):
         """
@@ -409,13 +410,11 @@ class ImageManager(QMainWindow, Ui_Manager):
                 print(f'文件不存在：{path}')
                 continue
             for i, tag in enumerate(image.tags):
-                name, tag_type = image.tags[i].split('##')
-                dest = self.__db_helper.get_or_create_dest(name, tag_type)
-                image.tags[i] = dest.id()
+                tran, tag_type = image.tags[i].split('##')
+                tag = self.__db_helper.find_one_decode(Tag, {'tran': tran, 'type': tag_type})
+                image.tags[i] = tag.id()
             if not image.id():
                 self.__db_helper.insert_image(image)
-                for tag in image.tags:
-                    self.__db_helper.get_col(Col.TranDest).update_one({'_id': tag}, {'$inc': {'count': 1}})
                 image_id = self.__db_helper.get_id_by_path(image.path)
                 need_refresh_item = True
                 new_item.id = image_id

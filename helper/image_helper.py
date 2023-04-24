@@ -20,7 +20,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImageReader
 from colorthief import ColorThief
 
-from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from model.data import MyImage
 
@@ -29,6 +28,7 @@ ImageFile.MAX_IMAGE_PIXELS = None
 
 def get_two_different_numbers():
     attempts = 0
+    num1, num2 = 0, 0
     while attempts < 3:
         # 生成两个随机数
         num1 = random.randint(0, 2)
@@ -109,6 +109,7 @@ class ImageHelper:
         """
         根据文件路径分析图片信息
         :param file_path: 图片路径
+        :param check_size: 是否检查图片大小
         :return:
         """
         info = MyImage()
@@ -161,7 +162,7 @@ class ImageHelper:
         if match:
             info.source = match.group('source')
             info.uploader = match.group('uploader')
-            info.tags = match.group('tags').replace("_00000", "").split(' ')
+            info.tags = list(map(lambda x: x.replace('_', ''), match.group('tags').replace("_00000", "").split(' ')))
             info.sequence = int(match.group('no'))
             return info
         # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]

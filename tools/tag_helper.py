@@ -69,15 +69,17 @@ class TagHelper:
         new_tags = list(map(lambda li: li.contents[2].get_text(), lis))
         self._update_tags(img, new_tags)
 
-    def _update_tags(self, img: MyImage, new_tags):
+    def _update_tags(self, img: MyImage, source, new_tags, tran_di={}):
         tag_names = []
         tag_ids = []
+        exist_tag_names = []
         for tag_id in img.tags:
             tag = self.db_helper.find_one_decode(Tag, {'_id': tag_id})
             if tag:
                 tag_ids.append(tag_id)
+                exist_tag_names.append(tag.tran)
         for new_tag in new_tags:
-            tag = self.db_helper.find_or_create_tag(new_tag)
+            tag = self.db_helper.find_or_create_tag(new_tag, source, tran_di.get(new_tag, ''))
             if tag.tran:
                 tag_names.append(tag.tran)
             else:
@@ -87,7 +89,7 @@ class TagHelper:
         tag_ids = list(set(tag_ids))
         col = self.db_helper.get_col(Col.Image)
         col.update_one({'_id': img.id()}, {'$set': {'tags': tag_ids}, '$unset': {'refresh': None}})
-        print(f'休眠 {duration:.2f}s, 查找到标签：{tag_names}')
+        print(f'休眠 {duration:.2f}s, 查找到标签：{tag_names}, 已存在标签：{exist_tag_names}')
         time.sleep(duration)
 
     def get_danbooru_author(self, img: MyImage):
@@ -115,6 +117,26 @@ class TagHelper:
         except Exception as e:
             print(f'解析 donmai 作者信息失败：{e}')
             return empty
+
+    def get_pixiv_tags(self, img: MyImage):
+        url = f'https://www.pixiv.net/ajax/illust/{img.sequence}?lang=zh'
+        try:
+            req = requests.get(url=url)
+            js = json.loads(req.text)
+            if js['error']:
+                print(f'解析 pixiv 标签信息失败：{js["message"]}')
+                return
+            tags = js['body']['tags']['tags']
+            new_tags = []
+            tran_di = {}
+            for tag in tags:
+                name = tag['tag']
+                new_tags.append(name)
+                if 'translation' in tag:
+                    tran_di[name] = tag['translation'].get('en', '')
+            self._update_tags(img, TagSource.Pixiv, new_tags, tran_di)
+        except Exception as e:
+            print(f'解析 pixiv 标签信息失败：{e}')
 
     # def get_not_exist_pixiv_tag(self):
     #     imgs, _ = db_helper.search_by_where("source='pixiv' and tags=''")

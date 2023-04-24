@@ -41,52 +41,32 @@ class BaseDB:
         return from_dict(data_class=cls, data=query)
 
 
-@dataclass
-class TranSource(BaseDB):
-    name: str = field(default='')
-    dest_ids: list = field(default_factory=list)
-
-
 @unique
 class TagType(Enum):
     Empty = ''
-    Label = 'label'
     Role = 'role'
-    Works = 'works'
+    Work = 'work'
+    Desc = 'desc'
     Company = 'company'
     Author = 'author'
     Unknown = 'unknown'
-
-
-@dataclass
-class TranDest(BaseDB):
-    name: str = field(default='')
-    type: str = field(default='')
-    extra: str = field(default='')
-    count: int = field(default=0)
-    color: str = field(default='')
-    cover: str = field(default='')
-
-    def get_type(self):
-        return TagType(self.type)
 
 
 @unique
 class Col(Enum):
     Image = 'image'
     Level = 'level'
-    TranDest = 'tran_dest'
-    TranSource = 'tran_source'
-    CacheImageTask = 'cache_image_task'
+    Tag = 'tag'
+    TagCategory = 'tag_category'
 
     @staticmethod
     def from_dataclass(data_class: Type[DB]):
         if data_class == MyImage:
             return Col.Image
-        if data_class == TranDest:
-            return Col.TranDest
-        if data_class == TranSource:
-            return Col.TranSource
+        if data_class == Tag:
+            return Col.Tag
+        if data_class == TagCategory:
+            return Col.TagCategory
 
 
 @dataclass
@@ -115,6 +95,41 @@ class MyImage(BaseDB):
 
     def author_str(self):
         return ','.join(self.authors)
+
+
+@unique
+class TagSource(Enum):
+    Danbooru = 'danbooru'
+    Yande = 'yande'
+    Pixiv = 'pixiv'
+    Unknown = 'unknown'
+
+
+@dataclass
+class Tag(BaseDB):
+    name: str = field(default='')
+    tran: str = field(default='')
+    description: str = field(default='')
+    restricted: bool = field(default=False)
+    alias: list = field(default_factory=list)
+    source: str = field(default='')
+    wiki_url: str = field(default='')
+    category_id: ObjectId = field(default=None)
+    children: list = field(default_factory=list)
+    type: str = field(default='')
+
+    def get_type(self):
+        if type:
+            return TagType(self.type)
+        else:
+            return TagType.Unknown
+
+
+@dataclass
+class TagCategory(BaseDB):
+    name: str = field(default='')
+    description: str = field(default='')
+    children: list = field(default_factory=list)
 
 
 @dataclass

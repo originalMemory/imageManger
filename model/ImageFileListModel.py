@@ -15,10 +15,10 @@ import re
 from PyQt6.QtCore import QModelIndex, QVariant, Qt
 from PyQt6.QtGui import QBrush, QColor
 
-from helper.db_helper import DBHelper, Col
+from helper.db_helper import DBHelper
 from helper.file_helper import FileHelper
 from helper.image_helper import ImageHelper
-from model.data import ImageFile, MyImage
+from model.data import ImageFile, MyImage, TagSource
 from model.my_list_model import MyBaseListModel
 
 
@@ -65,7 +65,6 @@ class ImageFileListModel(MyBaseListModel):
 
     def __add_dir(self, dir_path):
         paths = []
-        cp = re.compile(r'\d+$')
         for root, ds, fs in os.walk(dir_path):
             tp_paths = []
             all_int = True
@@ -134,13 +133,12 @@ class ImageFileListModel(MyBaseListModel):
             self.__db_helper.update_path(image.id(), new_path)
             FileHelper.del_file(old_path)
             return image
-        # 当前是 pixiv ，更新为 pixiv 的信息
-        for tag in info.tags:
-            query = self.__db_helper.search_one(Col.TranSource, {'name': tag}, {'dest_ids': 1})
-            if query and 'dest_ids' in query:
-                image.tags += query['dest_ids']
+        for tag_name in info.tags:
+            tag = self.__db_helper.find_or_create_tag(tag_name, TagSource(info.source))
+            if tag.children:
+                image.tags += tag.children
             else:
-                image.tags.append(self.__db_helper.get_or_create_dest(tag).id())
+                image.tags.append(tag.id())
         image.tags = list(set(image.tags))
         image.file_create_time = FileHelper.get_create_time(full_path)
         remove_tags_filepath = ImageHelper.remove_tags(full_path)
@@ -149,6 +147,7 @@ class ImageFileListModel(MyBaseListModel):
             os.remove(full_path)
             self.__db_helper.update_image(image)
         else:
+            # 当前是 pixiv ，更新为 pixiv 的信息
             image.source = 'pixiv'
             image.desc = info.desc
             image.authors = info.authors
