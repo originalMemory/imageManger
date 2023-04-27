@@ -109,7 +109,11 @@ class ImageFileListModel(MyBaseListModel):
             return image
         if not image:
             # 根据md5再做1次判断
-            md5 = FileHelper.get_md5(full_path)
+            try:
+                md5 = FileHelper.get_md5(full_path)
+            except FileNotFoundError as e:
+                print(f'文件有问题, {full_path}')
+                return
             image = self.__db_helper.search_by_md5(md5)
         if not image:
             return

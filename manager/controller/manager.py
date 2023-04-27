@@ -124,7 +124,7 @@ class ImageManager(QMainWindow, Ui_Manager):
         self.setTabOrder(self.pushButton_classify, self.pushButton_search)
 
         # 自动补全
-        self.lineEdit_works.setCompleter(self._create_completer(TagType.Works))
+        self.lineEdit_works.setCompleter(self._create_completer(TagType.Work))
         self.lineEdit_role.setCompleter(self._create_completer(TagType.Role))
         self.checkBox_delete_repeat.setChecked(True)
         self.__image_model.delete_repeat = True
@@ -138,7 +138,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def _create_completer(self, tag_type: TagType):
         names = self.__db_helper.search_all(Col.Tag, {'type': tag_type.value}, {'tran': 1})
-        names = [x['name'] for x in names]
+        names = [x['tran'] for x in names]
         completer = QCompleter(names)
         # completer.setCompletionMode(QCompleter.CompletionMode.UnfilteredPopupCompletion)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
@@ -266,24 +266,25 @@ class ImageManager(QMainWindow, Ui_Manager):
             tags = ImageHelper.analyze_image_info(info.path).tags
         threading.Thread(target=self._refresh_tran_tags, args=(tags, False,), daemon=True).start()
 
-    def _refresh_tran_tags(self, tags, keep_role):
-        if not tags:
+    def _refresh_tran_tags(self, source_tags, keep_role):
+        if not source_tags:
             self._signal_update_tags.emit('')
             # self.textEdit_tag.setText('')
             return
-        tran_tags = self._get_tran_tags(tags)
+        tran_tags = self._get_tran_tags(source_tags)
         roles = set()
         works = set()
         authors = set()
         tags = []
         for tag in tran_tags:
-            tags.append(f'{tag.name}##{tag.type}')
+            show = tag.tran if tag.tran else tag.name
+            tags.append(f'{show}##{tag.type}')
             if tag.get_type() == TagType.Role:
-                roles.add(tag.name)
+                roles.add(tag.tran)
             elif tag.get_type() == TagType.Work:
-                works.add(tag.name)
+                works.add(tag.tran)
             elif tag.get_type() == TagType.Author:
-                authors.add(tag.name)
+                authors.add(tag.tran)
         if keep_role and self.lineEdit_role.text():
             roles += set(self.lineEdit_role.text().split(','))
         text = ','.join(tags)
@@ -306,7 +307,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             source_name = self.lineEdit_source.text()
             if source_name:
                 source = TagSource(source_name)
-            tag = self.__db_helper.find_or_create_tag(Tag, source, tag_name)
+            tag = self.__db_helper.find_or_create_tag(tag_name, source)
             if tag.children:
                 dest_ids += tag.children
             else:
@@ -406,13 +407,20 @@ class ImageManager(QMainWindow, Ui_Manager):
                     new_item = ImageFile(id=image.id(), name=new_name, full_path=path)
                 except Exception as e:
                     print(f"重命名失败：{e}")
-                    print(image.tags)
             if not os.path.exists(path):
                 print(f'文件不存在：{path}')
                 continue
-            for i, tag in enumerate(image.tags):
-                tran, tag_type = image.tags[i].split('##')
-                tag = self.__db_helper.find_one_decode(Tag, {'tran': tran, 'type': tag_type})
+            for i, title_and_type in enumerate(image.tags):
+                title, tag_type = title_and_type.split('##')
+                tag_fl = {'tran': title, 'type': tag_type}
+                if not tag_type:
+                    del tag_fl['type']
+                    tag_fl['$or'] = [{'type': {'$exists': False}}, {'type': tag_type}]
+                tag = self.__db_helper.find_one_decode(Tag, tag_fl)
+                if not tag:
+                    del tag_fl['tran']
+                    tag_fl['name'] = title
+                    tag = self.__db_helper.find_one_decode(Tag, tag_fl)
                 image.tags[i] = tag.id()
             if not image.id():
                 self.__db_helper.insert_image(image)

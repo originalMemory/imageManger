@@ -105,14 +105,14 @@ class ImageHelper:
             return 0, 0
 
     @staticmethod
-    def analyze_image_info(file_path, check_size=True) -> ImgInfo:
+    def analyze_image_info(file_path, check_size=True) -> MyImage:
         """
         根据文件路径分析图片信息
         :param file_path: 图片路径
         :param check_size: 是否检查图片大小
         :return:
         """
-        info = ImgInfo()
+        info = MyImage()
         filename = os.path.basename(file_path)
         if os.path.exists(file_path) and check_size:
             info.size = FileHelper.get_file_size_in_mb(file_path)
@@ -156,14 +156,22 @@ class ImageHelper:
                 info.authors = [x.strip() for x in authors]
                 return info
 
-        match = re.search(r"\[(?P<source>(konachan|yande|donmai))_(?P<no>\d+?)_(?P<uploader>.+?)](?P<tags>.+?)\.",
+        match = re.search(r"\[(?P<source>(konachan|yande|danbooru))_(?P<no>\d+?)_(?P<uploader>.*?)](no-title_)?(?P<tags>.+?)\.",
                           filename)
         if match:
             info.source = match.group('source')
             info.uploader = match.group('uploader')
-            info.tags = list(map(lambda x: x.replace('_', ''), match.group('tags').replace("_00000", "").split(' ')))
+            info.tags = list(map(lambda x: x.replace('_', ' '), match.group('tags').replace("_00000", "").split(' ')))
             info.sequence = int(match.group('no'))
             return info
+
+        # match = re.search(r"\[danbooru_(?P<no>\d+?)_]no-title_?(?P<tags>.+?)\.", filename)
+        # if match:
+        #     info.source = 'danbooru'
+        #     info.tags = list(map(lambda x: x.replace('_', ' '), match.group('tags').split(' ')))
+        #     info.sequence = int(match.group('no'))
+        #     return info
+
         # [ % site_ % id_ % author] % desc_ % tag <! < _ % imgp[5]
         match = re.search(r"pixiv_(?P<no>\d+?)_(?P<author>.+?)](?P<desc>.+?)_(?P<tags>.+?)\.(jpg|png|jpeg|bmp)",
                           filename)
@@ -181,7 +189,7 @@ class ImageHelper:
     @staticmethod
     def remove_tags(filename):
         patterns = [
-            r'(yande|konachan|donmai)_\d+_.+](?P<tags>.+?)\.(jpg|png|jpeg|bmp)',
+            r'(yande|konachan|donmai|danbooru)_\d+_.*](?P<tags>.+?)\.(jpg|png|jpeg|bmp)',
             r'pixiv_\d+_.+](?P<desc>.+?)_(?P<tags>.+?)(_00| p[\d-]+)?\.(jpg|png|jpeg|bmp)'
         ]
         for pattern in patterns:

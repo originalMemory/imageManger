@@ -122,6 +122,7 @@ class TagSource(Enum):
     Danbooru = 'danbooru'
     Yande = 'yande'
     Pixiv = 'pixiv'
+    Konachan = 'konachan'
     Unknown = 'unknown'
 
 
