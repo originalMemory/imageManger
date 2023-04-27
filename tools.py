@@ -458,11 +458,20 @@ def search_tags():
         tag_helper.get_pixiv_tags(img)
 
 
+def merge_tag(old_name, new_id):
+    old = db_helper.find_one_decode(Tag, {'name': old_name})
+    new = db_helper.find_one_decode(Tag, {'_id': ObjectId(new_id)})
+    new.alias.append(old.name)
+    col.update_many({'tags': old.id()}, {'$addToSet': {'tags': new.id()}})
+    res = col.update_many({'tags': old.id()}, {'$pull': {'tags': old.id()}})
+    print(res.modified_count)
+
+
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
     # update_all_image_color()
-    update_tag_cover_and_count()
+    merge_tag('おっぱい', '643d349952a53d1bb4d73b67')
     print('结束')
     # update_tag_cover_and_count()
     # update_author_name('OrangeMaru', 'YD')
