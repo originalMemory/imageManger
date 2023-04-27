@@ -361,7 +361,7 @@ def update_all_image_color():
 
 
 def update_tag_cover_and_count():
-    fl = {'category_id': {'$exist': True, '$ne': ''}, 'children': {'$size': 0}}
+    fl = {'count': {'$exists': False}, 'children': {'$size': 0}}
     col_tag = db_helper.get_col(Col.Tag)
     length = col_tag.count_documents(fl)
     tags = db_helper.find_decode(Tag, fl)
@@ -370,7 +370,8 @@ def update_tag_cover_and_count():
             'tags': tag.id(),
             'level': {'$gte': 5, '$lte': 8},
             '$expr': {'$gte': ['$width', '$height']},
-            "color": {"$exists": True}, "$where": "this.color.length>0"
+            "color": {'$exists': True, '$ne': ''}
+            # "color": {'$and': [{'$exists': True}, {'$ne': ''}]}
         }
         limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
         if not limit:
@@ -379,11 +380,14 @@ def update_tag_cover_and_count():
         if not limit:
             del fl_img['$expr']
             limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
+        count = col.count_documents({'tags': tag.id()})
         if not limit:
+            col_tag.update_one({'_id': tag.id()}, {'$set': {'count': count}})
+            print(f'[{i}/{length}]{tag.tran}, {count}')
             continue
         img = MyImage.from_dict(limit[0])
-        col_tag.update_one({'_id': tag.id()}, {'$set': {'cover': img.path, 'color': img.color}})
-        print(f'[{i}/{length}]{tag.tran}, {img.color}, {img.path}')
+        col_tag.update_one({'_id': tag.id()}, {'$set': {'cover': img.path, 'color': img.color, 'count': count}})
+        print(f'[{i}/{length}]{tag.name}, {tag.tran}, {count}, {img.color}, {img.path}')
 
 
 dest_dir_path = 'Y:/thumb'
@@ -454,22 +458,11 @@ def search_tags():
         tag_helper.get_pixiv_tags(img)
 
 
-def temp():
-    prefix = 'tagme '
-    tags = db_helper.find_decode(Tag, {'name': {'$regex': prefix}, 'children': {'$size': 0}})
-    tagme = db_helper.find_one_decode(Tag, {'name': 'tagme'})
-    for i, tag in enumerate(tags):
-        print(f'[{i}/{len(tags)}]{tag.name}')
-        sub_tag = db_helper.find_or_create_tag(tag.name.replace(prefix, ''), TagSource(tag.source), tag.tran)
-        db_helper.update_one(Col.Tag, {'_id': tag.id()},
-                             {'children': [sub_tag.id(), tagme.id()], 'tran': '', 'type': TagType.Composite.value})
-
-
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
     # update_all_image_color()
-    temp()
+    update_tag_cover_and_count()
     print('结束')
     # update_tag_cover_and_count()
     # update_author_name('OrangeMaru', 'YD')
