@@ -460,19 +460,24 @@ def search_tags():
 
 def merge_tag(old_name, new_id):
     old = db_helper.find_one_decode(Tag, {'name': old_name})
+    if not old:
+        print('没有对应old')
+        return
     new = db_helper.find_one_decode(Tag, {'_id': ObjectId(new_id)})
-    new.alias.append(old.name)
+    col_tag = db_helper.get_col(Col.Tag)
+    col_tag.update_one({'_id': new.id()}, {'$addToSet': {'alias': old_name}})
+    new_alias = db_helper.find_one_decode(Tag, {'_id': ObjectId(new_id)}).alias
     col.update_many({'tags': old.id()}, {'$addToSet': {'tags': new.id()}})
     res = col.update_many({'tags': old.id()}, {'$pull': {'tags': old.id()}})
-    print(res.modified_count)
+    col_tag.delete_one({'_id': old.id()})
+    print(f'{old_name} -> {new.tran}, {res.modified_count}, {new.name}, {new_alias}')
 
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
     # update_all_image_color()
-    merge_tag('おっぱい', '643d349952a53d1bb4d73b67')
-    print('结束')
+    merge_tag('毛', '643d347452a53d1bb4d733f1')
     # update_tag_cover_and_count()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
