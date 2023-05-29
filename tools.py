@@ -18,6 +18,9 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 import requests
 from PIL import Image
 
+from mutagen.flac import FLAC
+from mutagen.mp3 import MP3
+
 from helper.db_helper import DBHelper
 from helper.image_helper import ImageHelper
 from model.data import *
@@ -471,6 +474,35 @@ def merge_tag(old_name, new_id):
     res = col.update_many({'tags': old.id()}, {'$pull': {'tags': old.id()}})
     col_tag.delete_one({'_id': old.id()})
     print(f'{old_name} -> {new.tran}, {res.modified_count}, {new.name}, {new_alias}')
+
+
+def refresh_audio_title_nand_artist(dir_path):
+    filepaths = []
+    audio_ends = ['.mp3', '.flac']
+    for root, ds, fs in os.walk(dir_path):
+        for f in fs:
+            for ends in audio_ends:
+                if f.endswith(ends):
+                    filepaths.append(os.path.join(root, f))
+    for i, filepath in enumerate(filepaths):
+        print(f'[{i}/{len(filepaths)}]{filepath}')
+        name, extension = os.path.splitext(os.path.basename(filepath))
+        names = name.split(' - ')
+        if len(names) >= 2:
+            title, artist = names[1], names[0]
+        else:
+            title, artist = names[0], ''
+        if extension == '.mp3':
+            audio = MP3(filepath)
+        elif extension == '.flac':
+            audio = FLAC(filepath)
+        else:
+            print('格式不支持')
+            continue
+        audio['TITLE'] = title
+        audio['ARTIST'] = artist
+        audio.pprint()
+        audio.save()
 
 
 if __name__ == '__main__':

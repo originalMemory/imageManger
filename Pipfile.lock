@@ -1,11 +1,11 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8e3e51295fa2b31fd7e70a99b68642daadbec8be7fb521eb608bf9f89824fa47"
+            "sha256": "3ce2055800eb596485a66709a57d0b1c8f60a7df343741b1456aaa77ac162ee3"
         },
         "pipfile-spec": 6,
         "requires": {
-            "python_version": "*"
+            "python_version": "3.11"
         },
         "sources": [
             {
@@ -222,6 +222,7 @@
                 "sha256:3efea981d956a6f7173b4659849f55081867cf897e719f57383698af6f618a92",
                 "sha256:4c8f293f14abc8fd3e8e01c5bd86e6ed0b6ef71936ded5bf10fe7a5efefbaca3",
                 "sha256:5344a43228767f53a9df6e5b253f8cdca7dfc7b7aeae52551958192f56d98457",
+                "sha256:58560400fb8b5d59d64185314b7dc8fb0af197fb7ddb741e8ac33947b506a21d",
                 "sha256:58bfa3aa19ca4c0f28c5dde0ff56c520fbac6f0daf4fac66ed4c8d2fb7f22e74",
                 "sha256:5b4545b8a40478183ac06c073e81a5ce4cf01bf1734962577cf2bb569a5b3bbf",
                 "sha256:5f50a1c177e2fa3ee0667a5ab79fdc6b23086bc8b589d90b93b4bd17eb0e64d1",
@@ -281,6 +282,14 @@
             ],
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
             "version": "==4.9.2"
+        },
+        "mutagen": {
+            "hashes": [
+                "sha256:6e5f8ba84836b99fe60be5fb27f84be4ad919bbb6b49caa6ae81e70584b55e58",
+                "sha256:8af0728aa2d5c3ee5a727e28d0627966641fddfe804c23eabb5926a4d770aed5"
+            ],
+            "index": "pypi",
+            "version": "==1.46.0"
         },
         "pillow": {
             "hashes": [
@@ -470,7 +479,8 @@
         },
         "pyperclip": {
             "hashes": [
-                "sha256:105254a8b04934f0bc84e9c24eb360a591aaf6535c9def5f29d92af107a9bf57"
+                "sha256:105254a8b04934f0bc84e9c24eb360a591aaf6535c9def5f29d92af107a9bf57",
+                "sha256:6fcc5825dee9da7fa9cd3448ded3c7af92057cf1f803b7db5e1df5429ac5cd6c"
             ],
             "index": "pypi",
             "version": "==1.8.2"
@@ -577,6 +587,7 @@
         },
         "webdavclient3": {
             "hashes": [
+                "sha256:0ecfdbce354b91580f0f582547ff8fa1dece03cb8d9434c2868e0823d35dcbba",
                 "sha256:bcd22586bb0d58abc26ca56054fd04228e704bd36073c3080f4597c1556c880d"
             ],
             "index": "pypi",
