@@ -84,7 +84,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         self._random_merge = self._create_random_merge_action(menu)
 
         switch_next = QtGui.QAction("切换下一张", self)
-        switch_next.triggered.connect(self._change_background)
+        switch_next.triggered.connect(self._switch_next)
         menu.addAction(switch_next)
         # 加载默认参数
         type_value = self._config_helper.get_config_key(
@@ -215,12 +215,25 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         )
         self.hide()
 
+    _last_change_time = 0
+
+    def _switch_next(self):
+        interval = self._time_interval * 60 * 5
+        now = time.time()
+        if now - self._last_change_time > interval:
+            self._change_windows_background_timely()
+        else:
+            self._change_background()
+
     def _change_windows_background_timely(self):
         while True:
             sleep_second = self._time_interval * 60
-            if self._change_background():
-                print(f'睡眠{sleep_second}s')
-                time.sleep(sleep_second)
+            try:
+                if self._change_background():
+                    print(f'睡眠{sleep_second}s')
+                    time.sleep(sleep_second)
+            except Exception as e:
+                QMessageBox.information(self, "提示", f"修改背景出错{e}", QMessageBox.StandardButton.Ok)
 
     def _change_background(self):
         """
@@ -228,7 +241,6 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         :return:
         """
         images = []
-        start_y_list = []
         i = 0
         while i < len(self._monitor_settings):
             setting = self._monitor_settings[i]
@@ -278,6 +290,7 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         win32api.RegSetValueEx(key, "WallpaperStyle", 0, win32con.REG_SZ, "0")
         win32api.RegSetValueEx(key, "TileWallpaper", 0, win32con.REG_SZ, "1")
         win32gui.SystemParametersInfo(win32con.SPI_SETDESKWALLPAPER, path, 1 + 2)
+        self._last_change_time = time.time()
         return True
 
     def _get_image(self, is_horizontal):
