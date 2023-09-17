@@ -150,8 +150,7 @@ class Tag(BaseDB):
 @dataclass
 class TagCategory(BaseDB):
     name: str = field(default='')
-    description: str = field(default='')
-    children: list = field(default_factory=list)
+    tree_path: str = field(default='')
 
 
 @dataclass

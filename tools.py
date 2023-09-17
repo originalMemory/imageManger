@@ -77,7 +77,7 @@ def check_exist(file_path, _):
     if not ImageHelper.is_image(file_path):
         return
     md5 = FileHelper.get_md5(file_path)
-    if db_helper.search_by_md5(md5) or db_helper.exist(Col.SimilarImage, {'md5s': md5}):
+    if db_helper.search_by_md5(md5):
         print('已存在，删除该文件')
         FileHelper.del_file(file_path)
 
@@ -209,18 +209,20 @@ def copy_from_nas():
             'level': {'$in': [1, 2, 3]},
             '$expr': {'$lte': ['$width', '$height']},
         },
-        'limit': 3000,
+        # 'startTime': '2023-06-01',
+        'limit': 4000,
         'random': True,
-        'halfRecent': True,
+        'halfRecent': False,
     }
     req = requests.get(url='http://127.0.0.1:8000/api/moneyAccounting/randomImageSql', data=json.dumps(params),
                        headers={'Content-Type': 'application/json'})
     infos = json.loads(req.text)
-    dir_path = '/Users/wuhb/Downloads/竖/123'
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
+    dir_path = 'Y:/壁纸/横/4567'
+    if os.path.exists(dir_path):
+        shutil.rmtree(dir_path)
+    os.makedirs(dir_path)
     for i, info in enumerate(infos):
-        remote_path = f'/Volumes/Core/image/{info["path"]}'
+        remote_path = f'Z:/image/{info["path"]}'
         print(f'[{i}/{len(infos)}]{remote_path}')
         try:
             if not os.path.exists(remote_path):
@@ -327,12 +329,14 @@ def get_exif():
             print(f'{tag}, {tags.get(tag)}')
 
 
-executor = ThreadPoolExecutor(max_workers=20)
 col = db_helper.get_col(Col.Image)
 
 
 def update_color(prefix, query):
     path = FileHelper.get_full_path(query['path'])
+    dest_path = path.replace('Z:/image', 'Y:/thumb')
+    if os.path.exists(dest_path):
+        path = dest_path
     if not os.path.exists(path):
         print(f'{prefix}图片不存在, {path}')
         return
@@ -342,16 +346,20 @@ def update_color(prefix, query):
 
 
 def update_all_image_color():
+    executor = ThreadPoolExecutor(max_workers=20)
     page = 0
     pagesize = 5000
     fl = {'color': '', 'level': {'$lte': 8}}
     total_count = col.count_documents(fl)
     while True:
-        queries = col.find(fl, {'_id': 1, 'path': 1}).sort('_id', 1).limit(pagesize)
+        queries = col.find(fl, {'_id': 1, 'path': 1, 'color': 1}).sort('_id', 1).limit(pagesize)
         empty = True
         tp = []
         for i, query in enumerate(queries):
             empty = False
+            color = query['color']
+            if color:
+                continue
             tp.append((f'[{page * pagesize + i}/{total_count}]', query))
             if len(tp) == 20:
                 all_task = [executor.submit(update_color, x[0], x[1]) for x in tp]
@@ -364,11 +372,14 @@ def update_all_image_color():
 
 
 def update_tag_cover_and_count():
-    fl = {'count': {'$exists': False}, 'children': {'$size': 0}}
+    fl = {'children': {'$size': 0}}
     col_tag = db_helper.get_col(Col.Tag)
     length = col_tag.count_documents(fl)
     tags = db_helper.find_decode(Tag, fl)
     for i, tag in enumerate(tags):
+        count = col.count_documents({'tags': tag.id()})
+        # col_tag.update_one({'_id': tag.id()}, {'$set': {'count': count}})
+        # print(f'[{i}/{length}]{tag.name}, {tag.tran}, {count}')
         fl_img = {
             'tags': tag.id(),
             'level': {'$gte': 5, '$lte': 8},
@@ -383,7 +394,6 @@ def update_tag_cover_and_count():
         if not limit:
             del fl_img['$expr']
             limit = [x for x in col.find(fl_img).sort('create_time', -1).limit(1)]
-        count = col.count_documents({'tags': tag.id()})
         if not limit:
             col_tag.update_one({'_id': tag.id()}, {'$set': {'count': count}})
             print(f'[{i}/{length}]{tag.tran}, {count}')
@@ -407,15 +417,19 @@ def create_thumb(prefix, query):
         print(f'{prefix}{full_path} 缩略图文件已存在')
         col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True}})
         return
+    size = ImageHelper.save_thumb(full_path, dest_path)
     dir_path = os.path.dirname(dest_path)
+    color = query.get('color')
+    if not color:
+        color = ImageHelper.get_hex_color(dest_path)
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
-    size = ImageHelper.save_thumb(full_path, dest_path)
-    col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True}})
-    print(f'{prefix}{size}, {dest_path}')
+    col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True, 'color': color}})
+    print(f'{prefix}{size}, {color}, {dest_path}')
 
 
 def thumb_all_thumb():
+    executor = ThreadPoolExecutor(max_workers=20)
     page = 0
     pagesize = 2000
     exist_param = 'exist_thumb'
@@ -429,8 +443,9 @@ def thumb_all_thumb():
         for i, query in enumerate(queries):
             prefix = f'[{page * pagesize + i}/{total_count}]'
             path = query["path"]
-            if exist_param in query and os.path.exists(f'{dest_dir_path}/{path}'):
-                print(f'{prefix}已创建。{path}')
+            dest_path = f'{dest_dir_path}/{path}'
+            if os.path.exists(dest_path):
+                print(f'{prefix}已创建。{dest_path}')
                 continue
             tp.append((prefix, query))
             if len(tp) == 20:
@@ -444,12 +459,26 @@ def pf(i, count, msg):
     print(f'[{i}/{count}]{msg}')
 
 
-def update_author_name(old, new):
-    fl = {'name': old, 'type': TagType.Work.value}
-    db_helper.update_one(Col.Tag, fl, {'name': new})
-    res = col.update_many({'authors': old}, {'$addToSet': {'authors': new}})
+def update_name(tag_type: TagType, old, new):
+    fl = {'tran': old, 'type': tag_type.value}
+    exist_tag = db_helper.find_one_decode(Tag, fl)
+    if exist_tag:
+        db_helper.update_one(Col.Tag, fl, {'tran': new})
+    else:
+        print('旧名称没有对应标签')
+    key = ''
+    if tag_type == TagType.Role:
+        key = 'roles'
+    elif tag_type == TagType.Work:
+        key = 'works'
+    elif tag_type == TagType.Author:
+        key = 'authors'
+    if not key:
+        print('没有对应的 key')
+        return
+    res = col.update_many({key: old}, {'$addToSet': {key: new}})
     print(res.modified_count)
-    res = col.update_many({'authors': old}, {'$pull': {'authors': old}})
+    res = col.update_many({key: old}, {'$pull': {key: old}})
     print(res.modified_count)
 
 
@@ -461,11 +490,12 @@ def search_tags():
         tag_helper.get_pixiv_tags(img)
 
 
-def merge_tag(old_name, new_id):
-    old = db_helper.find_one_decode(Tag, {'name': old_name})
+def merge_tag(old_id, new_id):
+    old = db_helper.find_one_decode(Tag, {'_id': ObjectId(old_id)})
     if not old:
         print('没有对应old')
         return
+    old_name = old.name
     new = db_helper.find_one_decode(Tag, {'_id': ObjectId(new_id)})
     col_tag = db_helper.get_col(Col.Tag)
     col_tag.update_one({'_id': new.id()}, {'$addToSet': {'alias': old_name}})
@@ -503,6 +533,57 @@ def refresh_audio_title_nand_artist(dir_path):
         audio['ARTIST'] = artist
         audio.pprint()
         audio.save()
+
+
+def group_lifan():
+    base = r'D:\BaiduNetdiskDownload\~合集\MS2102'
+    video_paths = []
+    cover_paths = []
+    ass_paths = []
+    for root, ds, fs in os.walk(base):
+        for filename in fs:
+            filepath = os.path.join(root, filename)
+            if filename.endswith('.jpg'):
+                cover_paths.append(filepath)
+            if filename.endswith('.mkv'):
+                video_paths.append(filepath)
+            if filename.endswith('.ass'):
+                ass_paths.append(filepath)
+    for i, cover_path in enumerate(cover_paths):
+        print(f'[{i}/{len(cover_paths)}]{cover_path}')
+        cover_name = os.path.splitext(os.path.basename(cover_path))[0].replace('.ass', '')
+        video_path, ass_path = None, None
+        for path in video_paths:
+            if cover_name in path:
+                video_path = path
+                break
+        for path in ass_paths:
+            if cover_name in path:
+                ass_path = path
+                break
+        if not video_path or not ass_path:
+            print('没有对应的视频或字幕')
+            continue
+        remove_values = [
+            '[Maho.sub]', '[Maho＆sakurato.sub]',
+            ' ＃1', ' ＃2', ' ＃3', ' ＃4', ' ＃5', ' ＃6',
+            ' 第1巻', ' 第2巻', ' 第3巻', ' 上巻', ' 下巻'
+        ]
+        key = os.path.splitext(os.path.basename(ass_path))[0]
+        for value in remove_values:
+            key = key.replace(value, '')
+        key = key.strip()
+        dir_path = os.path.join(base, key)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        shutil.move(cover_path, os.path.join(dir_path, os.path.basename(cover_path)))
+        shutil.move(video_path, os.path.join(dir_path, os.path.basename(video_path)))
+        shutil.move(ass_path, os.path.join(dir_path, os.path.basename(ass_path)))
+
+
+def remove_set(key, value):
+    res = col.update_many({key: value}, {'$pull': {key: value}})
+    print(res.modified_count)
 
 
 if __name__ == '__main__':
