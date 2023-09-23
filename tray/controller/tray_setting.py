@@ -9,6 +9,7 @@
 @create  : 2019/12/15 14:24:52
 @update  :
 """
+import datetime
 import json
 import os
 import platform
@@ -233,7 +234,10 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
                     print(f'睡眠{sleep_second}s')
                     time.sleep(sleep_second)
             except Exception as e:
-                QMessageBox.information(self, "提示", f"修改背景出错{e}", QMessageBox.StandardButton.Ok)
+                print(f'错误：{datetime.datetime.now()}, {e}\n')
+                with open('error.log', 'a+') as f:
+                    f.write(f'{datetime.datetime.now()}, {e}\n')
+                time.sleep(sleep_second)
 
     def _change_background(self):
         """
@@ -242,8 +246,9 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         """
         images = []
         i = 0
-        while i < len(self._monitor_settings):
-            setting = self._monitor_settings[i]
+        settings = self.get_cur_monitors() if self._random_merge else self._monitor_settings
+        while i < len(settings):
+            setting = settings[i]
             try:
                 if self._random_merge:
                     image_data = ImageHelper.random_merge_image(
@@ -292,6 +297,12 @@ class TraySetting(QtWidgets.QWidget, Ui_TraySetting):
         win32gui.SystemParametersInfo(win32con.SPI_SETDESKWALLPAPER, path, 1 + 2)
         self._last_change_time = time.time()
         return True
+
+    def get_cur_monitors(self):
+        settings = []
+        for i, monitor in enumerate(get_monitors()):
+            settings.append(MonitorSetting(monitor=monitor, image_desc_action=None, image_level_actions=None))
+        return settings
 
     def _get_image(self, is_horizontal):
         """

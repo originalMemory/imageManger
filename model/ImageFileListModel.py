@@ -95,6 +95,9 @@ class ImageFileListModel(MyBaseListModel):
             full_path = image.full_path()
         else:
             image_id = None
+            if os.path.splitext(full_path)[0].endswith('-2'):
+                print(f'文件重复，删除：${filename}')
+                FileHelper.del_file(full_path)
         if not os.path.exists(full_path):
             return
         show_path = full_path.replace(dir_path, '')

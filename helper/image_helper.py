@@ -384,7 +384,7 @@ class ImageHelper:
     @staticmethod
     def is_image(filename):
         image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif', '.tiff',
-                                '.eps', '.psd', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico', '.gif']
+                                '.eps', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico', '.gif', '.nef']
         extension = FileHelper.get_file_extension(filename).lower()
         return extension in image_extension_list
 
