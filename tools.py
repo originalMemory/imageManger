@@ -207,22 +207,21 @@ def copy_from_nas():
         'filter': {
             'type': {'$in': [1, 2, 3]},
             'level': {'$in': [1, 2, 3]},
-            '$expr': {'$lte': ['$width', '$height']},
+            '$expr': {'$gte': ['$width', '$height']},
         },
-        # 'startTime': '2023-06-01',
-        'limit': 4000,
-        'random': True,
+        'limit': 20000000,
+        'random': False,
         'halfRecent': False,
     }
     req = requests.get(url='http://127.0.0.1:8000/api/moneyAccounting/randomImageSql', data=json.dumps(params),
                        headers={'Content-Type': 'application/json'})
     infos = json.loads(req.text)
-    dir_path = 'Y:/壁纸/横/4567'
+    dir_path = '/Users/wuhb/Downloads/横'
     if os.path.exists(dir_path):
         shutil.rmtree(dir_path)
     os.makedirs(dir_path)
     for i, info in enumerate(infos):
-        remote_path = f'Z:/image/{info["path"]}'
+        remote_path = f'/Volumes/Core/image/{info["path"]}'
         print(f'[{i}/{len(infos)}]{remote_path}')
         try:
             if not os.path.exists(remote_path):
@@ -641,8 +640,6 @@ if __name__ == '__main__':
     update_name(TagType.Role, 'shenhe', '申鹤')
     # update_type(TagType.Work, 'punishing gray raven', TagType.Author)
     # update_tag_cover_and_count()
-    # update_author_name('OrangeMaru', 'YD')
-    # copy_image()
+    # copy_from_nas()
     # split_third_works()
     # record_similar_image('星之迟迟', r'E:下载第四资源站未下星之迟迟')
-    # TagHelper().analysis_tags()
