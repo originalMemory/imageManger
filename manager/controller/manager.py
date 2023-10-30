@@ -280,7 +280,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             show = tag.tran if tag.tran else tag.name
             tags.append(f'{show}##{tag.type}')
             if tag.get_type() == TagType.Role:
-                roles.add(tag.tran)
+                roles.add(tag.tran.split('(')[0])
             elif tag.get_type() == TagType.Work:
                 works.add(tag.tran)
             elif tag.get_type() == TagType.Author:

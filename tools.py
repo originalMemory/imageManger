@@ -18,8 +18,8 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 import requests
 from PIL import Image
 
-from mutagen.flac import FLAC
-from mutagen.mp3 import MP3
+# from mutagen.flac import FLAC
+# from mutagen.mp3 import MP3
 
 from helper.db_helper import DBHelper
 from helper.image_helper import ImageHelper
@@ -417,15 +417,22 @@ def create_thumb(prefix, query):
         print(f'{prefix}{full_path} 缩略图文件已存在')
         col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True}})
         return
-    size = ImageHelper.save_thumb(full_path, dest_path)
-    dir_path = os.path.dirname(dest_path)
-    color = query.get('color')
-    if not color:
-        color = ImageHelper.get_hex_color(dest_path)
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-    col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True, 'color': color}})
-    print(f'{prefix}{size}, {color}, {dest_path}')
+    parent_dir = os.path.dirname(dest_path)
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
+        print(f'{prefix}创建目录, {parent_dir}')
+    try:
+        size = ImageHelper.save_thumb(full_path, dest_path)
+        dir_path = os.path.dirname(dest_path)
+        color = query.get('color')
+        if not color:
+            color = ImageHelper.get_hex_color(dest_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        col.update_one({'_id': query['_id']}, {'$set': {'exist_thumb': True, 'color': color}})
+        print(f'{prefix}{size}, {color}, {dest_path}')
+    except Exception as e:
+        print(f'{prefix}转换出错：{e}')
 
 
 def thumb_all_thumb():
@@ -440,6 +447,7 @@ def thumb_all_thumb():
             page * pagesize).limit(
             pagesize)
         tp = []
+        print(f'获取{page}结束')
         for i, query in enumerate(queries):
             prefix = f'[{page * pagesize + i}/{total_count}]'
             path = query["path"]
@@ -462,10 +470,8 @@ def pf(i, count, msg):
 def update_name(tag_type: TagType, old, new):
     fl = {'tran': old, 'type': tag_type.value}
     exist_tag = db_helper.find_one_decode(Tag, fl)
-    if exist_tag:
-        db_helper.update_one(Col.Tag, fl, {'tran': new})
-    else:
-        print('旧名称没有对应标签')
+    # if exist_tag:
+    #     db_helper.update_one(Col.Tag, fl, {'tran': new})
     key = ''
     if tag_type == TagType.Role:
         key = 'roles'
@@ -477,9 +483,48 @@ def update_name(tag_type: TagType, old, new):
         print('没有对应的 key')
         return
     res = col.update_many({key: old}, {'$addToSet': {key: new}})
-    print(res.modified_count)
+    add_cnt = res.modified_count
     res = col.update_many({key: old}, {'$pull': {key: old}})
-    print(res.modified_count)
+    del_cnt = res.modified_count
+    print(
+        f'type: {tag_type}, {old} -> {new}, 更新 Tag: {exist_tag is not None}, 添加新数量: {add_cnt}, 删除旧数量: {del_cnt}')
+
+
+type2Key = {
+    TagType.Role: 'roles',
+    TagType.Work: 'works',
+    TagType.Author: 'authors',
+}
+
+type2cate_id = {
+    TagType.Desc: ObjectId('643d3445c5aed9845530fdf8'),
+    TagType.Role: ObjectId('643d3445c5aed9845530fdf8'),
+    TagType.Work: ObjectId('643d3fb986a0fb8a264d15f7'),
+    TagType.Author: ObjectId('643d424e20d1428144cb441a'),
+    TagType.Company: ObjectId('643d4252139fe1cdeeccc76b'),
+    TagType.Unknown: ObjectId('643e90c4117ccd117ce689b6'),
+}
+
+
+def update_type(old_type, old_name, new_type, new_name=None):
+    if not new_name:
+        new_name = old_name
+    tag = db_helper.find_one_decode(Tag, {'type': old_type.value, 'tran': old_name})
+    if not tag:
+        print(f'没有对应的 Tag, {old_name}')
+        return
+    db_helper.update_one(Col.Tag, {'_id': tag.id()},
+                         {'type': new_type.value, 'tran': new_name, 'category_id': type2cate_id[new_type]})
+    new_key = type2Key.get(new_type)
+    fl = {'tags': tag.id()}
+    if new_key:
+        col.update_many(fl, {'$addToSet': {new_key: new_name}})
+    old_key = type2Key.get(old_type)
+    if old_key:
+        cnt = col.update_many(fl, {'$pull': {old_key: old_name}}).modified_count
+    else:
+        cnt = 0
+    print(f'{old_name}, {old_type} -> {new_type}, {new_name}, 数量: {cnt}')
 
 
 def search_tags():
@@ -499,6 +544,8 @@ def merge_tag(old_id, new_id):
     new = db_helper.find_one_decode(Tag, {'_id': ObjectId(new_id)})
     col_tag = db_helper.get_col(Col.Tag)
     col_tag.update_one({'_id': new.id()}, {'$addToSet': {'alias': old_name}})
+    for old_alias in old.alias:
+        col_tag.update_one({'_id': new.id()}, {'$addToSet': {'alias': old_alias}})
     new_alias = db_helper.find_one_decode(Tag, {'_id': ObjectId(new_id)}).alias
     col.update_many({'tags': old.id()}, {'$addToSet': {'tags': new.id()}})
     res = col.update_many({'tags': old.id()}, {'$pull': {'tags': old.id()}})
@@ -588,9 +635,11 @@ def remove_set(key, value):
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
-    # analysis_and_rename_file(r'Z:\image\二次元\临时\yande', 'Z:/', split_by_works)
-    # update_all_image_color()
-    merge_tag('毛', '643d347452a53d1bb4d733f1')
+    # analysis_and_rename_file(r'Z:\image\二次元\临时', 'Z:/', split_by_works)
+    # thumb_all_thumb()
+    # merge_tag('64422b2440aa1fca44e492e1', '65143aa217de431bdb6a6a50')
+    update_name(TagType.Role, 'shenhe', '申鹤')
+    # update_type(TagType.Work, 'punishing gray raven', TagType.Author)
     # update_tag_cover_and_count()
     # update_author_name('OrangeMaru', 'YD')
     # copy_image()
