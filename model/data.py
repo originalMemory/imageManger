@@ -146,6 +146,12 @@ class Tag(BaseDB):
         else:
             return TagType.Unknown
 
+    def get_role_name(self):
+        if self.get_type() != TagType.Role:
+            return None
+        # 返回去除 tran 中被中英文括号包裹的内容
+        return self.tran.split('(')[0].split('（')[0]
+
 
 @dataclass
 class TagCategory(BaseDB):

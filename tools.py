@@ -10,6 +10,7 @@
 @update  :
 """
 import json
+import logging
 import os
 import re
 import shutil
@@ -202,24 +203,24 @@ def split_third_works():
             analysis_and_rename_file(path, 'Z:/', update_path)
 
 
+def setup_logging():
+    logging.basicConfig(format='%(asctime)s, %(level)s: %(message)s', level=logging.INFO)
+
+
 def copy_from_nas():
     params = {
-        'filter': {
-            'type': {'$in': [1, 2, 3]},
-            'level': {'$in': [1, 2, 3]},
-            '$expr': {'$gte': ['$width', '$height']},
-        },
-        'limit': 20000000,
-        'random': False,
-        'halfRecent': False,
+        'types': '1,2,3',
+        'levels': '5,6,7,8',
+        'limit': 2000,
+        'isVertical': 'true',
+        'isRandom': 'true',
+        'halfMonth': 3,
     }
-    req = requests.get(url='http://127.0.0.1:8000/api/moneyAccounting/randomImageSql', data=json.dumps(params),
-                       headers={'Content-Type': 'application/json'})
+    req = requests.get(url='https://nas.xuanniao.fun:49150/api/imageAlbum/imagePaths', params=params)
     infos = json.loads(req.text)
-    dir_path = '/Users/wuhb/Downloads/横'
-    if os.path.exists(dir_path):
-        shutil.rmtree(dir_path)
-    os.makedirs(dir_path)
+    dir_path = '/Users/illusion/Downloads/竖'
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
     for i, info in enumerate(infos):
         remote_path = f'/Volumes/Core/image/{info["path"]}'
         print(f'[{i}/{len(infos)}]{remote_path}')
@@ -469,8 +470,8 @@ def pf(i, count, msg):
 def update_name(tag_type: TagType, old, new):
     fl = {'tran': old, 'type': tag_type.value}
     exist_tag = db_helper.find_one_decode(Tag, fl)
-    # if exist_tag:
-    #     db_helper.update_one(Col.Tag, fl, {'tran': new})
+    if exist_tag:
+        db_helper.update_one(Col.Tag, fl, {'tran': new})
     key = ''
     if tag_type == TagType.Role:
         key = 'roles'
@@ -535,6 +536,9 @@ def search_tags():
 
 
 def merge_tag(old_id, new_id):
+    if old_id == new_id:
+        print('old_id == new_id')
+        return
     old = db_helper.find_one_decode(Tag, {'_id': ObjectId(old_id)})
     if not old:
         print('没有对应old')
@@ -549,7 +553,10 @@ def merge_tag(old_id, new_id):
     col.update_many({'tags': old.id()}, {'$addToSet': {'tags': new.id()}})
     res = col.update_many({'tags': old.id()}, {'$pull': {'tags': old.id()}})
     col_tag.delete_one({'_id': old.id()})
-    print(f'{old_name} -> {new.tran}, {res.modified_count}, {new.name}, {new_alias}')
+    key = type2Key[old.get_type()]
+    cnt2 = col.update_many({key: old.tran}, {'$addToSet': {key: new.tran}}).modified_count
+    col.update_many({key: new.tran}, {'$pull': {key: old.tran}})
+    print(f'{old_name} -> {new.tran}, {res.modified_count}, {cnt2}, {new.name}, {new_alias}')
 
 
 def refresh_audio_title_nand_artist(dir_path):
