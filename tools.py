@@ -19,9 +19,6 @@ from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 import requests
 from PIL import Image
 
-# from mutagen.flac import FLAC
-# from mutagen.mp3 import MP3
-
 from helper.db_helper import DBHelper
 from helper.image_helper import ImageHelper
 from model.data import *
@@ -210,11 +207,12 @@ def setup_logging():
 def copy_from_nas():
     params = {
         'types': '1,2,3',
-        'levels': '5,6,7,8',
+        'levels': '4',
         'limit': 2000,
         'isVertical': 'true',
         'isRandom': 'true',
         'halfMonth': 3,
+        # 'startTime': '2022-09-05'
     }
     req = requests.get(url='https://nas.xuanniao.fun:49150/api/imageAlbum/imagePaths', params=params)
     infos = json.loads(req.text)
@@ -560,6 +558,9 @@ def merge_tag(old_id, new_id):
 
 
 def refresh_audio_title_nand_artist(dir_path):
+    from mutagen.flac import FLAC
+    from mutagen.id3 import ID3, TIT2, TPE1
+
     filepaths = []
     audio_ends = ['.mp3', '.flac']
     for root, ds, fs in os.walk(dir_path):
@@ -572,19 +573,22 @@ def refresh_audio_title_nand_artist(dir_path):
         name, extension = os.path.splitext(os.path.basename(filepath))
         names = name.split(' - ')
         if len(names) >= 2:
-            title, artist = names[1], names[0]
+            title, artist = names[0], names[1]
         else:
             title, artist = names[0], ''
+        # 移除 title 里由 「【】」包裹的内容
+        title = re.sub(r'【.*?】', '', title)
         if extension == '.mp3':
-            audio = MP3(filepath)
+            audio = ID3(filepath)
+            audio["TIT2"] = TIT2(3, title)  # 更新歌曲标题
+            audio["TPE1"] = TPE1(3, artist)  # 更新艺术家名称
         elif extension == '.flac':
             audio = FLAC(filepath)
+            audio['TITLE'] = title
+            audio['ARTIST'] = artist
         else:
             print('格式不支持')
             continue
-        audio['TITLE'] = title
-        audio['ARTIST'] = artist
-        audio.pprint()
         audio.save()
 
 
