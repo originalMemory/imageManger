@@ -9,9 +9,11 @@
 @create  : 202111/13 15:57:59
 @update  :
 """
+import hashlib
 import json
 import logging
 import os
+import random
 import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
@@ -641,6 +643,46 @@ def group_lifan():
 def remove_set(key, value):
     res = col.update_many({key: value}, {'$pull': {key: value}})
     print(res.modified_count)
+
+
+def tran_danbooru_tag():
+    tags = db_helper.find_decode(Tag, {'source': TagSource.Danbooru.value, 'tran': '', 'type': ''})
+    for i, tag in enumerate(tags):
+        tran = translate(tag.name)
+        print(f'[{i}/{len(tags)}]{tag.id()}, {tag.name} -> {tran}')
+        db_helper.update_one(Col.Tag, {'_id': tag.id()}, {'tran': tran})
+
+
+def translate(text):
+    appid = '20180330000141696'  # 替换为你的APPID
+    secretKey = 'T0cdT4oaaY73TaJ1G6vp'  # 替换为你的密钥
+
+    httpClient = None
+    myurl = '/api/trans/vip/translate'
+
+    q = text
+    fromLang = 'en'
+    toLang = 'zh'
+    salt = random.randint(32768, 65536)
+    sign = appid + q + str(salt) + secretKey
+    sign = hashlib.md5(sign.encode()).hexdigest()
+    myurl = myurl + '?appid=' + appid + '&q=' + requests.utils.quote(
+        q) + '&from=' + fromLang + '&to=' + toLang + '&salt=' + str(
+        salt) + '&sign=' + sign
+
+    try:
+        httpClient = requests.get('https://api.fanyi.baidu.com' + myurl)
+        response = httpClient.content.decode('utf-8')
+        result = json.loads(response)
+        if 'trans_result' in result:
+            return result['trans_result'][0]['dst']
+        else:
+            return '翻译失败'
+    except Exception as e:
+        print(e)
+    finally:
+        if httpClient:
+            httpClient.close()
 
 
 if __name__ == '__main__':
