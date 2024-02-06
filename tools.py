@@ -9,6 +9,7 @@
 @create  : 202111/13 15:57:59
 @update  :
 """
+import colorsys
 import hashlib
 import json
 import logging
@@ -475,6 +476,8 @@ def update_name(tag_type: TagType, old, new):
     key = ''
     if tag_type == TagType.Role:
         key = 'roles'
+        old = old.split('(')[0]
+        new = new.split('(')[0]
     elif tag_type == TagType.Work:
         key = 'works'
     elif tag_type == TagType.Author:
@@ -497,7 +500,7 @@ type2Key = {
 }
 
 type2cate_id = {
-    TagType.Desc: ObjectId('643d3445c5aed9845530fdf8'),
+    TagType.Desc: ObjectId('644b699307d86ee33044b3e4'),
     TagType.Role: ObjectId('643d3445c5aed9845530fdf8'),
     TagType.Work: ObjectId('643d3fb986a0fb8a264d15f7'),
     TagType.Author: ObjectId('643d424e20d1428144cb441a'),
@@ -553,9 +556,12 @@ def merge_tag(old_id, new_id):
     col.update_many({'tags': old.id()}, {'$addToSet': {'tags': new.id()}})
     res = col.update_many({'tags': old.id()}, {'$pull': {'tags': old.id()}})
     col_tag.delete_one({'_id': old.id()})
-    key = type2Key[old.get_type()]
-    cnt2 = col.update_many({key: old.tran}, {'$addToSet': {key: new.tran}}).modified_count
-    col.update_many({key: new.tran}, {'$pull': {key: old.tran}})
+    key = type2Key.get(old.get_type())
+    if key:
+        cnt2 = col.update_many({key: old.tran}, {'$addToSet': {key: new.tran}}).modified_count
+        col.update_many({key: new.tran}, {'$pull': {key: old.tran}})
+    else:
+        cnt2 = 0
     print(f'{old_name} -> {new.tran}, {res.modified_count}, {cnt2}, {new.name}, {new_alias}')
 
 
@@ -645,6 +651,27 @@ def remove_set(key, value):
     print(res.modified_count)
 
 
+def add_author_tag():
+    items = col.aggregate([
+        {"$match": {"type": {"$in": [2, 3]}}},
+        {'$unwind': '$authors'},
+        {'$group': {'_id': '$authors'}}
+    ])
+    for i, item in enumerate(items):
+        author = item['_id']
+        exist = db_helper.exist(Col.Tag, {'$or': [{'name': author}, {'alias': author}, {'tran': author}]})
+        if exist:
+            print(f'{i}, {author} 已存在')
+            continue
+        # cnt = col.count_documents({'authors': author})
+        db_helper.insert(Col.Tag, Tag(name=author, tran=author, type=TagType.Author.value,
+                                      category_id=type2cate_id[TagType.Author]))
+        tag = db_helper.find_one_decode(Tag, {'tran': author})
+        update_cnt = col.update_many({'authors': author}, {'$addToSet': {'tags': tag.id()}})
+        print(f'{i}, {author} - {update_cnt.modified_count}')
+    print('结束')
+
+
 def tran_danbooru_tag():
     tags = db_helper.find_decode(Tag, {'source': TagSource.Danbooru.value, 'tran': '', 'type': ''})
     for i, tag in enumerate(tags):
@@ -689,10 +716,10 @@ if __name__ == '__main__':
     # get_pixiv_down_author()
     # analysis_and_rename_file(r'Z:\image\二次元\临时', 'Z:/', split_by_works)
     # thumb_all_thumb()
+    # update_tag_cover_and_count()
     # merge_tag('64422b2440aa1fca44e492e1', '65143aa217de431bdb6a6a50')
     update_name(TagType.Role, 'shenhe', '申鹤')
     # update_type(TagType.Work, 'punishing gray raven', TagType.Author)
-    # update_tag_cover_and_count()
     # copy_from_nas()
     # split_third_works()
     # record_similar_image('星之迟迟', r'E:下载第四资源站未下星之迟迟')

@@ -139,6 +139,7 @@ class Tag(BaseDB):
     category_id: ObjectId = field(default=None)
     children: list = field(default_factory=list)
     type: str = field(default='')
+    count: int = field(default=0)
 
     def get_type(self):
         if type:
