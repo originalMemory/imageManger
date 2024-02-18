@@ -9,8 +9,8 @@
 @create  : 202111/13 15:57:59
 @update  :
 """
-import colorsys
 import hashlib
+import io
 import json
 import logging
 import os
@@ -210,30 +210,54 @@ def setup_logging():
 def copy_from_nas():
     params = {
         'types': '1,2,3',
-        'levels': '4',
-        'limit': 2000,
+        'levels': '4,5,6',
+        'limit': 8000,
         'isVertical': 'true',
         'isRandom': 'true',
-        'halfMonth': 3,
+        'halfMonth': 12,
         # 'startTime': '2022-09-05'
     }
-    req = requests.get(url='https://nas.xuanniao.fun:49150/api/imageAlbum/imagePaths', params=params)
+    req = requests.get(url='http://localhost:8000/api/imageAlbum/imagePaths', params=params)
     infos = json.loads(req.text)
-    dir_path = '/Users/illusion/Downloads/竖'
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
+    base_path = '/Users/illusion/Downloads/竖'
+    reg = re.compile(r'.*_(?P<type>\d)_(?P<level>\d)_\d{4}-\d{2}-\d{2}\.\w+')
     for i, info in enumerate(infos):
-        remote_path = f'/Volumes/Core/image/{info["path"]}'
-        print(f'[{i}/{len(infos)}]{remote_path}')
+        path = info["path"]
+        print(f'[{i}/{len(infos)}]{path}')
         try:
+            remote_path = f'/Volumes/Core/image/{path}'
             if not os.path.exists(remote_path):
                 print('文件不存在，跳过')
                 continue
             filename = info['aliasName'].replace(',', '_')
+            match = reg.match(filename)
+            if not match:
+                print(f'文件名不合法，跳过：{filename}')
+                continue
+            img_type = match.group('type')
+            level = match.group('level')
+            dir_path = f'{base_path}/{img_type}-{level}'
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path)
             local_path = f'{dir_path}/{filename}'
             FileHelper.compress_save(remote_path, local_path)
+            # save_size_network_img(info['id'], local_path)
         except Exception as e:
             print(f'下载失败：{e}')
+
+
+def save_size_network_img(obj_id, filepath):
+    # if not db_helper.exist(Col.Image, fl={'_id': ObjectId(obj_id)}):
+    #     return
+    response = requests.get(f'https://nas.xuanniao.fun:49150/api/imageAlbum/sizedImage/{obj_id}?width=1440&height=2560')
+    if response.status_code == 200:
+        img = Image.open(io.BytesIO(response.content))
+        filepath = filepath.replace('.png', '.jpg')
+        img.save(filepath, 'JPEG', quality=90)
+        # with open(filepath, 'wb') as f:
+        #     f.write(response.content)
+    else:
+        print(f"无法下载图片，响应状态码: {response.status_code}")
 
 
 def copy_tushy_img():
@@ -718,8 +742,8 @@ if __name__ == '__main__':
     # thumb_all_thumb()
     # update_tag_cover_and_count()
     # merge_tag('64422b2440aa1fca44e492e1', '65143aa217de431bdb6a6a50')
-    update_name(TagType.Role, 'shenhe', '申鹤')
+    # update_name(TagType.Role, 'shenhe', '申鹤')
     # update_type(TagType.Work, 'punishing gray raven', TagType.Author)
-    # copy_from_nas()
+    copy_from_nas()
     # split_third_works()
     # record_similar_image('星之迟迟', r'E:下载第四资源站未下星之迟迟')
