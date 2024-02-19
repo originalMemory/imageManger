@@ -9,12 +9,9 @@
 @create  : 202111/13 15:57:59
 @update  :
 """
-import hashlib
 import io
 import json
-import logging
 import os
-import random
 import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
@@ -25,78 +22,12 @@ from PIL import Image
 from helper.db_helper import DBHelper
 from helper.image_helper import ImageHelper
 from model.data import *
-from tools.tag_helper import TagHelper
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
 
-
-def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
-    filenames = os.listdir(dir_path)
-    length = len(filenames)
-    if not filenames and num_prefix:
-        print(f'[{num_prefix}]无文件')
-    for i, filename in enumerate(filenames):
-        if '$RECYCLE' in filename:
-            continue
-        filepath = os.path.join(dir_path, filename)
-        if os.path.isdir(filepath):
-            prefix = f'{i}/{length}'
-            if num_prefix:
-                prefix = f'{num_prefix}-{prefix}'
-            analysis_and_rename_file(filepath, path_prefix, handler, prefix)
-            if not os.listdir(filepath):
-                FileHelper.del_file(filepath)
-            continue
-        index_str = f'{i}/{length}'
-        if num_prefix:
-            index_str = f'{num_prefix}-{index_str}'
-        print(f'[{index_str}] {filepath}')
-        handler(filepath, path_prefix)
-
-
 db_helper = DBHelper(None)
-
-
-def check_no_record_image(file_path, prefix):
-    if not ImageHelper.is_image(file_path):
-        return
-    relative_path = file_path.replace('\\', '/').replace(prefix, '')
-    info = db_helper.search_by_file_path(relative_path)
-    if not info:
-        md5 = FileHelper.get_md5(file_path)
-        info = db_helper.search_by_md5(md5)
-        if info:
-            db_helper.update_path(info.id(), relative_path)
-    if not info:
-        with open('notRecord.log', 'a+', encoding='utf-8') as f:
-            f.write(f'{file_path}\n')
-        print('文件不存在')
-
-
-def check_exist(file_path, _):
-    if not ImageHelper.is_image(file_path):
-        return
-    md5 = FileHelper.get_md5(file_path)
-    if db_helper.search_by_md5(md5):
-        print('已存在，删除该文件')
-        FileHelper.del_file(file_path)
-
-
-def update_path(filepath, prefix):
-    if '$RECYCLE' in filepath:
-        return
-    if not ImageHelper.is_image(filepath):
-        return
-    relative_path = filepath.replace('\\', '/').replace(prefix, '')
-    info = db_helper.search_by_file_path(relative_path)
-    if info:
-        return
-    md5 = FileHelper.get_md5(filepath)
-    info = db_helper.search_by_md5(md5)
-    if info:
-        print(f'更新地址。原地址：{info.full_path()}')
-        db_helper.update_path(info.id(), relative_path)
+col = db_helper.get_col(Col.Image)
 
 
 def split_by_works(filepath, _):
@@ -158,53 +89,6 @@ def record_similar_image(author, dir_path):
                 sim = SimilarImage(author=author, name=filename, md5s=[md5])
                 db_helper.insert(Col.SimilarImage, sim)
             print(f'{info}，保存相似md5 {md5}')
-
-
-def split_third_works():
-    source = r'F:\下载\Femjoy 2012'
-    dir_paths = []
-    for first in os.listdir(source):
-        path = os.path.join(source, first)
-        if os.path.isfile(path):
-            continue
-        for second in os.listdir(path):
-            second_path = os.path.join(path, second)
-            if os.path.isfile(second_path):
-                continue
-            dir_paths.append(second_path)
-    author2paths = {}
-    for path in dir_paths:
-        info = ImageHelper.analyze_image_info(path, check_size=False)
-        if not info.authors:
-            continue
-        author = info.authors[0]
-        if author not in author2paths:
-            author2paths[author] = []
-        author2paths[author].append(path)
-    dest = r'Z:\和谐\写真'
-    dest_femjoy = r'Z:\和谐\写真\FemJoy[网站]'
-    for author, paths in author2paths.items():
-        print(f'{author} - {paths}')
-        author_path = os.path.join(dest, author)
-        dest_paths = []
-        if len(paths) == 1 and not os.path.exists(author_path):
-            path = paths[0]
-            name = os.path.basename(path)
-            dest_path = os.path.join(dest_femjoy, name)
-            shutil.move(path, dest_path)
-            dest_paths.append(dest_path)
-        else:
-            for path in paths:
-                name = os.path.basename(path)
-                dest_path = os.path.join(author_path, name)
-                shutil.move(path, dest_path)
-                dest_paths.append(dest_path)
-        for path in dest_paths:
-            analysis_and_rename_file(path, 'Z:/', update_path)
-
-
-def setup_logging():
-    logging.basicConfig(format='%(asctime)s, %(level)s: %(message)s', level=logging.INFO)
 
 
 def copy_from_nas():
@@ -323,43 +207,6 @@ def rename_bilibili_download():
             if title in old or av in old:
                 print(f'有已存在文件，删除 - {old}')
                 FileHelper.del_file(os.path.join(old_path, old))
-
-
-def get_exif():
-    src = '/Users/wuhb/develop/self/image-album/public/src/__Lanthanum_Flameworks.jpg'
-    with open(src, 'rb') as f:
-        infos = []
-        tags = exifread.process_file(f)
-        model = tags.get('Image Model')
-        infos.append(('器材', model))
-        focal_length = tags.get('EXIF FocalLength')
-        infos.append(('焦距', f'{focal_length}mm'))
-        f_number = tags.get('EXIF FNumber', 0)
-        if f_number:
-            f_number = f'F{f_number}, '
-        else:
-            f_number = ''
-        et = tags.get('EXIF ExposureTime', 0)
-        if f_number:
-            et = f'{et}s, '
-        else:
-            et = ''
-        iso = tags.get('EXIF ISOSpeedRatings', 0)
-        if iso:
-            iso = f'ISO{iso}'
-        else:
-            iso = ''
-        infos.append(('参数', f'{f_number}{et}{iso}'))
-        infos.append(('软件', str(tags.get('Image Software'))))
-        infos.append(('拍摄时间', tags.get('EXIF DateTimeOriginal')))
-        for info in infos:
-            print(info)
-
-        for tag in tags:
-            print(f'{tag}, {tags.get(tag)}')
-
-
-col = db_helper.get_col(Col.Image)
 
 
 def update_color(prefix, query):
@@ -493,10 +340,6 @@ def thumb_all_thumb():
         page += 1
 
 
-def pf(i, count, msg):
-    print(f'[{i}/{count}]{msg}')
-
-
 def update_name(tag_type: TagType, old, new):
     fl = {'tran': old, 'type': tag_type.value}
     exist_tag = db_helper.find_one_decode(Tag, fl)
@@ -557,14 +400,6 @@ def update_type(old_type, old_name, new_type, new_name=None):
     else:
         cnt = 0
     print(f'{old_name}, {old_type} -> {new_type}, {new_name}, 数量: {cnt}')
-
-
-def search_tags():
-    imgs = db_helper.find_decode(MyImage, {'refresh': {'$exists': True}, 'source': 'pixiv'})
-    tag_helper = TagHelper(db_helper)
-    for i, img in enumerate(imgs):
-        print(f'[{i}/{len(imgs)}]{img.path}')
-        tag_helper.get_pixiv_tags(img)
 
 
 def merge_tag(old_id, new_id):
@@ -675,11 +510,6 @@ def group_lifan():
         shutil.move(ass_path, os.path.join(dir_path, os.path.basename(ass_path)))
 
 
-def remove_set(key, value):
-    res = col.update_many({key: value}, {'$pull': {key: value}})
-    print(res.modified_count)
-
-
 def add_author_tag():
     items = col.aggregate([
         {"$match": {"type": {"$in": [2, 3]}}},
@@ -701,54 +531,11 @@ def add_author_tag():
     print('结束')
 
 
-def tran_danbooru_tag():
-    tags = db_helper.find_decode(Tag, {'source': TagSource.Danbooru.value, 'tran': '', 'type': ''})
-    for i, tag in enumerate(tags):
-        tran = translate(tag.name)
-        print(f'[{i}/{len(tags)}]{tag.id()}, {tag.name} -> {tran}')
-        db_helper.update_one(Col.Tag, {'_id': tag.id()}, {'tran': tran})
-
-
-def translate(text):
-    appid = '20180330000141696'  # 替换为你的APPID
-    secretKey = 'T0cdT4oaaY73TaJ1G6vp'  # 替换为你的密钥
-
-    httpClient = None
-    myurl = '/api/trans/vip/translate'
-
-    q = text
-    fromLang = 'en'
-    toLang = 'zh'
-    salt = random.randint(32768, 65536)
-    sign = appid + q + str(salt) + secretKey
-    sign = hashlib.md5(sign.encode()).hexdigest()
-    myurl = myurl + '?appid=' + appid + '&q=' + requests.utils.quote(
-        q) + '&from=' + fromLang + '&to=' + toLang + '&salt=' + str(
-        salt) + '&sign=' + sign
-
-    try:
-        httpClient = requests.get('https://api.fanyi.baidu.com' + myurl)
-        response = httpClient.content.decode('utf-8')
-        result = json.loads(response)
-        if 'trans_result' in result:
-            return result['trans_result'][0]['dst']
-        else:
-            return '翻译失败'
-    except Exception as e:
-        print(e)
-    finally:
-        if httpClient:
-            httpClient.close()
-
-
 if __name__ == '__main__':
-    # get_pixiv_down_author()
     # analysis_and_rename_file(r'Z:\image\二次元\临时', 'Z:/', split_by_works)
     # thumb_all_thumb()
     # update_tag_cover_and_count()
+    copy_from_nas()
     # merge_tag('64422b2440aa1fca44e492e1', '65143aa217de431bdb6a6a50')
     # update_name(TagType.Role, 'shenhe', '申鹤')
     # update_type(TagType.Work, 'punishing gray raven', TagType.Author)
-    copy_from_nas()
-    # split_third_works()
-    # record_similar_image('星之迟迟', r'E:下载第四资源站未下星之迟迟')

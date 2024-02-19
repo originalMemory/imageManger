@@ -16,8 +16,6 @@ import platform
 import shutil
 import time
 
-from PIL import Image
-
 from helper.config_helper import ConfigHelper
 
 
@@ -135,17 +133,6 @@ class FileHelper:
             shutil.copyfile(origin_file_path, target_file_path)
 
     @staticmethod
-    def get_no_repeat_filepath(dir_path, filename):
-        (name, extension) = os.path.splitext(filename)
-        no = 1
-        while True:
-            filepath = os.path.join(dir_path, filename)
-            if not os.path.exists(filepath):
-                return filepath
-            filename = f"{name}_{no:0>2d}{extension}"
-            no += 1
-
-    @staticmethod
     def compress_save(source_path, target_path, max_width, max_height):
         """
         压缩保存图片
@@ -223,3 +210,27 @@ class FileHelper:
             shell.SHFileOperation((0, shellcon.FO_DELETE, path, None,
                                    shellcon.FOF_SILENT | shellcon.FOF_ALLOWUNDO | shellcon.FOF_NOCONFIRMATION, None,
                                    None))  # 删除文件到回收站
+
+
+def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
+    filenames = os.listdir(dir_path)
+    length = len(filenames)
+    if not filenames and num_prefix:
+        print(f'[{num_prefix}]无文件')
+    for i, filename in enumerate(filenames):
+        if '$RECYCLE' in filename:
+            continue
+        filepath = os.path.join(dir_path, filename)
+        if os.path.isdir(filepath):
+            prefix = f'{i}/{length}'
+            if num_prefix:
+                prefix = f'{num_prefix}-{prefix}'
+            analysis_and_rename_file(filepath, path_prefix, handler, prefix)
+            if not os.listdir(filepath):
+                FileHelper.del_file(filepath)
+            continue
+        index_str = f'{i}/{length}'
+        if num_prefix:
+            index_str = f'{num_prefix}-{index_str}'
+        print(f'[{index_str}] {filepath}')
+        handler(filepath, path_prefix)
