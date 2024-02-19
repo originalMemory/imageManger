@@ -146,24 +146,16 @@ class FileHelper:
             no += 1
 
     @staticmethod
-    def compress_save(source_path, target_path):
+    def compress_save(source_path, target_path, max_width, max_height):
         """
         压缩保存图片
         会转换为 jpg 格式
         :param source_path:
         :param target_path:
+        :param max_width: 最大宽度
+        :param max_height: 最大高度
         :return:
         """
-        img = Image.open(source_path)
-        img = img.convert('RGB')
-        max_height = 2160
-        if img.height > max_height:
-            width, height = img.size
-            scale = max_height / height
-            new_width = int(width * scale)
-            new_height = int(height * scale)
-            img = img.resize((new_width, new_height))
-            print(f'有缩放，从({width}, {height}) -> ({new_width}, {new_height})')
         filename, ext = os.path.splitext(os.path.basename(target_path))
         new_path = target_path.replace(f'{ext}', '.jpg')
         no = 1
@@ -171,7 +163,22 @@ class FileHelper:
             new_path = target_path.replace(f'{ext}', f'_{no:0>2d}.jpg')
             print(f'有重复，重命名为：{new_path}')
             no += 1
+        img = FileHelper.resize_image(source_path, max_width, max_height)
         img.save(new_path, quality=90)
+
+    @staticmethod
+    def resize_image(path, max_width, max_height):
+        from PIL import Image
+        img = Image.open(path)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        width, height = img.size
+        if width > max_width and height > max_height:
+            scale = max(max_width / width, max_height / height)
+            new_width, new_height = int(width * scale), int(height * scale)
+            img = img.resize((new_width, new_height), Image.ANTIALIAS)
+            print(f'有缩放，从({width}, {height}) -> ({new_width}, {new_height})')
+        return img
 
     @staticmethod
     def get_md5(file_path):

@@ -208,18 +208,19 @@ def setup_logging():
 
 
 def copy_from_nas():
+    is_hor = True
     params = {
         'types': '1,2,3',
-        'levels': '4,5,6',
+        'levels': '5,6,7',
         'limit': 8000,
-        'isVertical': 'true',
+        'isVertical': 'false' if is_hor else 'true',
         'isRandom': 'true',
         'halfMonth': 12,
         # 'startTime': '2022-09-05'
     }
     req = requests.get(url='http://localhost:8000/api/imageAlbum/imagePaths', params=params)
     infos = json.loads(req.text)
-    base_path = '/Users/illusion/Downloads/竖'
+    base_path = '/Users/illusion/Downloads/' + '横' if is_hor else '竖'
     reg = re.compile(r'.*_(?P<type>\d)_(?P<level>\d)_\d{4}-\d{2}-\d{2}\.\w+')
     for i, info in enumerate(infos):
         path = info["path"]
@@ -240,7 +241,11 @@ def copy_from_nas():
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
             local_path = f'{dir_path}/{filename}'
-            FileHelper.compress_save(remote_path, local_path)
+            if is_hor:
+                max_width, max_height = 1920, 1080
+            else:
+                max_width, max_height = 1080, 1920
+            FileHelper.compress_save(remote_path, local_path, max_width=max_width, max_height=max_height)
             # save_size_network_img(info['id'], local_path)
         except Exception as e:
             print(f'下载失败：{e}')
