@@ -98,13 +98,13 @@ def copy_from_nas():
         'levels': '5,6,7',
         'limit': 8000,
         'isVertical': 'false' if is_hor else 'true',
-        'isRandom': 'true',
-        'halfMonth': 12,
+        # 'isRandom': 'true',
+        # 'halfMonth': 12,
         # 'startTime': '2022-09-05'
     }
-    req = requests.get(url='http://localhost:8000/api/imageAlbum/imagePaths', params=params)
+    req = requests.get(url='https://nas.xuanniao.fun:49150/api/imageAlbum/imagePaths', params=params)
     infos = json.loads(req.text)
-    base_path = '/Users/illusion/Downloads/' + '横' if is_hor else '竖'
+    base_path = '/Users/illusion/Downloads/' + ('横' if is_hor else '竖')
     reg = re.compile(r'.*_(?P<type>\d)_(?P<level>\d)_\d{4}-\d{2}-\d{2}\.\w+')
     for i, info in enumerate(infos):
         path = info["path"]
@@ -252,7 +252,7 @@ def update_tag_cover_and_count():
     fl = {'children': {'$size': 0}}
     col_tag = db_helper.get_col(Col.Tag)
     length = col_tag.count_documents(fl)
-    tags = db_helper.find_decode(Tag, fl)
+    tags = db_helper.find_decode(Tag, fl, reverse=True)
     for i, tag in enumerate(tags):
         count = col.count_documents({'tags': tag.id()})
         # col_tag.update_one({'_id': tag.id()}, {'$set': {'count': count}})

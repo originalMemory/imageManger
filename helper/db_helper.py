@@ -207,13 +207,15 @@ class DBHelper:
             fl = {}
         return self._db[col.value].find(fl, filed)
 
-    def find_decode(self, data_class: Type[T], fl=None, limit=0) -> [T]:
+    def find_decode(self, data_class: Type[T], fl=None, limit=0, reverse=False) -> [T]:
         col = Col.from_dataclass(data_class)
         if not col:
             raise f'{data_class}没有对应的表'
         find = self.find(col, fl)
         if limit:
             find = find.limit(limit)
+        if reverse:
+            find = find.sort('_id', -1)
         return [data_class.from_dict(x) for x in find]
 
     def find_one(self, col, fl=None, filed=None):
