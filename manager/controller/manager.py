@@ -303,7 +303,7 @@ class ImageManager(QMainWindow, Ui_Manager):
             if isinstance(tag_name, ObjectId):
                 dest_ids.append(tag_name)
                 continue
-            source = TagSource.Unknown
+            source = TagSource.Yande
             source_name = self.lineEdit_source.text()
             if source_name:
                 source = TagSource(source_name)
@@ -433,6 +433,7 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.statusbar.showMessage(f"[{row.row() + 1}/{self.__image_model.rowCount()}] {message}")
             if need_refresh_item:
                 self._signal_update_image_id.emit(row, new_item)
+            ImageHelper.del_tag_file(path)
 
     def _handle_error(self, msg):
         QMessageBox.information(self, "提示", msg, QMessageBox.StandardButton.Ok)

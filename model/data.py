@@ -130,6 +130,7 @@ class TagSource(Enum):
 class Tag(BaseDB):
     name: str = field(default='')
     tran: str = field(default='')
+    count: int = field(default=0)
     description: str = field(default='')
     restricted: bool = field(default=False)
     alias: list = field(default_factory=list)

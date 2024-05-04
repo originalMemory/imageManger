@@ -26,6 +26,30 @@ from model.data import *
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
 
+def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
+    filenames = os.listdir(dir_path)
+    length = len(filenames)
+    if not filenames and num_prefix:
+        print(f'[{num_prefix}]无文件')
+    for i, filename in enumerate(filenames):
+        if '$RECYCLE' in filename or filename.endswith('.txt'):
+            continue
+        filepath = os.path.join(dir_path, filename)
+        if os.path.isdir(filepath):
+            prefix = f'{i}/{length}'
+            if num_prefix:
+                prefix = f'{num_prefix}-{prefix}'
+            analysis_and_rename_file(filepath, path_prefix, handler, prefix)
+            if not os.listdir(filepath):
+                FileHelper.del_file(filepath)
+            continue
+        index_str = f'{i}/{length}'
+        if num_prefix:
+            index_str = f'{num_prefix}-{index_str}'
+        print(f'[{index_str}] {filepath}')
+        handler(filepath, path_prefix)
+
+
 db_helper = DBHelper(None)
 col = db_helper.get_col(Col.Image)
 
@@ -110,7 +134,7 @@ def copy_from_nas():
         path = info["path"]
         print(f'[{i}/{len(infos)}]{path}')
         try:
-            remote_path = f'/Volumes/Core/image/{path}'
+            remote_path = f'Z:/image/{path}'
             if not os.path.exists(remote_path):
                 print('文件不存在，跳过')
                 continue
@@ -150,8 +174,8 @@ def save_size_network_img(obj_id, filepath):
 
 
 def copy_tushy_img():
-    src_dir = r'F:\下载\Vixen'
-    dest_dir = r'Z:\和谐\写真\Vixen[网站]'
+    src_dir = r'Y:\和谐\新建文件夹\\Tushy'
+    dest_dir = r'Z:\image\和谐\写真\\Tushy[网站]'
     li = os.listdir(src_dir)
     len_i = len(li)
     for i, filename in enumerate(li):
@@ -255,6 +279,10 @@ def update_tag_cover_and_count():
     tags = db_helper.find_decode(Tag, fl, reverse=True)
     for i, tag in enumerate(tags):
         count = col.count_documents({'tags': tag.id()})
+        if count == 0 and tag.type == '':
+            db_helper.get_col(Col.Tag).delete_one({'_id': tag.id()})
+            print(f'[{i}/{length}]{tag.name} 数量为空，删除')
+            continue
         # col_tag.update_one({'_id': tag.id()}, {'$set': {'count': count}})
         # print(f'[{i}/{length}]{tag.name}, {tag.tran}, {count}')
         fl_img = {
@@ -277,7 +305,7 @@ def update_tag_cover_and_count():
             continue
         img = MyImage.from_dict(limit[0])
         col_tag.update_one({'_id': tag.id()}, {'$set': {'cover': img.path, 'color': img.color, 'count': count}})
-        print(f'[{i}/{length}]{tag.name}, {tag.tran}, {count}, {img.color}, {img.path}')
+        print(f'[{i}/{length}]{tag.id()}, {tag.name}, {tag.tran}, {count}, {img.color}, {img.path}')
 
 
 dest_dir_path = 'Y:/thumb'
@@ -359,8 +387,11 @@ def update_name(tag_type: TagType, old, new):
         return
     res = col.update_many({key: old}, {'$addToSet': {key: new}})
     add_cnt = res.modified_count
-    res = col.update_many({key: old}, {'$pull': {key: old}})
-    del_cnt = res.modified_count
+    if old:
+        res = col.update_many({key: old}, {'$pull': {key: old}})
+        del_cnt = res.modified_count
+    else:
+        del_cnt = 0
     print(
         f'type: {tag_type}, {old} -> {new}, 更新 Tag: {exist_tag is not None}, 添加新数量: {add_cnt}, 删除旧数量: {del_cnt}')
 
@@ -530,9 +561,99 @@ def add_author_tag():
         print(f'{i}, {author} - {update_cnt.modified_count}')
     print('结束')
 
+def tran_danbooru_tag():
+    tags = db_helper.find_decode(Tag, {'source': TagSource.Danbooru.value, 'tran': '', 'type': ''})
+    for i, tag in enumerate(tags):
+        tran = translate(tag.name)
+        print(f'[{i}/{len(tags)}]{tag.id()}, {tag.name} -> {tran}')
+        db_helper.update_one(Col.Tag, {'_id': tag.id()}, {'tran': tran})
+
+
+def translate(text):
+    appid = '20180330000141696'  # 替换为你的APPID
+    secretKey = 'T0cdT4oaaY73TaJ1G6vp'  # 替换为你的密钥
+
+    httpClient = None
+    myurl = '/api/trans/vip/translate'
+
+    q = text
+    fromLang = 'en'
+    toLang = 'zh'
+    salt = random.randint(32768, 65536)
+    sign = appid + q + str(salt) + secretKey
+    sign = hashlib.md5(sign.encode()).hexdigest()
+    myurl = myurl + '?appid=' + appid + '&q=' + requests.utils.quote(
+        q) + '&from=' + fromLang + '&to=' + toLang + '&salt=' + str(
+        salt) + '&sign=' + sign
+
+    try:
+        httpClient = requests.get('https://api.fanyi.baidu.com' + myurl)
+        response = httpClient.content.decode('utf-8')
+        result = json.loads(response)
+        if 'trans_result' in result:
+            return result['trans_result'][0]['dst']
+        else:
+            return '翻译失败'
+    except Exception as e:
+        print(e)
+    finally:
+        if httpClient:
+            httpClient.close()
+
+
+def add_analysis_works(filepath, _):
+    if not ImageHelper.is_image(filepath):
+        return
+    path_without_ext, ext = os.path.splitext(filepath)
+    tag_filepath = f'{path_without_ext}.txt'
+    if not os.path.exists(tag_filepath):
+        return
+    relative_path = FileHelper.get_relative_path(filepath)
+    img = db_helper.find_one_decode(MyImage, {'path': relative_path})
+    if not img:
+        print('没有对应数据')
+        return
+    with open(tag_filepath) as f:
+        tag_names = f.read().split(', ')
+    exist_cnt = len(img.tags)
+    new_tags = set()
+    for tag in img.tags:
+        if isinstance(tag, ObjectId):
+            new_tags.add(tag)
+        elif isinstance(tag, list):
+            for item in tag:
+                new_tags.add(item)
+    add_tags = []
+    for tag_name in tag_names:
+        tag = db_helper.find_or_create_tag(tag_name, TagSource.Danbooru)
+        new_tags.add(tag.id())
+        if tag.id() not in img.tags:
+            if tag.tran:
+                add_tags.append(tag.tran)
+            else:
+                add_tags.append(tag.name)
+    new_tags = list(new_tags)
+    col.update_one({'_id': img.id()}, {'$set': {'tags': new_tags}})
+    # new_img = db_helper.find_one_decode(MyImage, {'path': relative_path})
+    add_cnt = len(new_tags) - exist_cnt
+    os.remove(tag_filepath)
+    print(f'添加{add_cnt}标签：{add_tags}')
+
+
+def del_empty_tag():
+    fl = {
+        # 'source': {'$in': [TagSource.Yande.value, TagSource.Pixiv.value, TagSource.Konachan.value]},
+        'type': '',
+        'count': 0
+    }
+    for tag in db_helper.find_decode(Tag, fl):
+        print(f'{tag.source}, {tag.name}')
+    db_helper.get_col(Col.Tag).delete_many(fl)
+
 
 if __name__ == '__main__':
-    # analysis_and_rename_file(r'Z:\image\二次元\临时', 'Z:/', split_by_works)
+    # get_pixiv_down_author()
+    analysis_and_rename_file(r'D:\BaiduNetdiskDownload\整理', 'Z:/', add_analysis_works)
     # thumb_all_thumb()
     # update_tag_cover_and_count()
     copy_from_nas()

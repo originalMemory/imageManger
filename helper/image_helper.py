@@ -105,6 +105,22 @@ class ImageHelper:
             return 0, 0
 
     @staticmethod
+    def _get_tags(filepath):
+        path_without_ext, ext = os.path.splitext(filepath)
+        tag_filepath = f'{path_without_ext}.txt'
+        if not os.path.exists(tag_filepath):
+            return []
+        with open(tag_filepath) as f:
+            return f.read().split(', ')
+
+    @staticmethod
+    def del_tag_file(filepath):
+        path_without_ext, ext = os.path.splitext(filepath)
+        tag_filepath = f'{path_without_ext}.txt'
+        # if os.path.exists(tag_filepath):
+        #     os.remove(tag_filepath)
+
+    @staticmethod
     def analyze_image_info(file_path, check_size=True) -> MyImage:
         """
         根据文件路径分析图片信息
@@ -118,19 +134,10 @@ class ImageHelper:
             info.size = FileHelper.get_file_size_in_mb(file_path)
             info.file_create_time = FileHelper.get_create_time(file_path)
 
-        # MetArt.com_22.12.04.Florens.Presenting.Florens/metart_presenting-florens_florens_high_0001.jpg
-        match = re.search(r'/MetArt.com_\d+\.\d+\.\d+\.(?P<name>.+?)/', file_path)
-        if match and 'cover' not in filename:
-            all_name = match.group('name')
-            works = filename.replace('metart_', '').replace('-', '.').split('_')[0]
-            lower = all_name.lower()
-            works_index = lower.find(works)
-            info.source = 'MertArt'
-            info.works = [all_name[works_index:]]
-            info.authors = [all_name[0:works_index - 1]]
-            return info
+        # info.tags = ImageHelper._get_tags(file_path)
 
         re_strs = [
+            r'新建文件夹/(?P<source>[\w-]+?) - (?P<authors>.+?) - (?P<works>.+?)\[\d+-\d+-\d+\]/',
             # r'/(?P<authors>.+?)/(?P<source>\w+?) .+ - (?P<works>.+?) \(',
             # FemJoy 2019-09-15 Carolina K - Naked in the trees
             r'/(?P<source>[\w-]+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<works>.+?)/',
@@ -150,7 +157,7 @@ class ImageHelper:
                 if ',' in authors:
                     authors = authors.split(',')
                 if '&' in authors:
-                    authors = authors.split(',')
+                    authors = authors.split('&')
                 if isinstance(authors, str):
                     authors = [authors]
                 info.authors = [x.strip() for x in authors]
