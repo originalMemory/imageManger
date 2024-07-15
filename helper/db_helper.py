@@ -211,7 +211,7 @@ class DBHelper:
         col = Col.from_dataclass(data_class)
         if not col:
             raise f'{data_class}没有对应的表'
-        find = self.find(col, fl)
+        find = self.find(col, fl).sort([('create_time', pymongo.DESCENDING)])
         if limit:
             find = find.limit(limit)
         if reverse:

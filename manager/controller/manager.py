@@ -134,7 +134,7 @@ class ImageManager(QMainWindow, Ui_Manager):
 
         # 预加载图片
         threading.Thread(target=self.__preload, daemon=True).start()
-        threading.Thread(target=self._insert_or_update, daemon=True).start()
+        # threading.Thread(target=self._insert_or_update, daemon=True).start()
 
     def _create_completer(self, tag_type: TagType):
         names = self.__db_helper.search_all(Col.Tag, {'type': tag_type.value}, {'tran': 1})
@@ -374,17 +374,21 @@ class ImageManager(QMainWindow, Ui_Manager):
                     image.level = old_image.level
                     image.tags = old_image.tags
                     image.works = old_image.works
-            self._change_tasks.put((row, image))
+            threading.Thread(target=self._insert_or_update, args=(row, image), daemon=True).start()
+            # self._change_tasks.put((row, image))
             if not self.listView.hasFocus():
                 self.listView.setFocus()
 
     _change_tasks = queue.Queue()
 
-    def _insert_or_update(self):
-        while True:
-            row, image = self._change_tasks.get()
+    def _insert_or_update(self, row, image):
+        try:
+            # row, image = self._change_tasks.get()
             item = self.__image_model.get_item(row.row())
             path = image.full_path()
+            if not os.path.exists(path):
+                print(f'文件不存在：{path}')
+                return
             need_refresh_item = False
             width, height = ImageHelper.get_image_width_and_height(path)
             image.width = width
@@ -394,12 +398,11 @@ class ImageManager(QMainWindow, Ui_Manager):
             image.file_create_time = FileHelper.get_create_time(path)
             new_item = item
             remove_tag_path = ImageHelper.remove_tags(path)
+            src_path = path
             if remove_tag_path and remove_tag_path != path:
                 try:
                     if os.path.exists(remove_tag_path):
                         os.remove(path)
-                    else:
-                        os.rename(path, remove_tag_path)
                     new_name = remove_tag_path.replace(path.replace(item.name, ''), '')
                     path = remove_tag_path
                     image.path = FileHelper.get_relative_path(path)
@@ -407,9 +410,6 @@ class ImageManager(QMainWindow, Ui_Manager):
                     new_item = ImageFile(id=image.id(), name=new_name, full_path=path)
                 except Exception as e:
                     print(f"重命名失败：{e}")
-            if not os.path.exists(path):
-                print(f'文件不存在：{path}')
-                continue
             for i, title_and_type in enumerate(image.tags):
                 title, tag_type = title_and_type.split('##')
                 tag_fl = {'tran': title, 'type': tag_type}
@@ -431,9 +431,14 @@ class ImageManager(QMainWindow, Ui_Manager):
                 self.__db_helper.update_image(image)
                 message = f"{item.name} 更新完成！"
                 self.statusbar.showMessage(f"[{row.row() + 1}/{self.__image_model.rowCount()}] {message}")
+            if remove_tag_path and remove_tag_path != src_path:
+                os.rename(src_path, remove_tag_path)
             if need_refresh_item:
                 self._signal_update_image_id.emit(row, new_item)
-            ImageHelper.del_tag_file(path)
+            # ImageHelper.del_tag_file(path)
+        except Exception as e:
+            print(f"分类失败：{e}")
+            self._signal_handle_error.emit(f"分类失败：{e}")
 
     def _handle_error(self, msg):
         QMessageBox.information(self, "提示", msg, QMessageBox.StandardButton.Ok)

@@ -624,6 +624,8 @@ def add_analysis_works(filepath, _):
             for item in tag:
                 new_tags.add(item)
     add_tags = []
+    roles = img.roles
+    works = img.works
     for tag_name in tag_names:
         tag = db_helper.find_or_create_tag(tag_name, TagSource.Danbooru)
         new_tags.add(tag.id())
@@ -632,8 +634,13 @@ def add_analysis_works(filepath, _):
                 add_tags.append(tag.tran)
             else:
                 add_tags.append(tag.name)
+        if tag.type == TagType.Role.value and tag.tran not in roles:
+            # remove (xxx) in tag.tran
+            roles.append(tag.tran.split('(')[0])
+        if tag.type == TagType.Work.value and tag.tran not in works:
+            works.append(tag.tran)
     new_tags = list(new_tags)
-    col.update_one({'_id': img.id()}, {'$set': {'tags': new_tags}})
+    col.update_one({'_id': img.id()}, {'$set': {'tags': new_tags, 'roles': roles, 'works': works}})
     # new_img = db_helper.find_one_decode(MyImage, {'path': relative_path})
     add_cnt = len(new_tags) - exist_cnt
     os.remove(tag_filepath)

@@ -165,10 +165,14 @@ class ImageHelper:
 
         match = re.search(r"\[(?P<source>(konachan|yande|danbooru))_(?P<no>\d+?)_(?P<uploader>.*?)](no-title_)?(?P<tags>.+?)\.",
                           filename)
+
+        del_item = '-2'
         if match:
             info.source = match.group('source')
             info.uploader = match.group('uploader')
             info.tags = list(map(lambda x: x.replace('_', ' '), match.group('tags').replace("_00000", "").split(' ')))
+            if del_item in info.tags:
+                info.tags.remove(del_item)
             info.sequence = int(match.group('no'))
             return info
 
@@ -190,6 +194,8 @@ class ImageHelper:
             tags_str = match.group('tags').strip()
             tags_str = re.sub(r'(_00\d+| {2}p[\d-]+)$', '', tags_str)
             info.tags = tags_str.split(';' if ';' in tags_str else ' ')
+            if del_item in info.tags:
+                info.tags.remove(del_item)
             info.sequence = int(match.group('no'))
         return info
 
