@@ -207,11 +207,13 @@ class DBHelper:
             fl = {}
         return self._db[col.value].find(fl, filed)
 
-    def find_decode(self, data_class: Type[T], fl=None, limit=0, reverse=False) -> [T]:
+    def find_decode(self, data_class: Type[T], fl=None, skip=0, limit=0, reverse=False) -> [T]:
         col = Col.from_dataclass(data_class)
         if not col:
             raise f'{data_class}没有对应的表'
         find = self.find(col, fl).sort([('create_time', pymongo.DESCENDING)])
+        if skip:
+            find = find.skip(skip)
         if limit:
             find = find.limit(limit)
         if reverse:

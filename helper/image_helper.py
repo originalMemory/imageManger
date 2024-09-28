@@ -141,6 +141,10 @@ class ImageHelper:
             # r'/(?P<authors>.+?)/(?P<source>\w+?) .+ - (?P<works>.+?) \(',
             # FemJoy 2019-09-15 Carolina K - Naked in the trees
             r'/(?P<source>[\w-]+?) \d+-\d+-\d+ (?P<authors>.+?) - (?P<works>.+?)/',
+            # [AssParade.com] Abella Danger - Abella Danger Getting Hot Anal Sex (28-01-2018)
+            r'\[(?P<source>.*?)\]\s(?P<authors>.*?)\s-\s(?P<works>.*?)\s\(',
+            # [Eternaldesire] 2014-06-18 Aislin - Mola
+            r'\[(?P<source>.*?)\] \d+-\d+-\d+ (?P<authors>.*?)\s-\s(?P<works>.*?)/',
             # Carisha\Femjoy 2011-05-15 - Hello (x38) 2667x4000
             # r'/(?P<authors>.+?) - (?P<works>.+?)\[',
             # r'/\d+-\d+-\d+ - (?P<source>.+?) - (?P<authors>.+?) - (?P<works>.+?)/',
@@ -163,8 +167,9 @@ class ImageHelper:
                 info.authors = [x.strip() for x in authors]
                 return info
 
-        match = re.search(r"\[(?P<source>(konachan|yande|danbooru))_(?P<no>\d+?)_(?P<uploader>.*?)](no-title_)?(?P<tags>.+?)\.",
-                          filename)
+        match = re.search(
+            r"\[(?P<source>(konachan|yande|danbooru))_(?P<no>\d+?)_(?P<uploader>.*?)](no-title_)?(?P<tags>.+?)\.",
+            filename)
 
         del_item = '-2'
         if match:
@@ -397,7 +402,8 @@ class ImageHelper:
     @staticmethod
     def is_image(filename):
         image_extension_list = ['.jpg', '.jpeg', '.bmp', '.png', 'gif', '.dib', '.pcp', '.dif', '.wmf', '.tif', '.tiff',
-                                '.eps', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico', '.gif', '.nef']
+                                '.eps', '.cdr', '.iff', '.tga', '.pcd', '.mpi', '.icon', '.ico', '.gif', '.nef',
+                                '.jfif', '.webp']
         extension = FileHelper.get_file_extension(filename).lower()
         return extension in image_extension_list
 

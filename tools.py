@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
 import requests
@@ -25,6 +26,7 @@ from model.data import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
+
 
 def analysis_and_rename_file(dir_path, path_prefix, handler, num_prefix=None):
     filenames = os.listdir(dir_path)
@@ -116,19 +118,21 @@ def record_similar_image(author, dir_path):
 
 
 def copy_from_nas():
-    is_hor = True
+    is_hor = False
     params = {
         'types': '1,2,3',
-        'levels': '5,6,7',
-        'limit': 8000,
+        'levels': '1,2,3,4,5,6',
+        'limit': 100000000,
         'isVertical': 'false' if is_hor else 'true',
         # 'isRandom': 'true',
         # 'halfMonth': 12,
-        # 'startTime': '2022-09-05'
+        'startTime': '2024-07-15',
+        # 'inAuthors': ','.join(['雨波_HaneAme', '星之迟迟', '小仓千代w', '小仓千代', '清水由乃', 'byoru', 'Byoru'])
+        # 'inAuthors': ','.join(['雨波_HaneAme', '星之迟迟', '小仓千代w', '小仓千代', '清水由乃', 'byoru', 'Byoru'])
     }
-    req = requests.get(url='https://nas.xuanniao.fun:49150/api/imageAlbum/imagePaths', params=params)
+    req = requests.get(url='http://127.0.0.1:8000/api/imageAlbum/imagePaths', params=params)
     infos = json.loads(req.text)
-    base_path = '/Users/illusion/Downloads/' + ('横' if is_hor else '竖')
+    base_path = 'D:/' + ('横' if is_hor else '竖')
     reg = re.compile(r'.*_(?P<type>\d)_(?P<level>\d)_\d{4}-\d{2}-\d{2}\.\w+')
     for i, info in enumerate(infos):
         path = info["path"]
@@ -152,7 +156,7 @@ def copy_from_nas():
             if is_hor:
                 max_width, max_height = 1920, 1080
             else:
-                max_width, max_height = 1080, 1920
+                max_width, max_height = 1440, 2560
             FileHelper.compress_save(remote_path, local_path, max_width=max_width, max_height=max_height)
             # save_size_network_img(info['id'], local_path)
         except Exception as e:
@@ -305,7 +309,7 @@ def update_tag_cover_and_count():
             continue
         img = MyImage.from_dict(limit[0])
         col_tag.update_one({'_id': tag.id()}, {'$set': {'cover': img.path, 'color': img.color, 'count': count}})
-        print(f'[{i}/{length}]{tag.id()}, {tag.name}, {tag.tran}, {count}, {img.color}, {img.path}')
+        print(f'[{i}/{length}]{count}, {tag.id()}, {tag.name}, {tag.tran}, {img.color}, {img.path}')
 
 
 dest_dir_path = 'Y:/thumb'
@@ -313,6 +317,9 @@ dest_dir_path = 'Y:/thumb'
 
 def create_thumb(prefix, query):
     relative_path = query['path']
+    if relative_path.startswith('D:'):
+        print(f'{relative_path} 本地文件，跳过')
+        return
     full_path = FileHelper.get_full_path(relative_path)
     if not os.path.exists(full_path):
         print(f'{prefix}{full_path} 源文件不存在')
@@ -561,6 +568,7 @@ def add_author_tag():
         print(f'{i}, {author} - {update_cnt.modified_count}')
     print('结束')
 
+
 def tran_danbooru_tag():
     tags = db_helper.find_decode(Tag, {'source': TagSource.Danbooru.value, 'tran': '', 'type': ''})
     for i, tag in enumerate(tags):
@@ -656,14 +664,141 @@ def del_empty_tag():
     for tag in db_helper.find_decode(Tag, fl):
         print(f'{tag.source}, {tag.name}')
     db_helper.get_col(Col.Tag).delete_many(fl)
+    print('结束')
+
+
+def copy_all_images():
+    conn = sqlite3.connect('data.sqlite')
+    cursor = conn.cursor()
+    # create tab img if not exist
+    cursor.execute('CREATE TABLE IF NOT EXISTS img ('
+                   'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+                   ' orientation INTEGER,'
+                   ' type INTEGER,'
+                   ' level INTEGER,'
+                   ' works TEXT,'
+                   ' roles TEXT,'
+                   ' series TEXT,'
+                   ' authors TEXT,'
+                   ' create_date DATE,'
+                   ' path TEXT,'
+                   ' mongo_id TEXT'
+                   ')')
+    conn.commit()
+    page = 0
+    size = 5000
+    # dt = datetime(2023, 9, 15)
+    # fl = {'level': {'$in': [5]}}
+    fl = {
+        # 'type': {'$in': types},
+        'level': {'$in': [6]},
+        '$expr': {'$lte': ['$width', '$height']},
+        'create_time': {'$gte': datetime(2023, 9, 15)}
+    }
+    dest_dir = 'D:/image'
+    # # 遍历 dest_dir ，删除所有创建时间在 12 点后的文件
+    # for root, ds, fs in os.walk(dest_dir):
+    #     for f in fs:
+    #         full_path = os.path.join(root, f)
+    #         create_time = FileHelper.get_create_time(full_path)
+    #         if create_time.day == 13 and create_time.hour > 12:
+    #             print(f'删除文件: {full_path}')
+    #             os.remove(full_path)
+    # return
+    actual_cnt = 0
+    sql = 'INSERT INTO img (orientation, type, level, works, roles, series, authors, create_date, path, mongo_id) ' \
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    values = []
+    total_cnt = col.count_documents(fl)
+    # images = col.aggregate([{'$match': fl}, {'$sample': {'size': limit}}])
+    images = col.find(fl)
+    for i, di in enumerate(images):
+        img = MyImage.from_dict(di)
+        # if i <= 4500:
+        #     # break
+        #     continue
+        full_path = FileHelper.get_full_path(img.path)
+        if not os.path.exists(full_path):
+            continue
+        cnt = 0
+        orientation = 1 if img.width > img.height else 2
+        if orientation == 1:
+            print(f'[{i}/{total_cnt}]{img.path} 横图跳过')
+            continue
+        while True:
+            alias_name = get_alias_filename(img, cnt)
+            relative_save_path = f'{orientation}-{img.type}-{img.level}/{alias_name}'
+            dest_path = f'{dest_dir}/{relative_save_path}'
+            if os.path.exists(dest_path):
+                # create_time = FileHelper.get_create_time(dest_path)
+                # if create_time.hour > 12:
+                #     break
+                cnt += 1
+            else:
+                break
+        if cnt > 0:
+            print(f'有重复文件，添加序号{cnt}')
+        if orientation == 1:
+            max_width, max_height = 1920, 1080
+        else:
+            max_width, max_height = 1440, 2560
+            # max_width, max_height = 1080, 1920
+        save_dir_path = os.path.dirname(dest_path)
+        if not os.path.exists(save_dir_path):
+            os.makedirs(save_dir_path)
+        print(f'[{page * size + i}/{total_cnt}]{img.path} -> {relative_save_path}')
+        date = img.create_time.strftime('%Y-%m-%d')
+        try:
+            # if not os.path.exists(dest_path):
+            FileHelper.compress_save(full_path, dest_path, max_width=max_width, max_height=max_height)
+        except Exception as e:
+            print(f'压缩失败: {e}')
+        values.append((orientation, img.type, img.level, ','.join(img.works), ','.join(img.roles),
+                       img.series, ','.join(img.authors), date, relative_save_path, str(img.id())))
+        # cursor.execute(sql, )
+        if len(values) >= 500:
+            print(f'{actual_cnt}/{i}, 500条保存一下')
+            conn.executemany(sql, values)
+            conn.commit()
+            values.clear()
+        actual_cnt += 1
+    conn.commit()
+    print(f'结束')
+    cursor.close()
+    conn.close()
+
+
+def get_alias_filename(img: MyImage, cnt: int):
+    work = ','.join(list(map(lambda x: x.replace('_', '##'), img.works)))
+    role = ','.join(list(map(lambda x: x.replace('_', '##'), img.roles)))
+    author = ','.join(list(map(lambda x: x.replace('_', '##'), img.authors)))
+    series = img.series.replace('_', '##')
+    filename, ext = os.path.splitext(os.path.basename(img.path))
+    ext = '.jpg'
+    if img.type == 1 or img.type == 2:
+        # if ('yande' in path or 'pixiv' in path or 'konachan' in path) and not works:
+        if not work:
+            alias_filename = filename.replace('_', 'xxx')
+        else:
+            alias_filename = f"{work}_{role}_{series}_{author}"
+    else:
+        alias_filename = f"{work}_{author}"
+    rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
+    alias_filename = re.sub(rstr, "#x#", alias_filename)
+    alias_filename = alias_filename.strip().replace('\n', '').replace('\t', '')
+    if cnt:
+        alias_filename += f'_n{cnt:02d}n'
+    date = img.create_time.strftime('%Y-%m-%d')
+    return f'{alias_filename}_{img.type}_{img.level}_{date}{ext}'
 
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
-    analysis_and_rename_file(r'D:\BaiduNetdiskDownload\整理', 'Z:/', add_analysis_works)
+    analysis_and_rename_file(r'D:\BaiduNetdiskDownload\Aislin 艾斯林', 'Z:/', add_analysis_works)
     # thumb_all_thumb()
+    # copy_all_images()
     # update_tag_cover_and_count()
-    copy_from_nas()
+    # del_empty_tag()
     # merge_tag('64422b2440aa1fca44e492e1', '65143aa217de431bdb6a6a50')
-    # update_name(TagType.Role, 'shenhe', '申鹤')
-    # update_type(TagType.Work, 'punishing gray raven', TagType.Author)
+    # update_name(TagType.Role, '姉崎 寧', '姉崎 甘寧')
+    # update_type(TagType.Work, 'ゼンレスゾーンゼロ', TagType.Author)
