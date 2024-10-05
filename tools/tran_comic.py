@@ -1,10 +1,17 @@
 #!/user/bin/env python
 # coding=utf-8
+import os
 import re
+import shutil
 import sqlite3
+import subprocess
 from dataclasses import dataclass
 
-from hentai import Hentai, Format, Utils, Tag
+import chardet
+# from hentai import Hentai, Format, Utils, Tag
+
+from tools.shell import sh
+import xml.etree.ElementTree as ET
 
 
 @dataclass
@@ -85,5 +92,121 @@ def search(query):
     print('\n查找结束')
 
 
+def copy_obf():
+    filepaths = []
+    for rs, ds, fs in os.walk('/Users/wuhb/Downloads/manga'):
+        for f in fs:
+            if f.endswith('.cbz'):
+                filepaths.append(os.path.join(rs, f))
+    for i, filepath in enumerate(filepaths):
+        print(f'[{i}/{len(filepaths)}]{filepath}')
+        filename = os.path.splitext(os.path.basename(filepath))[0]
+        dir_path = os.path.dirname(filepath)
+        new_obf = os.path.join(dir_path, f'{filename}.opf')
+        if os.path.exists(new_obf):
+            continue
+        old_obf = os.path.join(dir_path, 'metadata.opf')
+        if not os.path.exists(old_obf):
+            continue
+        shutil.copy2(old_obf, new_obf)
+
+
+def update_extra_col():
+    filepaths = []
+    for rs, ds, fs in os.walk('/Users/wuhb/Downloads/manga'):
+        for f in fs:
+            if f.endswith('.opf'):
+                filepaths.append(os.path.join(rs, f))
+    conn = sqlite3.connect('/Users/wuhb/Downloads/test/metadata.db')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    for i, filepath in enumerate(filepaths):
+        print(f'[{i}/{len(filepaths)}]{filepath}')
+        with open(filepath, encoding='utf-8') as f:
+            lines = f.readlines()
+        key_cut = 'is_cut'
+        key_sort = 'is_sort'
+        key_read = 'is_read'
+        key_tankoubon = 'tankoubon'
+        key_revise = 'revise'
+        key_tran_title = 'tran_title'
+        keys = [key_cut, key_sort, key_read, key_tankoubon, key_revise, key_tran_title]
+        book_id = -1
+        book_path = ''
+        for line in lines:
+            # extract title from "<dc:title>カルデアバニー部</dc:title>"
+            title_match = re.search('<dc:title>([^<]+)</dc:title>', line)
+            if title_match:
+                title = title_match.group(1)
+                cursor.execute(f"SELECT * FROM books WHERE title = '{title}'")
+                di = dict(cursor.fetchone())
+                book_id = di.get('id', -1)
+                book_path = di.get('path', '')
+                continue
+            key = None
+            for item in keys:
+                prefix = f'<meta name="calibre:user_metadata:#{item}'
+                if prefix in line:
+                    key = item
+                    break
+            if not key:
+                continue
+            # &quot;#value#&quot;: false,
+            match = re.search(f'&quot;#value#&quot;: ([^,]+),', line)
+            if not match:
+                continue
+            value = match.group(1)
+            value = value.replace('&quot;', '"')
+            if key == key_tran_title:
+                if value == 'null':
+                    continue
+            elif value != 'true':
+                continue
+            if key == key_tran_title:
+                sql = f"insert into custom_column_5 (value) values ('{value}')"
+                print(sql)
+                cursor.execute(sql)
+                tran_id = cursor.lastrowid
+                sql = f"insert into books_custom_column_5_link (book, value) values ({book_id}, {tran_id})"
+                print(sql)
+                cursor.execute(sql)
+                conn.commit()
+                update_new_book_meta(book_path, key, '&quot;#value#&quot;: null,', f'&quot;#value#&quot;: &quot;{value}&quot;,')
+                continue
+            table = None
+            if key == key_sort:
+                table = 'custom_column_1'
+            elif key == key_tankoubon:
+                table = 'custom_column_2'
+            elif key == key_revise:
+                table = 'custom_column_3'
+            elif key == key_read:
+                table = 'custom_column_4'
+            elif key == key_cut:
+                table = 'custom_column_6'
+            if table:
+                sql = f"update {table} set value=true where book={book_id}"
+                print(sql)
+                cursor.execute(sql)
+                conn.commit()
+                update_new_book_meta(book_path, key, '&quot;#value#&quot;: false,', f'&quot;#value#&quot;: true,')
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+
+def update_new_book_meta(book_path, key, src, dest):
+    meta_path = os.path.join('/Users/wuhb/Downloads/test', book_path, 'metadata.opf')
+    with open(meta_path) as f:
+        lines = f.readlines()
+    for i in range(len(lines)):
+        line = lines[i]
+        if key in line:
+            lines[i] = line.replace(src, dest)
+            break
+    with open(meta_path, 'w') as f:
+        f.writelines(lines)
+
+
 if __name__ == '__main__':
-    search(504952)
+    update_extra_col()
