@@ -4,18 +4,22 @@
 import os
 import re
 from dataclasses import dataclass, field
-from turtle import up
-from ebooklib import epub
 from datetime import datetime
+
 from bs4 import BeautifulSoup
+from ebooklib import epub
+
 
 @dataclass
 class Novel:
-    title: str = field(default='')
-    content: list = field(default_factory=list)
-
-    def empty(self):
-        return not len(self.content)
+    title: str
+    desc: str
+    authors: list[str]
+    subjects: list[str]
+    series: str
+    series_index: str
+    publisher: str
+    about_titles: list[str]
 
 
 def add_space_after_character(text):
@@ -28,19 +32,25 @@ def add_space_after_character(text):
     return corrected_text
 
 
-def split_text(filepath):
-    section_pattern = r'^\s*第[0-9０１２３４５６７８９一二三四五六七八九十零〇百千两]+[部卷][ 　]*.*'
+def split_text(filepath, about_titles):
+    # section_pattern = r'^\s*第[0-9０１２３４５６７８９一二三四五六七八九十零〇百千两]+[部卷][ 　]*.*'
+    section_pattern = r'^\s*第[0-9０１２３４５６７８９一二三四五六七八九十零〇百千两]+[卷][ 　]*.*'
     chapter_pattern = r'^\s*第[0-9０１２３４５６７８９一二三四五六七八九十零〇百千两]+[回集章篇节][ 　]*.*'
     first_chapter_pattern = r'^\s*序[回集章篇节][ 　]*.*'
     sections = []
     section = []
     chapter = []
-    with open(filepath, 'r', encoding='gbk') as f:
+    with open(filepath, 'r', encoding='utf-8') as f:
         for line in f:
-            line = line.strip()
+            line = line.strip().lstrip('\ufeff')
             if not line:
                 continue
-            if re.match(section_pattern, line):
+            if line in about_titles:
+                print(f'匹配作品相关：{line}')
+                if len(chapter):
+                    section.append(chapter)
+                    chapter = []
+            elif re.match(section_pattern, line):
                 line = add_space_after_character(line)
                 print(f'匹配卷：{line}')
                 if len(chapter):
@@ -60,27 +70,30 @@ def split_text(filepath):
             section.append(chapter)
         if len(section):
             sections.append(section)
+    if len(sections) > 1 and about_titles:
+        sections[0].insert(0, ['作品相关'])
     return sections
 
 
-def create_epub(filename, with_cover, title, authors, desc, subjects, series, series_index):
+def create_epub(filename, novel: Novel):
     dir_path = 'D:\\epub'
-    txt_sections = split_text(os.path.join(dir_path, filename))
+    txt_sections = split_text(os.path.join(dir_path, filename), novel.about_titles)
     book = epub.EpubBook()
-    book.set_title(title)
+    book.set_title(novel.title)
     book.set_language('zh')
-    for author in authors:
+    for author in novel.authors:
         book.add_author(author)
     book.namespaces['calibre'] = 'http://calibre.kovidgoyal.net/2009/metadata'
 
-    book.add_metadata('DC', 'description', desc)
-    book.add_metadata('DC', 'publisher', '幻灭')
+    book.add_metadata('DC', 'description', novel.desc)
+    book.add_metadata('DC', 'publisher', novel.publisher)
     book.add_metadata('DC', 'date', datetime.now().strftime('%Y-%m-%dT%H:%M:%S%z'))
-    for subject in subjects:
+    for subject in novel.subjects:
         book.add_metadata('DC', 'subject', subject)
 
-    book.add_metadata(None, "meta", "", {"name": "calibre:series", "content": series})
-    book.add_metadata(None, "meta", "", {"name": "calibre:series_index", "content": series_index})
+    if novel.series:
+        book.add_metadata(None, "meta", "", {"name": "calibre:series", "content": novel.series})
+        book.add_metadata(None, "meta", "", {"name": "calibre:series_index", "content": novel.series_index})
 
     css_id = "main-css"
     with open(os.path.join(dir_path, 'main.css'), 'r', encoding='utf-8') as f:
@@ -89,23 +102,23 @@ def create_epub(filename, with_cover, title, authors, desc, subjects, series, se
     book.add_item(css)
 
     # 添加封面
-    css_line = ''
-    if with_cover:
+    cover_and_subject = ''
+    if os.path.exists(os.path.join(dir_path, 'cover.jpg')):
         with open(os.path.join(dir_path, 'cover.jpg'), 'rb') as f:
             cover_content = f.read()
         book.set_cover('cover.jpg', cover_content)
-        css_line = '\n<div style="text-align:center"><img class="cover" src="cover.jpg"/></div>'
+        cover_and_subject = '\n<div style="text-align:center"><img class="cover" src="cover.jpg"/></div>'
     # 创建封面页面
     home_page = epub.EpubHtml(title='首页', file_name='home.xhtml', lang='zh', uid='home')
     home_page.add_item(css)
-    desc_lines = [f'<p>{line}</p>' for line in desc.split('\n') if line.strip()]
+    desc_lines = [f'<p>{line}</p>' for line in novel.desc.split('\n') if line.strip()]
     desc_html = '\n'.join(desc_lines)
     home_page.content = f'''
-<div>{css_line}
-<h1>{title}</h1>
-<h2>{"，".join(authors)}</h2>
+<div>{cover_and_subject}
+<h1>{novel.title}</h1>
+<h2>{"，".join(novel.authors)}</h2>
 <div class="tags">
-{''.join(f'<span class="tag">{subject}</span><span> </span>' for subject in subjects)}
+{''.join(f'<span class="tag">{subject}</span><span> </span>' for subject in novel.subjects)}
 </div>
 <b>简介</b>
 {desc_html}
@@ -123,10 +136,11 @@ def create_epub(filename, with_cover, title, authors, desc, subjects, series, se
             chapter_i += 1
         epub_sections.append(epub_section)
     # 阅读顺序
+    home_link = epub.Link(home_page.file_name, home_page.title, home_page.id)
     if len(epub_sections) == 1:
-        book.toc = [epub.Link(item.file_name, item.title, item.id) for item in epub_sections[0]]
+        book.toc = [home_link] + [epub.Link(item.file_name, item.title, item.id) for item in epub_sections[0]]
     else:
-        toc = []
+        toc = [home_link]
         for epub_section in epub_sections:
             toc_section = (
                 epub.Section(epub_section[0].title, href=epub_section[0].file_name),
@@ -139,7 +153,7 @@ def create_epub(filename, with_cover, title, authors, desc, subjects, series, se
     book.spine = ['home'] + [item for sublist in epub_sections for item in sublist]
 
     # 添加 guide 元素
-    epub.write_epub(os.path.join(dir_path, f'{title} - {author}.epub'), book, {})
+    epub.write_epub(os.path.join(dir_path, f'{novel.title} - {",".join(novel.authors)}.epub'), book, {})
 
 
 def create_chapter(book, css, i, lines):
@@ -151,21 +165,24 @@ def create_chapter(book, css, i, lines):
     return ch
 
 
-def update_epub(filename, author, subjects, series, series_index):
+def update_epub(filename, novel: Novel):
     dir_path = 'D:\\epub'
     filepath = os.path.join(dir_path, filename)
     book = epub.read_epub(filepath)
-    book.add_author(author)
+    for author in novel.authors:
+        book.add_author(author)
     book.namespaces['calibre'] = 'http://calibre.kovidgoyal.net/2009/metadata'
-    book.add_metadata(None, "meta", "", {"name": "calibre:series", "content": series})
-    book.add_metadata(None, "meta", "", {"name": "calibre:series_index", "content": series_index})
+    if novel.series:
+        book.add_metadata(None, "meta", "", {"name": "calibre:series", "content": novel.series})
+        book.add_metadata(None, "meta", "", {"name": "calibre:series_index", "content": novel.series_index})
     sub_html = ''
-    for subject in subjects:
+    for subject in novel.subjects:
         book.add_metadata('DC', 'subject', subject)
         sub_html += f'<span class="tag">{subject}</span><span> </span>\n'
     with open(os.path.join(dir_path, 'main.css'), 'r', encoding='utf-8') as f:
         style = f.read()
-    main_css_id = 'main-css'
+    main_css_id = 'css'
+    # main_css_id = 'main-css'
     css_item = None
     for item in book.items:
         if item.id == main_css_id:
@@ -193,22 +210,26 @@ def update_epub(filename, author, subjects, series, series_index):
             # content = str(item.content)
             # new_content = content.replace(abstract, new_text)
             # item.content = new_content
-
-    epub.write_epub(filepath, book, {})
+    new_filename = f'{novel.title} - {",".join(novel.authors)}.epub'
+    if novel.series_index:
+        new_filename = f'{novel.series_index} {new_filename}'
+    # 替换非法字符
+    new_filename = re.sub(r'[<>/\\|:"?]', '_', new_filename)
+    new_filepath = os.path.join(dir_path, new_filename)
+    epub.write_epub(new_filepath, book, {})
 
 
 if __name__ == '__main__':
-    desc = '''
-千红一哭，万艳同悲。
-白骨如山忘姓氏，无非公子与红妆。
-后世青年魂穿红楼世界中宁国远亲之上，为了免于被贾府牵连之命运，只好步步为营，然而茫然四顾，发现家国天下，乱世将临，为不使神州陆沉，遍地膻腥，只好提三尺剑，扫不臣，荡贼寇，平鞑虏，挽天倾！
-这一切，从截胡秦可卿开始……
-'''
-    title = '红楼之挽天倾 重置5.0+5.3'
-    authors = ['林悦南兮', 'North']
-    subjects = ['历史', '架空历史', '穿越', '后宫', 'H']
-    series = '红楼之挽天倾'
-    series_index = '7'
-    create_epub(r'1-1 红楼之挽天倾1-1688 前800章重置过 5.3整合.txt', True, title, authors, desc, subjects, series, series_index)
-    # update_epub('红楼之挽天倾 (North)加料5.2版.epub', author, subjects, series, series_index)
-
+    novel = Novel(
+        title='世界的唯一',
+        desc='''
+''',
+        authors=['coly'],
+        subjects=['H', '催眠', '常识改变'],
+        series=None,
+        series_index='',
+        publisher='',
+        about_titles=[]
+    )
+    # create_epub(r'《春秋风华录后宫魔改版》1-225章.txt', novel)
+    update_epub('世界的唯一.epub', novel)
