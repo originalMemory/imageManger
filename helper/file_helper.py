@@ -145,11 +145,11 @@ class FileHelper:
         """
         filename, ext = os.path.splitext(os.path.basename(target_path))
         new_path = target_path.replace(f'{ext}', '.jpg')
-        no = 1
-        while os.path.exists(new_path):
-            new_path = target_path.replace(f'{ext}', f'_{no:0>2d}.jpg')
-            print(f'有重复，重命名为：{new_path}')
-            no += 1
+        # no = 1
+        # while os.path.exists(new_path):
+        #     new_path = target_path.replace(f'{ext}', f'_{no:0>2d}.jpg')
+        #     print(f'有重复，重命名为：{new_path}')
+        #     no += 1
         img = FileHelper.resize_image(source_path, max_width, max_height)
         img.save(new_path, quality=90)
 

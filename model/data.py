@@ -38,8 +38,11 @@ class BaseDB:
 
     @classmethod
     def from_dict(cls: Type[DB], query) -> DB:
-        if cls == Tag and 'category_id' in query and query['category_id'] is None:
-            del query['category_id']
+        if cls == Tag:
+            if 'category_id' in query and query['category_id'] is None:
+                del query['category_id']
+            if 'search_time' in query and query['search_time'] is None:
+                del query['search_time']
         return from_dict(data_class=cls, data=query)
 
 
@@ -141,6 +144,8 @@ class Tag(BaseDB):
     children: list = field(default_factory=list)
     type: str = field(default='')
     count: int = field(default=0)
+    search_time: datetime = field(default=None)
+    pay_url: str = field(default='')
 
     def get_type(self):
         if type:

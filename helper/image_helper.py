@@ -207,8 +207,8 @@ class ImageHelper:
     @staticmethod
     def remove_tags(filename):
         patterns = [
-            r'(yande|konachan|donmai|danbooru)_\d+_.*](?P<tags>.+?)\.(jpg|png|jpeg|bmp)',
-            r'pixiv_\d+_.+](?P<desc>.+?)_(?P<tags>.+?)(_00| p[\d-]+)?\.(jpg|png|jpeg|bmp)'
+            r'(yande|konachan|donmai|danbooru)_\d+_.*](?P<tags>.+?)\.(jpg|png|jpeg|bmp|webp)',
+            r'pixiv_\d+_.+](?P<desc>.+?)_(?P<tags>.+?)(_00| p[\d-]+)?\.(jpg|png|jpeg|bmp|webp)'
         ]
         for pattern in patterns:
             match = re.search(pattern, filename)

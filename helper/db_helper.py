@@ -56,9 +56,18 @@ def _get_local_dt(dt):
 class DBHelper:
     def __init__(self, error_handler, with_server=False):
         self.error_handler = error_handler
-        url = ConfigHelper().get_config_key('database', 'mongoServer')
-        self._client = pymongo.MongoClient(url, tz_aware=True, tzinfo=tzinfo)
+        url = ConfigHelper().get_config_key('database', 'mongolocal')
+        self._client = pymongo.MongoClient(
+            url,
+            tz_aware=True,
+            tzinfo=tzinfo,
+            authSource='admin',
+            authMechanism='SCRAM-SHA-1'
+        )
         self._db = self._client['acg']
+
+    def get_db(self):
+        return self._db
 
     def __del__(self):
         self._client.close()
@@ -230,7 +239,9 @@ class DBHelper:
         if cursor:
             if 'category_id' in cursor and cursor['category_id'] is None:
                 del cursor['category_id']
-            return from_dict(data_class=dataclass, data=cursor)
+            if 'search_time' in cursor and cursor['search_time'] is None:
+                del cursor['search_time']
+            return dataclass.from_dict(cursor)
 
     def find_or_create_tag(self, name, source, tran='') -> Tag:
         fl = {'$or': [{'name': name}, {'alias': name}]}

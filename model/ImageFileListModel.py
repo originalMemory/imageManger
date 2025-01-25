@@ -74,10 +74,10 @@ class ImageFileListModel(MyBaseListModel):
                 if all_int and not _get_int_key(name):
                     all_int = False
                 tp_paths.append(f'{root}/{name}'.replace('\\', '/'))
-            if all_int:
-                tp_paths.sort(key=_get_int_key)
-            else:
-                tp_paths.sort()
+            # if all_int:
+            #     tp_paths.sort(key=_get_int_key)
+            # else:
+            tp_paths.sort()
             paths += tp_paths
         if not len(paths):
             return

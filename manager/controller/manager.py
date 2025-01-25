@@ -44,6 +44,9 @@ class ImageManager(QMainWindow, Ui_Manager):
     _signal_update_image_id = pyqtSignal(QModelIndex, ImageFile)
     _signal_update_status = pyqtSignal(str)
     _signal_update_tags = pyqtSignal(str)
+    _signal_update_authors = pyqtSignal(str)
+    _signal_update_roles = pyqtSignal(str)
+    _signal_update_works = pyqtSignal(str)
     _signal_handle_error = pyqtSignal(str)
 
     def __init__(self, parent=None):
@@ -106,6 +109,9 @@ class ImageManager(QMainWindow, Ui_Manager):
         self._signal_update_image_id.connect(self._update_image_id)
         self._signal_update_status.connect(self._update_status)
         self._signal_update_tags.connect(self._update_tags)
+        self._signal_update_roles.connect(self._update_roles)
+        self._signal_update_works.connect(self._update_works)
+        self._signal_update_authors.connect(self._update_authors)
         self._signal_handle_error.connect(self._handle_error)
 
         # 设置 tab 切换顺序
@@ -287,15 +293,13 @@ class ImageManager(QMainWindow, Ui_Manager):
                 authors.add(tag.tran)
         if keep_role and self.lineEdit_role.text():
             roles += set(self.lineEdit_role.text().split(','))
-        text = ','.join(tags)
-        # self.textEdit_tag.setText(text)
-        self._signal_update_tags.emit(text)
+        self._signal_update_tags.emit(','.join(tags))
         if roles and not self.lineEdit_role.text():
-            self.lineEdit_role.setText(','.join(roles))
+            self._signal_update_roles.emit(','.join(roles))
         if works and not self.lineEdit_works.text():
-            self.lineEdit_works.setText(','.join(works))
+            self._signal_update_works.emit(','.join(works))
         if authors and not self.lineEdit_author.text():
-            self.lineEdit_author.setText(','.join(authors))
+            self._signal_update_authors.emit(','.join(authors))
 
     def _get_tran_tags(self, tags):
         dest_ids = []
@@ -451,6 +455,15 @@ class ImageManager(QMainWindow, Ui_Manager):
 
     def _update_tags(self, msg):
         self.textEdit_tag.setText(msg)
+
+    def _update_roles(self, msg):
+        self.lineEdit_role.setText(msg)
+
+    def _update_works(self, msg):
+        self.lineEdit_works.setText(msg)
+
+    def _update_authors(self, msg):
+        self.lineEdit_author.setText(msg)
 
     def __del_select_rows(self):
         """
@@ -673,18 +686,41 @@ class ImageManager(QMainWindow, Ui_Manager):
                     continue
                 print(f'开始预加载')
                 time.sleep(1)
-                for offset in range(1, count + 1):
+                offset = 1
+                while True:
+                    if offset > count:
+                        break
                     pre_index = index + offset
                     info = self.__image_model.get_item(pre_index)
                     if not info:
                         print("找不到信息")
+                        offset += 1
                         continue
                     full_path = info.full_path
+                    # if not info.id:
+                    #     exist_img = self.__db_helper.search_by_md5(FileHelper.get_md5(info.full_path))
+                    # else:
+                    #     exist_img = None
+                    # if exist_img:
+                    #     info = ImageHelper.analyze_image_info(full_path, check_size=False)
+                    #     for tag_name in info.tags:
+                    #         tag = self.__db_helper.find_or_create_tag(tag_name, TagSource(info.source))
+                    #         if tag.children:
+                    #             exist_img.tags += tag.children
+                    #         else:
+                    #             exist_img.tags.append(tag.id())
+                    #     self.__db_helper.update_image(exist_img)
+                    #     self.__image_model.delete_item(pre_index)
+                    #     FileHelper.del_file(full_path)
+                    #     print(f'{pre_index} 已经存在, 删除, {info.full_path}')
+                    #     continue
                     if full_path in self._cache or full_path in self._caching_paths:
+                        offset += 1
                         print(f'{pre_index} 已经有缓存了, {full_path}')
                         continue
                     self._pool.submit(self._preload_img, full_path, pre_index)
                     self._caching_paths.append(full_path)
+                    offset += 1
                     # print(f'开始预加载: {pre_index}, {full_path}')
                 time.sleep(1)
             except Exception as e:

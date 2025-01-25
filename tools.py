@@ -12,6 +12,7 @@
 import io
 import json
 import os
+import random
 import re
 import shutil
 import sqlite3
@@ -23,6 +24,7 @@ from PIL import Image
 from helper.db_helper import DBHelper
 from helper.image_helper import ImageHelper
 from model.data import *
+from tqdm import tqdm
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -122,15 +124,15 @@ def copy_from_nas():
     params = {
         'types': '1,2,3',
         'levels': '1,2,3,4,5,6',
-        'limit': 100000000,
+        'limit': 300000,
         'isVertical': 'false' if is_hor else 'true',
-        # 'isRandom': 'true',
-        # 'halfMonth': 12,
-        'startTime': '2024-07-15',
+        'isRandom': 'false',
+        'halfMonth': 12,
+        'startTime': '2024-09-17',
         # 'inAuthors': ','.join(['雨波_HaneAme', '星之迟迟', '小仓千代w', '小仓千代', '清水由乃', 'byoru', 'Byoru'])
         # 'inAuthors': ','.join(['雨波_HaneAme', '星之迟迟', '小仓千代w', '小仓千代', '清水由乃', 'byoru', 'Byoru'])
     }
-    req = requests.get(url='http://127.0.0.1:8000/api/imageAlbum/imagePaths', params=params)
+    req = requests.get(url='https://nas.xuanniao.fun:49150//api/imageAlbum/imagePaths', params=params)
     infos = json.loads(req.text)
     base_path = 'D:/' + ('横' if is_hor else '竖')
     reg = re.compile(r'.*_(?P<type>\d)_(?P<level>\d)_\d{4}-\d{2}-\d{2}\.\w+')
@@ -149,7 +151,8 @@ def copy_from_nas():
                 continue
             img_type = match.group('type')
             level = match.group('level')
-            dir_path = f'{base_path}/{img_type}-{level}'
+            dir_path = f'{base_path}/2-{img_type}-{level}'
+            # dir_path = r'Y:/壁纸/竖/123'
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
             local_path = f'{dir_path}/{filename}'
@@ -648,6 +651,8 @@ def add_analysis_works(filepath, _):
         if tag.type == TagType.Work.value and tag.tran not in works:
             works.append(tag.tran)
     new_tags = list(new_tags)
+    roles = list(set(roles))
+    works = list(set(works))
     col.update_one({'_id': img.id()}, {'$set': {'tags': new_tags, 'roles': roles, 'works': works}})
     # new_img = db_helper.find_one_decode(MyImage, {'path': relative_path})
     add_cnt = len(new_tags) - exist_cnt
@@ -668,137 +673,331 @@ def del_empty_tag():
 
 
 def copy_all_images():
-    conn = sqlite3.connect('data.sqlite')
+    import datetime
+    conn = sqlite3.connect(f'D:\\主机壁纸\\data.sqlite')
     cursor = conn.cursor()
-    # create tab img if not exist
-    cursor.execute('CREATE TABLE IF NOT EXISTS img ('
-                   'id INTEGER PRIMARY KEY AUTOINCREMENT,'
-                   ' orientation INTEGER,'
-                   ' type INTEGER,'
-                   ' level INTEGER,'
-                   ' works TEXT,'
-                   ' roles TEXT,'
-                   ' series TEXT,'
-                   ' authors TEXT,'
-                   ' create_date DATE,'
-                   ' path TEXT,'
-                   ' mongo_id TEXT'
-                   ')')
-    conn.commit()
-    page = 0
-    size = 5000
-    # dt = datetime(2023, 9, 15)
-    # fl = {'level': {'$in': [5]}}
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS img (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            orientation INTEGER,
+            type INTEGER,
+            level INTEGER,
+            works TEXT,
+            roles TEXT,
+            series TEXT,
+            authors TEXT,
+            create_date DATE,
+            path TEXT,
+            mongo_id TEXT
+        );
+        ''')
+    # now = datetime.now()
+    # one_year_ago = now - datetime.timedelta(days=500)
+    # create_time = datetime.datetime(2024, 9, 13)
+    create_time = datetime.datetime(2024, 11, 20)
     fl = {
-        # 'type': {'$in': types},
-        'level': {'$in': [6]},
+        'level': {'$in': [8]},
         '$expr': {'$lte': ['$width', '$height']},
-        'create_time': {'$gte': datetime(2023, 9, 15)}
+        'create_time': {'$gte': create_time},
     }
-    dest_dir = 'D:/image'
-    # # 遍历 dest_dir ，删除所有创建时间在 12 点后的文件
-    # for root, ds, fs in os.walk(dest_dir):
-    #     for f in fs:
-    #         full_path = os.path.join(root, f)
-    #         create_time = FileHelper.get_create_time(full_path)
-    #         if create_time.day == 13 and create_time.hour > 12:
-    #             print(f'删除文件: {full_path}')
-    #             os.remove(full_path)
-    # return
-    actual_cnt = 0
-    sql = 'INSERT INTO img (orientation, type, level, works, roles, series, authors, create_date, path, mongo_id) ' \
-          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    values = []
     total_cnt = col.count_documents(fl)
-    # images = col.aggregate([{'$match': fl}, {'$sample': {'size': limit}}])
-    images = col.find(fl)
-    for i, di in enumerate(images):
-        img = MyImage.from_dict(di)
-        # if i <= 4500:
-        #     # break
+    li = col.find(fl)
+    # li = col.aggregate([
+    #     {'$match': fl},
+    #     {'$sample': {'size': 3000}}
+    # ])
+    # li = db_helper.find(Col.Image, {'level': 7}).sort('create_time', pymongo.ASCENDING).skip(16000)
+    insert_sql = '''
+    INSERT INTO img (orientation, type, level, works, roles, series, authors, create_date, path, mongo_id) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    '''
+    values = []
+    dest_dir_path = 'D:\\主机壁纸'
+    images = list(map(lambda x: MyImage.from_dict(x), li))
+    for i, img in enumerate(images):
+        # if i <= 16432:
         #     continue
-        full_path = FileHelper.get_full_path(img.path)
-        if not os.path.exists(full_path):
+        # remote_url = f'https://nas.xuanniao.fun:49150/image/{img.path}'
+        # response = requests.get(remote_url)
+        # if response.status_code != 200:
+        #     print(f'{remote_url} 不存在')
+        #     continue
+        # temp_path = 'temp.jpg'
+        # with open(temp_path, 'wb') as f:
+        #     f.write(response.content)
+        remote_path = os.path.join('z:\\image', img.path)
+        if not os.path.exists(remote_path):
             continue
+        works = ','.join(img.works)
+        roles = ','.join(img.roles)
+        authors = ','.join(img.authors)
         cnt = 0
         orientation = 1 if img.width > img.height else 2
-        if orientation == 1:
-            print(f'[{i}/{total_cnt}]{img.path} 横图跳过')
+        cursor.execute('SELECT * FROM img WHERE mongo_id = ?', [str(img.id())])
+        local_img = cursor.fetchone()
+        if local_img:
+            print(f'[{i}/{total_cnt}]{img.path} 已存在')
             continue
         while True:
-            alias_name = get_alias_filename(img, cnt)
-            relative_save_path = f'{orientation}-{img.type}-{img.level}/{alias_name}'
-            dest_path = f'{dest_dir}/{relative_save_path}'
-            if os.path.exists(dest_path):
-                # create_time = FileHelper.get_create_time(dest_path)
-                # if create_time.hour > 12:
-                #     break
-                cnt += 1
-            else:
+            alais_name = get_alias_name(img, cnt)
+            relative_path = f'{orientation}-{img.type}-{img.level}/{alais_name}'
+            dest_path = f'{dest_dir_path}/{relative_path}'
+            if not os.path.exists(dest_path):
                 break
-        if cnt > 0:
-            print(f'有重复文件，添加序号{cnt}')
+            cnt += 1
+        if cnt:
+            print(f'有重复，重命名序号 {cnt}')
+        # need_skip = i <= 15211
+        need_skip = False
+        if need_skip:
+            cnt -= 1
+            alais_name = get_alias_name(img, cnt)
+            relative_path = f'{orientation}-{img.type}-{img.level}/{alais_name}'
+            # dest_path = f'{dest_dir_path}/{relative_path}'
+            dest_path = os.path.join(dest_dir_path, relative_path)
+
+        print(f'[{i}/{total_cnt}]{img.path} -> {relative_path}')
         if orientation == 1:
             max_width, max_height = 1920, 1080
+            # max_width, max_height = 2880, 1800
         else:
-            max_width, max_height = 1440, 2560
-            # max_width, max_height = 1080, 1920
-        save_dir_path = os.path.dirname(dest_path)
-        if not os.path.exists(save_dir_path):
-            os.makedirs(save_dir_path)
-        print(f'[{page * size + i}/{total_cnt}]{img.path} -> {relative_save_path}')
-        date = img.create_time.strftime('%Y-%m-%d')
+            max_width, max_height = 1080, 1920
+        dir_path = os.path.dirname(dest_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
         try:
-            # if not os.path.exists(dest_path):
-            FileHelper.compress_save(full_path, dest_path, max_width=max_width, max_height=max_height)
+            if not need_skip:
+                FileHelper.compress_save(remote_path, dest_path, max_width=max_width, max_height=max_height)
         except Exception as e:
-            print(f'压缩失败: {e}')
-        values.append((orientation, img.type, img.level, ','.join(img.works), ','.join(img.roles),
-                       img.series, ','.join(img.authors), date, relative_save_path, str(img.id())))
-        # cursor.execute(sql, )
-        if len(values) >= 500:
-            print(f'{actual_cnt}/{i}, 500条保存一下')
-            conn.executemany(sql, values)
+            # conn.commit()
+            # cursor.close()
+            # conn.close()
+            print(f'压缩失败：{e}')
+            continue
+        values.append((orientation, img.type, img.level, works, roles, img.series, authors,
+                       img.create_time.strftime('%Y-%m-%d'), relative_path, str(img.id())))
+        if len(values) >= 1000:
+            cursor.executemany(insert_sql, values)
             conn.commit()
             values.clear()
-        actual_cnt += 1
-    conn.commit()
-    print(f'结束')
     cursor.close()
     conn.close()
 
 
-def get_alias_filename(img: MyImage, cnt: int):
-    work = ','.join(list(map(lambda x: x.replace('_', '##'), img.works)))
-    role = ','.join(list(map(lambda x: x.replace('_', '##'), img.roles)))
-    author = ','.join(list(map(lambda x: x.replace('_', '##'), img.authors)))
+def get_alias_name(img: MyImage, cnt: int):
+    works = ','.join(img.works).replace('_', '##')
+    roles = ','.join(img.roles).replace('_', '##')
+    authors = ','.join(img.authors).replace('_', '##')
     series = img.series.replace('_', '##')
     filename, ext = os.path.splitext(os.path.basename(img.path))
-    ext = '.jpg'
     if img.type == 1 or img.type == 2:
-        # if ('yande' in path or 'pixiv' in path or 'konachan' in path) and not works:
-        if not work:
-            alias_filename = filename.replace('_', 'xxx')
+        if works:
+            prefix = f'{works}_{roles}_{series}_{authors}'
         else:
-            alias_filename = f"{work}_{role}_{series}_{author}"
+            prefix = filename.replace('_', 'xxx')
     else:
-        alias_filename = f"{work}_{author}"
-    rstr = r"[\/\\\:\*\?\"\<\>\|]"  # '/ \ : * ? " < > |'
-    alias_filename = re.sub(rstr, "#x#", alias_filename)
-    alias_filename = alias_filename.strip().replace('\n', '').replace('\t', '')
-    if cnt:
-        alias_filename += f'_n{cnt:02d}n'
-    date = img.create_time.strftime('%Y-%m-%d')
-    return f'{alias_filename}_{img.type}_{img.level}_{date}{ext}'
+        prefix = f'{works}_{authors}'
+    if cnt > 0:
+        prefix += f'_n{cnt:02d}n'
+    prefix = re.sub(r'[<>:"/\\|?*]', '#x#', prefix)
+    date_str = img.create_time.strftime('%Y-%m-%d')
+    return f'{prefix}_{img.type}_{img.level}_{date_str}.jpg'
+
+
+def rename_jellyfin(season_no, dir_path):
+    files = os.listdir(dir_path)
+    cnt = len(files)
+    for i, filename in enumerate(files):
+        filepath = os.path.join(dir_path, filename)
+        if os.path.isdir(filepath):
+            continue
+        if re.search(r'S\d\dE\d\d', filename):
+            print(f'[{i}/{cnt}]已匹配，{filename}')
+            continue
+        # 使用正则表达式匹配并移除数字前的部分
+        rules = [
+            # ‘[Nekomoe kissaten&VCB-Studio] Oregairu Kan [07][Ma10p_1080p][x265_flac]
+            (r'^.*?\[(\d+)]', r'[\1])', '['),
+            # [VCB-Studio] Sidonia no Kishi 01  (Alternative Angle Ver.) [Hi10p 1080p x264 aac]
+            (r'^.*?\b(\d+)\b', r'\1)', ' '),
+        ]
+        new_filename = None
+        for pattern, repl, prefix in rules:
+            new_filename = re.sub(pattern, repl, filename)
+            if new_filename:
+                new_filename = new_filename.strip().strip(prefix)
+        if not new_filename or new_filename == filename:
+            print(f'[{i}/{cnt}]未匹配，{filename}')
+            continue
+        new_filename = f'S{season_no:02d}E{new_filename}'
+        if new_filename.endswith('.ass'):
+            for item in ['.tc', '.TC', '.cht', '.JPTC']:
+                new_filename = new_filename.replace(item, '')
+            for item in ['.sc', '.SC', '.chs', '.JPSC']:
+                new_filename = new_filename.replace(item, '.srd')
+        new_filepath = os.path.join(dir_path, new_filename)
+        os.rename(filepath, new_filepath)
+        print(f'[{i}/{cnt}]{filename} -> {new_filename}')
+
+
+def try_open_vixen_photo_web(kind, title, filename):
+    base_path = f'Y:\\和谐\\新建文件夹\\{kind}'
+    for exist_filename in os.listdir(base_path):
+        if title in exist_filename:
+            print('已经下载了')
+            return
+    exist = db_helper.find_one_decode(MyImage, {'path': {'$regex': f'{kind}.*{title}'}})
+    if exist:
+        print(f'已经存在了，{exist.path}')
+        return
+    dest_path = f'{base_path}\\{filename}'
+    os.makedirs(dest_path)
+    open_path = dest_path.replace('/', '\\')
+    # ex = f"explorer {open_path}"
+    # os.system(ex)
+    low_str = title.replace(' ', '-').replace('\'', '').lower()
+    url = f'https://members.{kind.lower()}.com/pictureset/{low_str}'
+    print(url)
+    os.system(f'start chrome "{url}"')
+    _ = input('输入任意字符后继续：')
+
+
+def download_vixen_images():
+    with open('vixen.json') as f:
+        js = json.load(f)
+    nodes = js['data']['findVideosOnSites']['edges']
+    kind = 'Deeper'
+    for i, di in enumerate(nodes):
+        node = di['node']
+        title = node['title']
+        title = re.sub(r'[<>/\\|:"?]', '', title)
+        # slug = node['slug']
+        # 2024-09-13T17:30:00.000Z
+        release_date = node['releaseDate']
+        date_str = release_date.split('T')[0]
+        # 遍历合并 modelsSlugged 内除最后一个外的 name 为用 ', ' 隔开的字符串
+        models = node['modelsSlugged']
+        model_names = ', '.join([model['name'] for model in models[:-1]])
+        # 生成文件名形如 Stefany Kyler - Petite Stefany Rides His Hard Cock[2024-11-30]
+        filename = f'{model_names} - {title}[{date_str}]'
+        print(f'[{i}/{len(nodes)}]{filename}')
+        try_open_vixen_photo_web(kind, title, filename)
+    print('本次搜索结束')
+    exit()
+
+
+def copy_fanboxs(path):
+    filepaths = []
+    for root, ds, fs in os.walk(path):
+        for f in fs:
+            if f.endswith('.json'):
+                filepaths.append(os.path.join(root, f))
+    for i, filepath in enumerate(filepaths):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            js_obj = json.load(f)
+        post_id = js_obj['body']['id']
+        date = js_obj['body']['publishedDatetime'].split('T')[0]
+        title = js_obj['body']["title"]
+        username = js_obj['body']['user']['name']
+        print(f'[{i}/{len(filepaths)}] {username}, {post_id}, {date}, {title}')
+        if js_obj['body']['isRestricted']:
+            print('未购买')
+            continue
+        dir_path = os.path.dirname(os.path.dirname(filepath)) + '\\images'
+        if not os.path.exists(dir_path):
+            print('没有图片文件夹')
+            continue
+        save_dir = f'Z:\\image\\二次元\\作者\\{username}'
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        filenames = os.listdir(dir_path)
+        for j, filename in enumerate(filenames):
+            source_path = os.path.join(dir_path, filename)
+            extension = os.path.splitext(filename)[1]
+            save_filename = f'{post_id}_{date}_{title}_{j + 1:02d}{extension}'
+            save_path = os.path.join(save_dir, save_filename)
+            if os.path.exists(save_path):
+                continue
+            print(f'[{i}/{len(filepaths)}][{j}/{len(filenames)}] 复制 {save_filename}')
+            shutil.copy2(source_path, save_path)
+
+
+def mv_media():
+    src = 'X:\\media'
+    src_dirs = []
+    i = 0
+    for rs, ds, fs in os.walk(src):
+        for d in ds:
+            if d == 'Subtitles':
+                dir_path = os.path.join(rs, d)
+                print(f'找到文件夹: {dir_path}')
+                move_folder_with_progress(f'{i}-', src, dir_path)
+                i += 1
+                # src_dirs.append(dir_path)
+                break
+    # cnt = len(src_dirs)
+    # for i, dir_path in enumerate(src_dirs):
+    #     move_folder_with_progress(f'[{i}/{cnt}]', src, dir_path)
+
+
+def move_folder_with_progress(prefix, src_base, src):
+    dest = 'W:\\media'
+    rel_path = os.path.relpath(src, src_base)
+    dest_path = os.path.join(dest, rel_path)
+    if os.path.exists(dest_path):
+        print(f'{prefix}已存在，{dest_path}')
+        return
+    parent_dir = os.path.dirname(dest_path)
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
+    print(f'{prefix}移动 {src} -> {dest_path}')
+
+    # os.system(f'robocopy "{src}" "{dest_path}" /MOVE /MT:16 /E /COPY:DAT')
+    # return
+
+    total_size = sum(os.path.getsize(os.path.join(root, f))
+                     for root, _, files in os.walk(src)
+                     for f in files)
+
+    moved_size = 0
+
+    # 创建目标文件夹
+    os.makedirs(dest_path, exist_ok=True)
+
+    # 移动文件夹下的所有内容
+    with tqdm(total=total_size, unit='B', unit_scale=True, desc="Moving") as pbar:
+        for root, dirs, files in os.walk(src):
+            rel_path = os.path.relpath(root, src)
+            target_root = os.path.join(dest_path, rel_path)
+
+            os.makedirs(target_root, exist_ok=True)
+
+            for file in files:
+                src_file = os.path.join(root, file)
+                dst_file = os.path.join(target_root, file)
+
+                os.chmod(src_file, 0o777)
+                shutil.move(src_file, dst_file)
+
+                moved_size += os.path.getsize(dst_file)
+                pbar.update(os.path.getsize(dst_file))
+
+    # 删除空的源文件夹
+    shutil.rmtree(src)
 
 
 if __name__ == '__main__':
     # get_pixiv_down_author()
-    analysis_and_rename_file(r'D:\BaiduNetdiskDownload\Aislin 艾斯林', 'Z:/', add_analysis_works)
+    # analysis_and_rename_file(r'C:\Users\illusion\Downloads\新建文件夹\雨波 2024 12月', 'Z:/', add_analysis_works)
+    # copy_fanboxs(r'D:\code\GitHub\FANBOX-downloader\posts\daniella')
     # thumb_all_thumb()
-    # copy_all_images()
     # update_tag_cover_and_count()
+    # mv_media()
+    # wnload_vixen_images()
+    copy_all_images()
+    # copy_from_nas()
+    # rename_jellyfin(1, r'X:\media\tp\tv\[千夏字幕组&喵萌奶茶屋&VCB-Studio] 妖精森林的小不点')
     # del_empty_tag()
-    # merge_tag('64422b2440aa1fca44e492e1', '65143aa217de431bdb6a6a50')
+    # merge_tag('64ecb60b2b20a29f24220436', '65d0595ed66484ca5db1d3ca')
     # update_name(TagType.Role, '姉崎 寧', '姉崎 甘寧')
-    # update_type(TagType.Work, 'ゼンレスゾーンゼロ', TagType.Author)
+    # update_type(TagType.Role, '光荣', TagType.Company)
